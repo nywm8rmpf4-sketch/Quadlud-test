@@ -221,19 +221,29 @@
     const bridgedPatchCoachHandleDeduction=function(d){
       const presenter=patchesReasoningPresenter(),boardKey=historySnapshotKey(),sig=d.signature||d.id,flow=current.hintFlow,isSame=flow?.kind==='patches-proof'&&flow.boardKey===boardKey&&flow.signature===sig,presentation=presenter.presentation(d),projection=coachProjection(presentation),by=sectionMap(projection.sections);
       if(!isSame){
-        current.hintFlow={kind:'patches-proof',boardKey,signature:sig,stage:1,deduction:JSON.parse(JSON.stringify(d)),pedagogyView:projection.view,coachSections:projection.sections};
-        coachUsage(1,presentation.technique);patchFocusDeduction(d,false);showCoachNotice(`<span class="coach-progress">1/2</span><b>${tr('where')} :</b> ${by.where?.text||''}`,'patches');saveCurrent();return
+        current.hintFlow={kind:'patches-proof',boardKey,signature:sig,stage:1,flowVersion:5,deduction:JSON.parse(JSON.stringify(d)),pedagogyView:projection.view,coachSections:projection.sections};
+        coachUsage(1,presentation.technique);patchFocusDeduction(d,false);showCoachNotice(`<span class="coach-progress">1/4</span><b>${tr('where')} :</b> ${by.where?.text||''}`,'patches');saveCurrent();return
+      }
+      if(flow.stage===1){
+        flow.stage=2;
+        let usage=current.coachUsage||(current.coachUsage={where:0,rule:0,why:0,reveal:0,maxStage:0,techniques:{},flowVersion:2});usage.rule=(usage.rule||0)+1;usage.maxStage=Math.max(usage.maxStage||0,2);
+        if(presentation.technique){let techniques=usage.techniques||(usage.techniques={}),t=techniques[presentation.technique]||(techniques[presentation.technique]={where:0,rule:0,why:0,reveal:0});t.rule=(t.rule||0)+1}
+        showCoachNotice(`<span class="coach-progress">2/4</span><b>${tr('rulesTitle')} :</b> ${by.rule?.text||presentation.explanation?.title||''}`,'patches');saveCurrent();return
+      }
+      if(flow.stage===2){
+        flow.stage=3;coachUsage(2,presentation.technique);
+        showCoachNotice(`<span class="coach-progress">3/4</span><b>${tr('hintWhy')} :</b> ${by.why?.text||presentation.explanation?.why||''}`,'patches');saveCurrent();return
       }
       const proof=flow.deduction||d,before=historySnapshotKey();
-      coachUsage(2,presentation.technique);coachUsage(3,presentation.technique);markHintUsed();updateScoreFlags();patchFocusDeduction(proof,true);
+      coachUsage(3,presentation.technique);markHintUsed();updateScoreFlags();patchFocusDeduction(proof,true);
       const application=patchApplyDeductionToCurrent(proof);
       if(!application){current.hintFlow=null;showHintNotice(tr('hintError'));return}
       drawGameUi();
       const appliedPresentation=presenter.presentation(application.deduction,application.automatic),appliedProjection=coachProjection(appliedPresentation),appliedBy=sectionMap(appliedProjection.sections);
-      historyRecord({type:'COACH_APPLY',reasoning:presenter.legacyReasoning(application.deduction,application.automatic),coachStage:2,coachFlowVersion:4},before);
+      historyRecord({type:'COACH_APPLY',reasoning:presenter.legacyReasoning(application.deduction,application.automatic),coachStage:4,coachFlowVersion:5},before);
       current.hintFlow=null;
-      const ruleWhy=stage2Html({coachSections:appliedProjection.sections},{ruleLabel:tr('rulesTitle'),whyLabel:tr('hintWhy')}),action=appliedBy.action?.text||'';
-      showCoachNotice(`<span class="coach-progress">2/2</span>${ruleWhy}${ruleWhy&&action?'<br>':''}${action?`<b>${tr('hintMove')} :</b> ${action}`:''}`,'patches');
+      const action=appliedBy.action?.text||'';
+      showCoachNotice(`<span class="coach-progress">4/4</span>${action?`<b>${tr('hintMove')} :</b> ${action}`:''}`,'patches');
       maybeAutoFinish();saveCurrent();haptic(12)
     };
     bridgedPatchCoachHandleDeduction.__quadludD2Bridge=true;
