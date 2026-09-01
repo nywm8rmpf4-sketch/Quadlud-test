@@ -83,6 +83,24 @@
 
     function reset(session=getCurrent()){if(!session||session.game!=='tango')return false;return draw()}
 
+    function walkthroughBoard({base,initial,snapshot,deduction}={}){
+      if(!base||!snapshot?.state)return null;
+      const relations=new Map();
+      for(const [r,c,dir,symbol] of base.edges||[]){const key=`${r},${c}`,items=relations.get(key)||[];items.push(`<span class="relation ${dir}" aria-hidden="true">${symbol}</span>`);relations.set(key,items)}
+      const context=new Set((deduction?.focusCells||[]).map(cell=>cell.join(','))),conclusions=new Set();
+      for(const relation of deduction?.focusRelations||[]){context.add(relation.a.join(','));context.add(relation.b.join(','))}
+      for(const conclusion of deduction?.conclusions||[]){if(conclusion.type==='VALUE')conclusions.add(conclusion.cell.join(','));else{if(conclusion.a)conclusions.add(conclusion.a.join(','));if(conclusion.b)conclusions.add(conclusion.b.join(','))}}
+      const cells=[];
+      for(let r=0;r<6;r++)for(let c=0;c<6;c++){
+        const key=`${r},${c}`,value=snapshot.state[r][c],fixed=initial?.state?.[r]?.[c]!==-1,classes=['cell','walkthrough-cell'];
+        if(fixed)classes.push('fixed');if(context.has(key))classes.push('walkthrough-context');if(conclusions.has(key))classes.push('walkthrough-target');
+        const body=value===0?'<span class="tango-symbol" aria-hidden="true">☾</span>':value===1?'<span class="tango-symbol" aria-hidden="true">☀</span>':'';
+        cells.push(`<div class="${classes.join(' ')}" data-r="${r}" data-c="${c}" data-coordinate="${GridCoordinates.coordinateLabel(r,c)}">${body}${(relations.get(key)||[]).join('')}</div>`)
+      }
+      const boardHtml=`<div class="board walkthrough-board" data-tango-tutor="readonly" style="grid-column:2;grid-row:2;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(6,minmax(0,1fr))">${cells.join('')}</div>`;
+      return {html:GridCoordinates.markup(6,6,{className:'walkthrough-board-wrap board-wrap grid-coordinate-wrap tango-coordinate-wrap',columnClass:'tango-column-coordinates',rowClass:'tango-row-coordinates',boardHtml})}
+    }
+
     function revealSolution(){
       if(isPaused())return;
       const current=getCurrent();
@@ -106,7 +124,7 @@
       return board
     }
 
-    return Object.freeze({render,draw,reset,syncAccessibility})
+    return Object.freeze({render,draw,reset,walkthroughBoard,syncAccessibility})
   }
 
   return Object.freeze({createAdapter})
