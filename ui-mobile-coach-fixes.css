@@ -3,23 +3,9 @@
  * Copyright © 2026 Serge Benoliel. All rights reserved.
  */
 
-/* U1 — Soleil-Lune Tutor relations are centered on the border between the
-   two cells. Translate from the border itself instead of assuming a fixed
-   21px badge radius, so coordinates/board scaling cannot shift = / ×. */
-.walkthrough-board[data-tango-tutor="readonly"] .relation.r{
-  right:0;
-  top:50%;
-  transform:translate(50%,-50%);
-  pointer-events:none;
-  z-index:7;
-}
-.walkthrough-board[data-tango-tutor="readonly"] .relation.d{
-  bottom:0;
-  left:50%;
-  transform:translate(-50%,50%);
-  pointer-events:none;
-  z-index:7;
-}
+/* U8 — Soleil-Lune game and Tutor deliberately share the canonical
+   .relation/.relation.r/.relation.d geometry from styles-core.css.
+   Do not add Tutor-only = / × positioning here: it would break board parity. */
 
 /* U2 — smartphone game/Tutor immersive chrome. Safari chrome itself can only
    disappear in installed PWA standalone mode; QUADLUD's own horizontal bar
