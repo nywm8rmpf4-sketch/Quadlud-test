@@ -195,7 +195,7 @@ function createExploration(options={}){
 
 function dependencyNames(){return Object.freeze([])}
 function createAdapter(d={}){
-  const common=d.common||{},gameUi=d.gameUi,reasoningView=typeof common.reasoningView==='function'?common.reasoningView:null,applyLogicalMove=typeof common.applyLogicalMove==='function'?common.applyLogicalMove:null,drawGameUi=typeof common.drawGameUi==='function'?common.drawGameUi:()=>undefined,commonTr=typeof common.tr==='function'?common.tr:null,commonLang=typeof common.lang==='function'?common.lang:null,tr=commonTr||(k=>k),lang=commonLang||(()=> 'en');
+  const common=d.common||{},gameUi=()=>typeof d.gameUi==='function'?d.gameUi():d.gameUi,reasoningView=typeof common.reasoningView==='function'?common.reasoningView:null,applyLogicalMove=typeof common.applyLogicalMove==='function'?common.applyLogicalMove:null,drawGameUi=typeof common.drawGameUi==='function'?common.drawGameUi:()=>undefined,commonTr=typeof common.tr==='function'?common.tr:null,commonLang=typeof common.lang==='function'?common.lang:null,tr=commonTr||(k=>k),lang=commonLang||(()=> 'en');
   const coachOptions={...(d.coachOptions||{})};if(!coachOptions.presenter){const presenterOptions={...(coachOptions.presenterOptions||{})};if(commonTr)presenterOptions.tr=commonTr;if(commonLang)presenterOptions.lang=commonLang;coachOptions.presenterOptions=presenterOptions}const coach=createCoach(coachOptions),tutor=createTutor({coach,...(d.tutorOptions||{})});
   if(!reasoningView)throw new TypeError('Nonogram pedagogy dependency missing: reasoningView');const audit=createAudit({reasoningView,presenter:coach.presenter,tr}),exploration=createExploration({presenter:coach.presenter,tr,...(d.explorationOptions||{})});
   const currentHint=id=>hintFromReasoningView(reasoningView(),id||null,coach.presenter),applyHint=h=>{if(!h?.move||!applyLogicalMove)return false;const ok=applyLogicalMove(h.move);if(ok!==false)drawGameUi();return ok!==false},targetStillCorrect=h=>{if(!h||!Number.isInteger(h.r)||!Number.isInteger(h.c))return false;const {state}=normalizedView(reasoningView());return state[h.r]?.[h.c]===h.v};
@@ -209,7 +209,7 @@ function createAdapter(d={}){
       rootSnapshot:({historyRoot,puzzleSnapshot}={})=>historyRoot||(typeof puzzleSnapshot==='function'?puzzleSnapshot():null),
       visibleClone:(session,root)=>visibleSessionClone(session,{fromRoot:false,stateOverride:root?.state||null}),
       snapshot:session=>SessionAdapters.nonogram.snapshot(session),complete:session=>Logic.isSolved(session.puzzle,session.state),
-      generateNext:walk=>!!tutor.next(walk),board:args=>{if(!gameUi||typeof gameUi.walkthroughBoard!=='function')throw new TypeError('Nonogram pedagogy dependency missing: gameUi.walkthroughBoard');return gameUi.walkthroughBoard(args)},
+      generateNext:walk=>!!tutor.next(walk),board:args=>{const ui=gameUi();if(!ui||typeof ui.walkthroughBoard!=='function')throw new TypeError('Nonogram pedagogy dependency missing: gameUi.walkthroughBoard');return ui.walkthroughBoard(args)},
       contradictionText:x=>coach.presenter.contradictionText(x),afterRender:(board,base)=>{if(!board)return;const puzzle=Logic.validatePuzzle(base?.puzzle);board.style.setProperty('--ng-rows',String(puzzle.rows));board.style.setProperty('--ng-cols',String(puzzle.cols))},initialize:walk=>tutor.initialize(walk)
     })
   })
