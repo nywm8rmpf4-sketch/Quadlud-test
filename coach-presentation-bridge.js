@@ -143,9 +143,6 @@
     const previousQueenCoachHandleDeduction=queenCoachHandleDeduction;
     const bridgedQueenCoachHandleDeduction=function(d){
       const presenter=queenReasoningPresenter(),presentation=presenter.presentation(d),sequence=presenter.coachSequence?.(d,presentation);
-      // The existing LIGHTHOUSES Proof Narrative is intentionally richer than the
-      // generic four-section projection. Keep that complete flow byte-for-byte in
-      // charge of advanced deductions, including its independent proof navigation.
       if(Array.isArray(sequence)&&sequence.length>=4){const result=previousQueenCoachHandleDeduction(d);decorateCoachNotice('queens');return result}
       const boardKey=historySnapshotKey(),sig=d.id+'|'+d.rank,flow=current.hintFlow,isSame=flow?.kind==='queens-proof'&&flow.boardKey===boardKey&&flow.signature===sig,projection=coachProjection(presentation),by=sectionMap(projection.sections);
       if(!isSame||flow?.flowVersion>=4){
@@ -242,8 +239,8 @@
       const appliedPresentation=presenter.presentation(application.deduction,application.automatic),appliedProjection=coachProjection(appliedPresentation),appliedBy=sectionMap(appliedProjection.sections);
       historyRecord({type:'COACH_APPLY',reasoning:presenter.legacyReasoning(application.deduction,application.automatic),coachStage:4,coachFlowVersion:5},before);
       current.hintFlow=null;
-      const action=appliedBy.action?.text||'';
-      showCoachNotice(`<span class="coach-progress">4/4</span>${action?`<b>${tr('hintMove')} :</b> ${action}`:''}`,'patches');
+      const action=appliedBy.action?.text||appliedPresentation.explanation?.move||presentation.explanation?.move||'';
+      showCoachNotice(`<span class="coach-progress">4/4</span><b>${tr('actions')} :</b>${action?` ${action}`:''}`,'patches');
       maybeAutoFinish();saveCurrent();haptic(12)
     };
     bridgedPatchCoachHandleDeduction.__quadludD2Bridge=true;
@@ -261,6 +258,13 @@
     });
     return Object.freeze({...result,levels:Object.freeze(levels),pedagogyView:projection.view,coachSections:projection.sections})
   }
+  function nonogramCoachFocus(result,stage){
+    try{const ui=gameWebUi('nonogram'),level=result?.levels?.[Math.max(0,Math.min(3,stage-1))];return ui?.focusEntities?.(level?.focus||result?.presentation?.focus||[])||[]}catch(_){return []}
+  }
+  function nonogramReasoning(result){
+    const p=result?.presentation,d=result?.deduction,first=d?.conclusions?.[0],m=/^r(\d+)c(\d+)$/.exec(String(first?.cell?.id||''));
+    return {schema:2,source:'nonogram-logic-engine',game:'nonogram',technique:p?.technique||d?.techniqueId||null,rank:Number(p?.rank)||0,target:m?{row:Number(m[1]),column:Number(m[2])}:null,action:{type:'APPLY_LOGICAL_MOVE',move:p?.action?.move||d?.move||null},proof:{direct:p?.explanation?.why||null}}
+  }
   function installNonogramBridge(){
     const original=root?.QuadludNonogramPedagogy;
     if(!original||typeof original.createAdapter!=='function')return false;
@@ -268,7 +272,41 @@
     const wrappedCreateAdapter=(...args)=>{
       const adapter=original.createAdapter(...args),coach=adapter?.coach;
       if(!coach||typeof coach.runHint!=='function')return adapter;
-      const wrappedCoach=Object.freeze({...coach,runHint:(...coachArgs)=>{const result=projectNonogramCoachResult(coach.runHint(...coachArgs));if(result?.status==='deduction')setTimeout(()=>decorateCoachNotice('nonogram'),0);return result}});
+      const wrappedCoach=Object.freeze({...coach,runHint:(...coachArgs)=>{
+        const result=projectNonogramCoachResult(coach.runHint(...coachArgs));
+        if(result?.status!=='deduction'){
+          current.hintFlow=null;
+          if(result?.status==='contradictory')showCoachNotice(`<b>${coach.presenter?.contradictionText?.(result.contradiction)||tr('errorDetected')}</b>`,'nonogram');
+          else if(result?.status==='stuck')showCoachNotice(`<b>${tr('noLogicalHint')}</b>`,'nonogram');
+          else if(result?.status==='solved')showCoachNotice(`<b>${tr('congrats')}</b>`,'nonogram');
+          return result
+        }
+        const presentation=result.presentation,projection={view:result.pedagogyView,sections:result.coachSections},by=sectionMap(projection.sections),sig=result.deductionSignature||presentation?.metadata?.deductionSignature||'',flow=current.hintFlow,isSame=flow?.kind==='nonogram-proof'&&flow.signature===sig;
+        if(!isSame){
+          current.hintFlow={kind:'nonogram-proof',signature:sig,stage:1,flowVersion:1,pedagogyView:projection.view,coachSections:projection.sections};
+          coachUsage(1,presentation.technique);nonogramCoachFocus(result,1);
+          showCoachNotice(`<span class="coach-progress">1/4</span><b>${tr('where')} :</b> ${by.where?.text||presentation.explanation?.where||''}`,'nonogram');saveCurrent();return result
+        }
+        if(flow.stage===1){
+          flow.stage=2;
+          let usage=current.coachUsage||(current.coachUsage={where:0,rule:0,why:0,reveal:0,maxStage:0,techniques:{},flowVersion:2});usage.rule=(usage.rule||0)+1;usage.maxStage=Math.max(usage.maxStage||0,2);
+          if(presentation.technique){let techniques=usage.techniques||(usage.techniques={}),t=techniques[presentation.technique]||(techniques[presentation.technique]={where:0,rule:0,why:0,reveal:0});t.rule=(t.rule||0)+1}
+          nonogramCoachFocus(result,2);showCoachNotice(`<span class="coach-progress">2/4</span><b>${tr('rulesTitle')} :</b> ${by.rule?.text||presentation.explanation?.technique||presentation.technique||''}`,'nonogram');saveCurrent();return result
+        }
+        if(flow.stage===2){
+          flow.stage=3;coachUsage(2,presentation.technique);nonogramCoachFocus(result,3);
+          showCoachNotice(`<span class="coach-progress">3/4</span><b>${tr('hintWhy')} :</b> ${by.why?.text||presentation.explanation?.why||''}`,'nonogram');saveCurrent();return result
+        }
+        const move=presentation?.action?.move||result.deduction?.move,before=historySnapshotKey();
+        coachUsage(3,presentation.technique);markHintUsed();updateScoreFlags();nonogramCoachFocus(result,4);
+        let applied=false;try{applied=adapter.learning?.applyMove?.({move})!==false}catch(err){console.error('Mosaïque Coach apply failed',err)}
+        if(!applied){current.hintFlow=null;showCoachNotice(`<b>${tr('hintError')}</b>`,'nonogram');return result}
+        historyRecord({type:'COACH_APPLY',reasoning:nonogramReasoning(result),coachStage:4,coachFlowVersion:1},before);
+        current.hintFlow=null;
+        const action=by.action?.text||presentation.explanation?.move||'';
+        showCoachNotice(`<span class="coach-progress">4/4</span><b>${tr('actions')} :</b>${action?` ${action}`:''}`,'nonogram');
+        maybeAutoFinish();saveCurrent();haptic(12);return result
+      }});
       return Object.freeze({...adapter,coach:wrappedCoach})
     };
     const wrapped=Object.freeze({...original,createAdapter:wrappedCreateAdapter,__quadludD2Bridge:true});
