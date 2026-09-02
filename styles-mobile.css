@@ -365,6 +365,12 @@ body.tutor-active .walkthrough-scroll{min-height:0;overflow:auto;overscroll-beha
    opposite side for tablet landscape. Phone landscape keeps the compact
    <=520px-height contract already defined in styles-pedagogy.css. */
 @media (orientation:landscape) and (min-width:700px) and (min-height:521px){
+  body.tutor-active main#app{
+    width:100%;
+    max-width:1280px;
+    padding-left:14px;
+    padding-right:14px
+  }
   body.tutor-active .walkthrough-panel{
     width:100%;
     max-width:none;
