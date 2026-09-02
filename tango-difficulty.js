@@ -55,11 +55,9 @@ function initialBoard(puzzle){let p=canonicalTango(puzzle);return {n:p.n,state:p
 function solved(session){return !session.state.some(row=>row.includes(VALUE_EMPTY))&&!session.diagnose()}
 function allowedSet(tierIndex){return new Set(TIER_POLICY[tierIndex].allowedRules)}
 function uniqDeductions(list){let seen=new Set(),out=[];for(const d of list||[]){if(!d)continue;let key=d.id||d.signature||JSON.stringify([d.rule,d.conclusions]);if(seen.has(key))continue;seen.add(key);out.push(d)}return out}
-function directCandidates(session,tierIndex){
-  let allowed=allowedSet(tierIndex);
-  return session.directDeductions().filter(d=>allowed.has(d.rule)).sort(TL.deductionComparator);
-}
+function directCandidates(session,tierIndex){let allowed=allowedSet(tierIndex);return session.directDeductions().filter(d=>allowed.has(d.rule)).sort(TL.deductionComparator)}
 function nextAllowedDeduction(session,tierIndex,includeAvailability=false){
+  if(!Number.isInteger(tierIndex)||tierIndex<0||tierIndex>=TIER_POLICY.length)throw new Error('Invalid Soleil/Lune tier');
   let direct=directCandidates(session,tierIndex),best=direct[0]||null;
   if(best||tierIndex<3)return {deduction:best,budgetHit:false,...(includeAvailability?{availableMoves:direct.length}:{})};
   let hypo=session.findAssumptionContradictionsDetailed(),hypotheses=uniqDeductions(hypo.deductions||[]);
@@ -72,29 +70,17 @@ function sessionMetrics(session,tierIndex,availability){
   let logical=(session.appliedDeductions||[]).filter(Boolean),byRule={},maxTier=0,maxProofDepth=0;
   for(const d of logical){byRule[d.rule]=(byRule[d.rule]||0)+1;maxTier=Math.max(maxTier,policyTierForRule(d.rule));maxProofDepth=Math.max(maxProofDepth,Number(d.rank)||0)}
   let limitingRules=[...new Set(logical.filter(d=>policyTierForRule(d.rule)===maxTier).map(d=>d.rule))].sort();
-  return {
-    totalLogicalSteps:logical.length,
-    deductionsByRule:byRule,
-    limitingTechniqueLevel:maxTier,
-    limitingRules,
-    limitingTierStepCount:logical.filter(d=>policyTierForRule(d.rule)===tierIndex).length,
-    maxProofDepth,
-    ...DR.availabilityMetrics(availability)
-  };
+  return {totalLogicalSteps:logical.length,deductionsByRule:byRule,limitingTechniqueLevel:maxTier,limitingRules,limitingTierStepCount:logical.filter(d=>policyTierForRule(d.rule)===tierIndex).length,maxProofDepth,...DR.availabilityMetrics(availability)};
 }
 function solveTangoTier({puzzle,tierIndex},options={}){
   if(!Number.isInteger(tierIndex)||tierIndex<0||tierIndex>=TIER_POLICY.length)throw new Error('Invalid Soleil/Lune tier');
-  let publicPuzzle;
-  try{publicPuzzle=canonicalTango(puzzle)}catch(error){return {status:'invalid',budgetHit:false,error:String(error&&error.message||error)}}
-  let session;
-  try{session=TL.createSession(initialBoard(publicPuzzle),{maxHypothesisSteps:options.maxHypothesisSteps??18,maxCommonSteps:options.maxCommonSteps??10})}catch(error){return {status:'invalid',budgetHit:false,error:String(error&&error.message||error)}}
-  let maxLogicalSteps=Number.isInteger(options.maxLogicalSteps)&&options.maxLogicalSteps>0?options.maxLogicalSteps:publicPuzzle.n*publicPuzzle.n*12;
-  let trace=[],availability=options.collectSecondaryMetrics===false?null:DR.createAvailabilityTracker();
+  let publicPuzzle;try{publicPuzzle=canonicalTango(puzzle)}catch(error){return {status:'invalid',budgetHit:false,error:String(error&&error.message||error)}}
+  let session;try{session=TL.createSession(initialBoard(publicPuzzle),{maxHypothesisSteps:options.maxHypothesisSteps??18,maxCommonSteps:options.maxCommonSteps??10})}catch(error){return {status:'invalid',budgetHit:false,error:String(error&&error.message||error)}}
+  let maxLogicalSteps=Number.isInteger(options.maxLogicalSteps)&&options.maxLogicalSteps>0?options.maxLogicalSteps:publicPuzzle.n*publicPuzzle.n*12,trace=[],availability=options.collectSecondaryMetrics===false?null:DR.createAvailabilityTracker();
   for(let step=0;step<maxLogicalSteps;step++){
     let bad=session.diagnose();if(bad)return {status:'contradictory',budgetHit:false,contradiction:copy(bad),...sessionMetrics(session,tierIndex,availability),trace:copy(trace)};
     if(solved(session))return {status:'solved',budgetHit:false,...sessionMetrics(session,tierIndex,availability),trace:copy(trace)};
-    let next=nextAllowedDeduction(session,tierIndex,!!availability),deduction=next.deduction;
-    if(availability)DR.recordAvailableMoves(availability,next.availableMoves);
+    let next=nextAllowedDeduction(session,tierIndex,!!availability),deduction=next.deduction;if(availability)DR.recordAvailableMoves(availability,next.availableMoves);
     if(!deduction)return {status:next.budgetHit?'budget-exhausted':'blocked',budgetHit:!!next.budgetHit,...sessionMetrics(session,tierIndex,availability),trace:copy(trace)};
     let applied=session.applyDeduction(deduction);if(!applied?.deduction)return {status:'invalid',budgetHit:false,error:'Soleil/Lune deduction could not be applied',...sessionMetrics(session,tierIndex,availability),trace:copy(trace)};
     for(const d of [applied.deduction,...(applied.automatic||[])])trace.push({rule:d.rule,policyTier:policyTierForRule(d.rule),engineTechniqueLevel:Number(d.techniqueLevel)||0,rank:Number(d.rank)||0,conclusions:copy(d.conclusions||[])});
@@ -103,25 +89,8 @@ function solveTangoTier({puzzle,tierIndex},options={}){
   return {status:'budget-exhausted',budgetHit:true,...sessionMetrics(session,tierIndex,availability),trace:copy(trace)};
 }
 function createAdapter(options={}){return {solveTier(args){return solveTangoTier(args,options)}}}
-function structureOf(puzzle){
-  let p=canonicalTango(puzzle),givenCount=p.state.flat().filter(v=>v!==VALUE_EMPTY).length;
-  let sameRelations=p.edges.filter(e=>e[3]==='=').length,oppositeRelations=p.edges.length-sameRelations;
-  return {n:p.n,givenCount,relationCount:p.edges.length,sameRelations,oppositeRelations};
-}
-function ratePuzzle(puzzle,options={}){
-  let publicPuzzle=canonicalTango(puzzle),run=DR.runMinimumRequiredTier({puzzle:publicPuzzle,adapter:createAdapter(options)}),metrics=run.winningAttempt?.result||{};
-  let profile=DR.createDifficultyProfile({
-    puzzle:publicPuzzle,status:run.status,difficulty:run.difficulty,minimumRequiredTier:run.minimumRequiredTier,
-    limitingTechniqueLevel:run.status==='solved'?metrics.limitingTechniqueLevel:null,
-    limitingRules:run.status==='solved'?metrics.limitingRules:[],
-    totalLogicalSteps:metrics.totalLogicalSteps||0,deductionsByRule:metrics.deductionsByRule||{},
-    limitingTierStepCount:metrics.limitingTierStepCount||0,
-    initialAvailableMoves:metrics.initialAvailableMoves??null,minAvailableMoves:metrics.minAvailableMoves??null,bottleneckCount:metrics.bottleneckCount??0,
-    maxProofDepth:metrics.maxProofDepth||0,budgetHit:run.status==='budget-exhausted'||!!metrics.budgetHit,structure:structureOf(publicPuzzle)
-  });
-  return {...run,profile};
-}
-
-root.TangoDifficulty={VERSION:1,RULE_TIER,TIER_POLICY,canonicalizePublicPuzzle:canonicalizeTangoPublicPuzzle,solveTier:solveTangoTier,createAdapter,ratePuzzle,_test:{canonicalTango,initialBoard,solved,directCandidates,nextAllowedDeduction,policyTierForRule,sessionMetrics}};
+function structureOf(puzzle){let p=canonicalTango(puzzle),givenCount=p.state.flat().filter(v=>v!==VALUE_EMPTY).length;let sameRelations=p.edges.filter(e=>e[3]==='=').length,oppositeRelations=p.edges.length-sameRelations;return {n:p.n,givenCount,relationCount:p.edges.length,sameRelations,oppositeRelations}}
+function ratePuzzle(puzzle,options={}){let publicPuzzle=canonicalTango(puzzle),run=DR.runMinimumRequiredTier({puzzle:publicPuzzle,adapter:createAdapter(options)}),metrics=run.winningAttempt?.result||{};let profile=DR.createDifficultyProfile({puzzle:publicPuzzle,status:run.status,difficulty:run.difficulty,minimumRequiredTier:run.minimumRequiredTier,limitingTechniqueLevel:run.status==='solved'?metrics.limitingTechniqueLevel:null,limitingRules:run.status==='solved'?metrics.limitingRules:[],totalLogicalSteps:metrics.totalLogicalSteps||0,deductionsByRule:metrics.deductionsByRule||{},limitingTierStepCount:metrics.limitingTierStepCount||0,initialAvailableMoves:metrics.initialAvailableMoves??null,minAvailableMoves:metrics.minAvailableMoves??null,bottleneckCount:metrics.bottleneckCount??0,maxProofDepth:metrics.maxProofDepth||0,budgetHit:run.status==='budget-exhausted'||!!metrics.budgetHit,structure:structureOf(publicPuzzle)});return {...run,profile}}
+root.TangoDifficulty={VERSION:2,RULE_TIER,TIER_POLICY,canonicalizePublicPuzzle:canonicalizeTangoPublicPuzzle,nextAllowedDeduction,solveTier:solveTangoTier,createAdapter,ratePuzzle,_test:{canonicalTango,initialBoard,solved,directCandidates,nextAllowedDeduction,policyTierForRule,sessionMetrics}};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.TangoDifficulty;
 })(typeof globalThis!=='undefined'?globalThis:this);
