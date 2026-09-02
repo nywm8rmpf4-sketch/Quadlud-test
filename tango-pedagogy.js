@@ -10,6 +10,7 @@ const TRAINING_FIXTURES=Object.freeze({"T_CONTRADICTION_R1":{"game":"tango","dif
 function trainingFixture(id){const value=TRAINING_FIXTURES[String(id||'')];return value==null?null:JSON.parse(JSON.stringify(value))}
 function createAdapter(d={}){const common=d.common||{},runtime=d.runtime||{},services=Object.freeze({...common,...runtime,gameUi:d.gameUi}),need=n=>{let fn=services[n];if(typeof fn!=='function')throw new TypeError(`Tango pedagogy dependency missing: ${n}`);return fn},clone=x=>need('cloneGrid')(x),copy=x=>JSON.parse(JSON.stringify(x)),walkthroughSnapshot=c=>({state:clone(c.state),tangoDerivedRelations:copy(c.tangoDerivedRelations||[])});
  const tutorStateDiff=(a,b)=>{let changed=0;if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return Number.POSITIVE_INFINITY;for(let r=0;r<a.length;r++){if(!Array.isArray(a[r])||!Array.isArray(b[r])||a[r].length!==b[r].length)return Number.POSITIVE_INFINITY;for(let c=0;c<a[r].length;c++)if(a[r][c]!==b[r][c])changed++}return changed};
+ const annotatePlayedMoveGroup=(s,startMoves)=>{let added=(s.moves||[]).slice(startMoves),last=added.length-1;if(last<0)return added;let action=added[last],finalSnapshot=copy(action.snapshot),finalTarget=Array.isArray(action.target)?[...action.target]:null,finalMove=String(action.move||action.presentation?.explanation?.move||'');added.forEach((move,i)=>{move.proofSnapshot=copy(move.snapshot);move.snapshot=copy(finalSnapshot);if(finalTarget)move.target=[...finalTarget];if(finalMove)move.move=finalMove;move.proofStage={kind:i===last?'action':'reasoning',temporary:false,apply:i===last};if(move.presentation){let p=copy(move.presentation);p.metadata={...(p.metadata||{}),showTutorMove:true,logicalMoveDisplayStable:true};move.presentation=p}});return added};
  const walkthroughGeneratePlayedMove=s=>{
    if(!s?.work?.state)return false;
    const startMoves=Array.isArray(s.moves)?s.moves.length:0,before=clone(s.work.state),guardMax=Math.max(24,Number(s.work.n||6)*Number(s.work.n||6)*2);
@@ -23,7 +24,7 @@ function createAdapter(d={}){const common=d.common||{},runtime=d.runtime||{},ser
      if(!ok){if(Array.isArray(s.moves)&&s.moves.length>startMoves)s.moves.splice(startMoves);return false}
      const changed=tutorStateDiff(before,s.work.state);
      if(changed===0){s.done=false;continue}
-     if(changed===1){s.tangoTutorStatus='played-move';return true}
+     if(changed===1){annotatePlayedMoveGroup(s,startMoves);s.tangoTutorStatus='played-move';return true}
      s.stalled=true;s.tangoTutorStatus='multiple-visible-actions';if(Array.isArray(s.moves)&&s.moves.length>startMoves)s.moves.splice(startMoves);return false
    }
    s.stalled=true;s.tangoTutorStatus='proof-chain-without-played-move';if(Array.isArray(s.moves)&&s.moves.length>startMoves)s.moves.splice(startMoves);return false
