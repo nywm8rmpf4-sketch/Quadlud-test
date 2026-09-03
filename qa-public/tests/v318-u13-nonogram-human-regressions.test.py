@@ -61,7 +61,7 @@ with sync_playwright() as p:
     assert coach1['focus']>0,coach1
     for expected in ['2/4','3/4','4/4']:
         page.evaluate("document.querySelector('#hintBtn').click()")
-        page.wait_for_function("expected=>document.querySelector('#hintNotice .coach-progress')?.textContent?.trim()===expected",expected)
+        page.wait_for_function("expected=>document.querySelector('#hintNotice .coach-progress')?.textContent?.trim()===expected",arg=expected)
     coach4=page.evaluate("""()=>({progress:document.querySelector('#hintNotice .coach-progress')?.textContent?.trim(),filled:current.state[0].filter(v=>v===NonogramLogic.FILLED).length,history:Object.keys(current.moveHistory?.nodes||{}).length,hidden:document.querySelector('#hintNotice')?.textContent?.includes('solutionGrid')||false})""")
     assert coach4['progress']=='4/4',coach4
     assert coach4['filled']==5,coach4
