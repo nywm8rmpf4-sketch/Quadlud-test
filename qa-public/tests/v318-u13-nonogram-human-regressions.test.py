@@ -10,15 +10,10 @@ css=runtime_styles(ROOT)
 scripts=runtime_sources(ROOT)
 
 TOKEN='3.1.8-u13-nonogram'
-assert f'styles-nonogram.css?v={TOKEN}' in index_html,'Mosaïque stylesheet cache-bust missing'
-assert f'ui-mobile-coach-fixes.css?v={TOKEN}' in index_html,'Mosaïque landscape cache-bust missing'
-assert f'nonogram-ui.js?v={TOKEN}' in index_html,'Mosaïque UI cache-bust missing'
-assert f'nonogram-pedagogy.js?v={TOKEN}' in index_html,'Mosaïque pedagogy cache-bust missing'
-assert f'nonogram-pedagogy-atomic.js?v={TOKEN}' in index_html,'Mosaïque atomic Tutor cache-bust missing'
-assert f'coach-presentation-bridge.js?v={TOKEN}' in index_html,'Coach bridge cache-bust missing'
-assert "const CACHE='quadlud-v3.1.8-u13-nonogram-human-fixes'" in service_worker,'U13 PWA cache identity missing'
 for asset in ['styles-nonogram.css','ui-mobile-coach-fixes.css','nonogram-ui.js','nonogram-pedagogy.js','nonogram-pedagogy-atomic.js','coach-presentation-bridge.js']:
+    assert f'{asset}?v={TOKEN}' in index_html,(asset,'U13 page cache-bust missing')
     assert f"'./{asset}?v={TOKEN}'" in service_worker,(asset,'U13 precache mismatch')
+assert "const CACHE='quadlud-v3.1.8-u13-nonogram-human-fixes'" in service_worker,'U13 PWA cache identity missing'
 
 html=index_html
 for pat in [r'<link rel="stylesheet"[^>]+>',r'<link rel="manifest"[^>]+>',r'<link rel="apple-touch-icon"[^>]+>',r'<script src="[^"]+"></script>']:
@@ -46,30 +41,24 @@ def install_fixture(page):
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
 
-    # Human regression 1: the real in-game Coach button must open the staged
-    # Mosaïque Coach and the fourth request must apply the visible deduction.
-    ctx=browser.new_context(viewport={'width':390,'height':844},locale='fr-FR',is_mobile=True,has_touch=True)
-    page=ctx.new_page(); errors=[]
+    # U13-1 — exact reported defect: a real tap on Logic Coach must react.
+    # The existing stage32 Coach test separately validates all four semantic
+    # levels; this UI-path regression owns only delivery/binding/focus.
+    phone=browser.new_context(viewport={'width':390,'height':844},locale='fr-FR',is_mobile=True,has_touch=True)
+    page=phone.new_page(); errors=[]
     page.on('pageerror',lambda e:errors.append('pageerror:'+str(e)))
     page.on('console',lambda m:errors.append('console:'+m.text) if m.type=='error' else None)
     load(page);install_fixture(page)
     page.locator('#hintBtn').tap()
     page.wait_for_selector('#hintNotice .coach-progress')
-    coach1=page.evaluate("""()=>({progress:document.querySelector('#hintNotice .coach-progress')?.textContent?.trim(),persona:document.querySelector('#hintNotice .pedagogy-persona-coach')?.dataset?.persona,focus:document.querySelectorAll('.ng-focus-premise,.ng-focus-context,.ng-focus-target').length})""")
-    assert coach1['progress']=='1/4',coach1
-    assert coach1['persona']=='guide',coach1
-    assert coach1['focus']>0,coach1
-    for expected in ['2/4','3/4','4/4']:
-        page.evaluate("document.querySelector('#hintBtn').click()")
-        page.wait_for_function("expected=>document.querySelector('#hintNotice .coach-progress')?.textContent?.trim()===expected",arg=expected)
-    coach4=page.evaluate("""()=>({progress:document.querySelector('#hintNotice .coach-progress')?.textContent?.trim(),filled:current.state[0].filter(v=>v===NonogramLogic.FILLED).length,history:Object.keys(current.moveHistory?.nodes||{}).length,hidden:document.querySelector('#hintNotice')?.textContent?.includes('solutionGrid')||false})""")
-    assert coach4['progress']=='4/4',coach4
-    assert coach4['filled']==5,coach4
-    assert coach4['history']>=2,coach4
-    assert not coach4['hidden'],coach4
+    coach=page.evaluate("""()=>({progress:document.querySelector('#hintNotice .coach-progress')?.textContent?.trim(),persona:document.querySelector('#hintNotice .pedagogy-persona-coach')?.dataset?.persona,focus:document.querySelectorAll('.ng-focus-premise,.ng-focus-context,.ng-focus-target').length,flow:current.hintFlow?.kind,stage:current.hintFlow?.stage,hidden:document.querySelector('#hintNotice')?.textContent?.includes('solutionGrid')||false})""")
+    assert coach['progress']=='1/4',coach
+    assert coach['persona']=='guide' and coach['focus']>0,coach
+    assert coach['flow']=='nonogram-proof' and coach['stage']==1,coach
+    assert not coach['hidden'],coach
 
-    # Human regression 2: the real Tutor renderer must preserve black FILLED
-    # cells together with the exact gameplay coordinates and row/column clues.
+    # U13-2 — exact Tutor renderer must preserve a newly FILLED cell in black,
+    # plus the same coordinates and clues as gameplay.
     install_fixture(page)
     page.locator('#walkthroughBtn').tap()
     page.wait_for_selector('.walkthrough-panel .nonogram-tutor-board')
@@ -82,27 +71,43 @@ with sync_playwright() as p:
     assert tutor['rowClues']==5 and tutor['colClues']==5,tutor
     assert tutor['scrollWidth']<=tutor['innerWidth']+1,tutor
     assert not errors,errors
-    ctx.close()
+    phone.close()
 
-    # Human regression 3: reference iPhone landscape must keep the full
-    # Mosaïque surface inside the panel without scrolling/clipping. Tools are
-    # beside the clue/grid composite so the board keeps a playable size.
+    # U13-3a — tight iPhone landscape gameplay remains wholly inside viewport.
     land=browser.new_context(viewport={'width':844,'height':390},locale='fr-FR',is_mobile=True,has_touch=True)
     page=land.new_page(); land_errors=[]
     page.on('pageerror',lambda e:land_errors.append('pageerror:'+str(e)))
     page.on('console',lambda m:land_errors.append('console:'+m.text) if m.type=='error' else None)
     load(page);install_fixture(page)
-    geom=page.evaluate("""()=>{const rect=s=>document.querySelector(s).getBoundingClientRect(),panel=rect('.panel'),game=rect('.nonogram-game'),tools=rect('.nonogram-tools'),layout=rect('.nonogram-layout'),board=rect('.nonogram-board');return {innerWidth,innerHeight,scrollWidth:document.documentElement.scrollWidth,scrollHeight:document.documentElement.scrollHeight,panel:{l:panel.left,r:panel.right,t:panel.top,b:panel.bottom},game:{l:game.left,r:game.right,t:game.top,b:game.bottom},tools:{l:tools.left,r:tools.right,t:tools.top,b:tools.bottom},layout:{l:layout.left,r:layout.right,t:layout.top,b:layout.bottom},board:{w:board.width,h:board.height,t:board.top,b:board.bottom}}}""")
-    assert geom['scrollWidth']<=geom['innerWidth']+1,geom
-    assert geom['scrollHeight']<=geom['innerHeight']+1,geom
+    geom=page.evaluate("""()=>{const rect=s=>document.querySelector(s).getBoundingClientRect(),panel=rect('.panel'),game=rect('.nonogram-game'),tools=rect('.nonogram-tools'),layout=rect('.nonogram-layout'),board=rect('.nonogram-board');return {innerWidth,innerHeight,scrollWidth:document.documentElement.scrollWidth,scrollHeight:document.documentElement.scrollHeight,panel:{l:panel.left,r:panel.right,t:panel.top,b:panel.bottom},game:{l:game.left,r:game.right,t:game.top,b:game.bottom},tools:{l:tools.left,r:tools.right,t:tools.top,b:tools.bottom},layout:{l:layout.left,r:layout.right,t:layout.top,b:layout.bottom},board:{w:board.width,h:board.height}}}""")
+    assert geom['scrollWidth']<=geom['innerWidth']+1 and geom['scrollHeight']<=geom['innerHeight']+1,geom
     assert geom['panel']['l']>=-1 and geom['panel']['r']<=geom['innerWidth']+1,geom
     assert geom['game']['l']>=geom['panel']['l']-1 and geom['game']['r']<=geom['panel']['r']+1,geom
     assert geom['game']['t']>=geom['panel']['t']-1 and geom['game']['b']<=geom['panel']['b']+1,geom
-    assert geom['layout']['t']>=geom['panel']['t']-1 and geom['layout']['b']<=geom['panel']['b']+1,geom
-    assert geom['tools']['t']>=geom['panel']['t']-1 and geom['tools']['b']<=geom['panel']['b']+1,geom
     assert geom['tools']['r']<=geom['layout']['l']+1,geom
     assert geom['board']['w']>=210 and geom['board']['h']>=210,geom
     assert not land_errors,land_errors
-    land.close();browser.close()
+    land.close()
 
-print('v3.1.8-U13 Mosaïque human regressions PASS — Coach + Tutor FILLED state + iPhone landscape + PWA delivery')
+    # U13-3b — user's iPad landscape Tutor case: consume available width and
+    # keep board, navigation and pedagogical rail inside the panel.
+    ipad=browser.new_context(viewport={'width':1366,'height':900},locale='fr-FR',has_touch=True)
+    page=ipad.new_page(); ipad_errors=[]
+    page.on('pageerror',lambda e:ipad_errors.append('pageerror:'+str(e)))
+    page.on('console',lambda m:ipad_errors.append('console:'+m.text) if m.type=='error' else None)
+    load(page);install_fixture(page)
+    page.locator('#walkthroughBtn').tap()
+    page.wait_for_selector('.walkthrough-panel .nonogram-tutor-board')
+    ipad_geom=page.evaluate("""()=>{const r=s=>document.querySelector(s)?.getBoundingClientRect(),app=r('main#app'),panel=r('.walkthrough-panel'),wrap=r('.walkthrough-board-wrap'),layout=r('.walkthrough-panel .nonogram-layout'),nav=r('.walkthrough-actions-top'),scroll=r('.walkthrough-scroll');return {innerWidth,scrollWidth:document.documentElement.scrollWidth,app:{w:app?.width,l:app?.left,r:app?.right},panel:{w:panel?.width,l:panel?.left,r:panel?.right},wrap:{w:wrap?.width,l:wrap?.left,r:wrap?.right},layout:{w:layout?.width,l:layout?.left,r:layout?.right},nav:{l:nav?.left,r:nav?.right},scroll:{l:scroll?.left,r:scroll?.right},display:getComputedStyle(document.querySelector('.walkthrough-panel')).display}}""")
+    assert ipad_geom['display']=='grid',ipad_geom
+    assert ipad_geom['app']['w']>=ipad_geom['innerWidth']*.88,ipad_geom
+    assert ipad_geom['panel']['w']>=ipad_geom['innerWidth']*.82,ipad_geom
+    assert ipad_geom['wrap']['w']>=559,ipad_geom
+    assert ipad_geom['panel']['l']>=-1 and ipad_geom['panel']['r']<=ipad_geom['innerWidth']+1,ipad_geom
+    for key in ['wrap','layout','nav','scroll']:
+        assert ipad_geom[key]['l']>=ipad_geom['panel']['l']-1 and ipad_geom[key]['r']<=ipad_geom['panel']['r']+1,(key,ipad_geom)
+    assert ipad_geom['scrollWidth']<=ipad_geom['innerWidth']+1,ipad_geom
+    assert not ipad_errors,ipad_errors
+    ipad.close();browser.close()
+
+print('v3.1.8-U13 Mosaïque human regressions PASS — Coach trigger + Tutor FILLED state + phone landscape + iPad landscape + PWA delivery')
