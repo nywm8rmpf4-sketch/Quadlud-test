@@ -7,12 +7,13 @@
    .relation/.relation.r/.relation.d geometry from styles-core.css.
    Do not add Tutor-only = / × positioning here: it would break board parity. */
 
-/* U9 — styles-pedagogy.css applies generic Tutor child stacking that can
-   otherwise override .relation{position:absolute}. Reassert only the shared
-   Tango positioning mode here, after pedagogy CSS. The r/d offsets remain
-   owned exclusively by styles-core.css for both game and Tutor. */
-.tango-coordinate-wrap .relation{
-  position:absolute;
+/* U10 — the pedagogical stylesheet contains the generic rule
+   .walkthrough-board .cell>*{position:relative}. Keep the directional offsets
+   owned only by styles-core.css, but make the shared Tango positioning mode
+   unambiguous for real game and Tutor cells. !important is intentionally
+   limited to position so no duplicate r/d geometry is introduced. */
+.tango-coordinate-wrap .cell>.relation{
+  position:absolute!important;
   z-index:4;
 }
 
