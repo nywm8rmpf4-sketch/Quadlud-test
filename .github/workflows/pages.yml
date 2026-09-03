@@ -68,24 +68,26 @@ jobs:
             --exclude='LICENSE'
           cp -a qa-public/tests/. "$QA_ROOT/tests/"
           test -f "$QA_ROOT/GitHub/index.html"
-          test -f "$QA_ROOT/tests/v318-u10-tango-relation-delivery.test.py"
+          test -n "$(find "$QA_ROOT/tests" -maxdepth 1 -type f \( -name '*.test.py' -o -name '*.test.js' \) -print -quit)"
 
       - name: Check runtime JavaScript syntax
         run: |
           set -euo pipefail
           find "$RUNNER_TEMP/quadlud-public-qa/GitHub" -maxdepth 1 -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
-      - name: Run public static QA
+      - name: Run all exported public QA suites
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/quadlud-public-qa"
-          PYTHONPATH="$PWD/tests" python tests/v318-u10-tango-relation-delivery.test.py
-
-      - name: Run public browser QA
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/quadlud-public-qa"
-          PYTHONPATH="$PWD/tests" python tests/v315-generic-buttons-browser.test.py
+          export PYTHONPATH="$PWD/tests"
+          while IFS= read -r test; do
+            echo "PUBLIC QA JS: $test"
+            node "$test"
+          done < <(find tests -maxdepth 1 -type f -name '*.test.js' | sort)
+          while IFS= read -r test; do
+            echo "PUBLIC QA PY: $test"
+            python "$test"
+          done < <(find tests -maxdepth 1 -type f -name '*.test.py' | sort)
 
       - name: Build Pages payload from runtime only
         run: |
