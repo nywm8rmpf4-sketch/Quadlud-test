@@ -15,13 +15,90 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  u9-geometry:
+    name: U9 Tango Tutor geometry gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout immutable U9 candidate
+        uses: actions/checkout@v4
+        with:
+          ref: c3c9499ef601d2ddcd8a1a08645189293eb39dec
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Static runtime guards
+        run: |
+          set -euo pipefail
+          node --check tango-ui.js
+          node --check sw.js
+          python - <<'PY'
+          from pathlib import Path
+          tango=Path('tango-ui.js').read_text(encoding='utf-8')
+          css=Path('ui-mobile-coach-fixes.css').read_text(encoding='utf-8')
+          pedagogy=Path('styles-pedagogy.css').read_text(encoding='utf-8')
+          sw=Path('sw.js').read_text(encoding='utf-8')
+          assert 'function businessCellHtml(value,relations)' in tango
+          assert 'cell.innerHTML=businessCellHtml(v,relations.get(`${r},${c}`))' in tango
+          assert 'const body=businessCellHtml(value,relations.get(key));' in tango
+          assert '.walkthrough-board .cell>*{position:relative' in pedagogy
+          assert '.tango-coordinate-wrap .relation{' in css and 'position:absolute;' in css
+          assert 'walkthrough-board[data-tango-tutor="readonly"] .relation.r' not in css
+          assert 'walkthrough-board[data-tango-tutor="readonly"] .relation.d' not in css
+          assert "const CACHE='quadlud-v3.1.8-u9-tango-tutor-css-parity'" in sw
+          print('U9 static runtime guards: PASS')
+          PY
+      - name: Install Chromium QA dependency
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+      - name: Measure exact CSS cascade at phone portrait and landscape
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          from playwright.sync_api import sync_playwright
+          index=Path('index.html').read_text(encoding='utf-8')
+          styles=re.findall(r'<link rel="stylesheet" href="([^"?]+)(?:\?[^\"]*)?"',index)
+          assert styles
+          css='\n'.join(Path(name).read_text(encoding='utf-8') for name in styles)
+          cells=''.join('<div class="cell" data-r="%d" data-c="%d">%s</div>'%(r,c,'<span class="relation r">=</span><span class="relation d">×</span>' if (r,c)==(1,1) else '') for r in range(6) for c in range(6))
+          html=f'''<!doctype html><meta charset="utf-8"><div id="game" class="tango-coordinate-wrap"><div class="board" id="tboard" style="width:330px;height:330px;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(6,minmax(0,1fr))">{cells}</div></div><div id="tutor" class="walkthrough-board-wrap board-wrap grid-coordinate-wrap tango-coordinate-wrap"><div class="board walkthrough-board" data-tango-tutor="readonly" style="width:330px;height:330px;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(6,minmax(0,1fr))">{cells}</div></div>'''
+          def geometry(page,selector):
+              return page.eval_on_selector_all(selector+' .relation','''els=>els.map(el=>{const c=el.parentElement,e=el.getBoundingClientRect(),r=c.getBoundingClientRect(),d=el.classList.contains('r')?'r':'d',x=e.left+e.width/2,y=e.top+e.height/2;return {dir:d,symbol:el.textContent.trim(),position:getComputedStyle(el).position,x:(x-r.left)/r.width,y:(y-r.top)/r.height}}).sort((a,b)=>a.dir.localeCompare(b.dir))''')
+          def validate(label,g,t):
+              assert len(g)==len(t)==2,(label,g,t)
+              assert {x['symbol'] for x in g}=={'=','×'} and {x['symbol'] for x in t}=={'=','×'}
+              for surface,rels in [('game',g),('Tutor',t)]:
+                  for rel in rels:
+                      assert rel['position']=='absolute',(label,surface,rel)
+                      ex,ey=((1.0,.5) if rel['dir']=='r' else (.5,1.0))
+                      assert abs(rel['x']-ex)<=.05 and abs(rel['y']-ey)<=.05,(label,surface,rel,(ex,ey))
+              for a,b in zip(g,t):
+                  assert a['dir']==b['dir'] and a['symbol']==b['symbol']
+                  assert abs(a['x']-b['x'])<=.02 and abs(a['y']-b['y'])<=.02,(label,a,b)
+          with sync_playwright() as p:
+              browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
+              for viewport in ({'width':390,'height':844},{'width':844,'height':390}):
+                  page=browser.new_page(viewport=viewport);page.set_content(html);page.add_style_tag(content=css)
+                  validate(f"{viewport['width']}x{viewport['height']}",geometry(page,'#game'),geometry(page,'#tutor'));page.close()
+              browser.close()
+          print('U9 Tango game/Tutor computed geometry: PASS at 390x844 and 844x390')
+          PY
+
   deploy:
+    needs: u9-geometry
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout certified test source
+      - name: Checkout current human-test source
         uses: actions/checkout@v4
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
