@@ -26,9 +26,17 @@ for prefix in ('qa-results/', 'playwright-report/', 'test-results/', '.qa-tmp/',
     assert not any(path == prefix.rstrip('/') or path.startswith(prefix) for path in tracked), f'generated QA output is tracked: {prefix}'
 assert not any(path.endswith(('.pyc', '.pyo', '.log')) for path in tracked), 'generated/transient file is tracked'
 
-# Public QA files themselves must not masquerade as project documentation.
-public_qa = [p.relative_to(REPO).as_posix() for p in (REPO / 'qa-public').rglob('*') if p.is_file()]
-assert not any('/documentation/' in f'/{p}/' for p in public_qa), public_qa
-assert not any(Path(p).name.startswith(('ROADMAP', 'REPRISE', 'CHECKPOINT', 'PROJECT_STATE')) for p in public_qa), public_qa
+# QA material may be public, but project documentation/state/research/results must
+# never be smuggled into either QA namespace. Reference fixture/corpus material is
+# allowed only below the explicit qa-release/tests allowlist.
+qa_files = []
+for namespace in ('qa-public', 'qa-release'):
+    base = REPO / namespace
+    if base.exists():
+        qa_files.extend(p.relative_to(REPO).as_posix() for p in base.rglob('*') if p.is_file())
+assert not any('/documentation/' in f'/{p}/' for p in qa_files), qa_files
+assert not any('/research/' in f'/{p}/' for p in qa_files), qa_files
+assert not any('/results/' in f'/{p}/' for p in qa_files), qa_files
+assert not any(Path(p).name.startswith(('ROADMAP', 'REPRISE', 'CHECKPOINT', 'PROJECT_STATE', 'PROMPT_REPRISE')) for p in qa_files), qa_files
 
 print(f'public runtime boundary PASS — version {build["version"]}, tracked files {len(tracked)}')
