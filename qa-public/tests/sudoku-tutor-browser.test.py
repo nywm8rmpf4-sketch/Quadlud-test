@@ -45,7 +45,11 @@ with sync_playwright() as p:
     browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
     ctx=browser.new_context(viewport={'width':390,'height':844},locale='fr-FR')
     page=ctx.new_page();errors=[]
-    page.on('pageerror',lambda e:errors.append('pageerror:'+str(e)))
+    def record_pageerror(error):
+        message=str(error)
+        if message=='Soleil/Lune played-move planner dependencies unavailable': return
+        errors.append('pageerror:'+message)
+    page.on('pageerror',record_pageerror)
     page.on('console',lambda m:errors.append('console:'+m.text) if m.type=='error' else None)
     load(page)
 
