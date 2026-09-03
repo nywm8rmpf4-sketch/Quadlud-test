@@ -1,0 +1,14 @@
+[
+  {"day":"2026-01-15","game":"queens","fingerprint":"qfp1-9254e4b8b0e46594e3f45668cf8df8cc","tier":1},
+  {"day":"2026-01-15","game":"tango","fingerprint":"qfp1-314bf63052827d397fe99f817a1c8b22","tier":1},
+  {"day":"2026-01-15","game":"sudoku","fingerprint":"qfp1-c65d19c48fea39076939bbb753c3186d","tier":1},
+  {"day":"2026-01-15","game":"patches","fingerprint":"qfp1-f9ab1e8063b2a76da9544dff2cbab658","tier":1},
+  {"day":"2026-08-17","game":"queens","fingerprint":"qfp1-cdbac812d58741f0714b71a794122fc8","tier":1},
+  {"day":"2026-08-17","game":"tango","fingerprint":"qfp1-5415907fd71f8beb7d43232f374fd633","tier":1},
+  {"day":"2026-08-17","game":"sudoku","fingerprint":"qfp1-7ed75169d4528e51a8f1bdc79bdd35e8","tier":1},
+  {"day":"2026-08-17","game":"patches","fingerprint":"qfp1-5581effdb5eef640b9744bb26ce0331b","tier":1},
+  {"day":"2027-02-28","game":"queens","fingerprint":"qfp1-81212772331a7297c3500999a70e1d88","tier":1},
+  {"day":"2027-02-28","game":"tango","fingerprint":"qfp1-74eef7f79b8800becec0496e327f4c4c","tier":1},
+  {"day":"2027-02-28","game":"sudoku","fingerprint":"qfp1-0ef65b3fdacab9516004de160ee08e48","tier":1},
+  {"day":"2027-02-28","game":"patches","fingerprint":"qfp1-a543d59bc9d2d9f154597cec4fd24a03","tier":1}
+]
