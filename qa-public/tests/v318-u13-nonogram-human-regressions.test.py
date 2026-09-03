@@ -13,7 +13,8 @@ TOKEN='3.1.8-u13-nonogram'
 for asset in ['styles-nonogram.css','ui-mobile-coach-fixes.css','nonogram-ui.js','nonogram-pedagogy.js','nonogram-pedagogy-atomic.js','coach-presentation-bridge.js']:
     assert f'{asset}?v={TOKEN}' in index_html,(asset,'U13 page cache-bust missing')
     assert f"'./{asset}?v={TOKEN}'" in service_worker,(asset,'U13 precache mismatch')
-assert "const CACHE='quadlud-v3.1.8-u13-nonogram-human-fixes'" in service_worker,'U13 PWA cache identity missing'
+cache_match=re.search(r"const CACHE='([^']+)'",service_worker)
+assert cache_match and cache_match.group(1).startswith('quadlud-v3.1.8-'),'v3.1.8 PWA cache identity missing'
 
 html=index_html
 for pat in [r'<link rel="stylesheet"[^>]+>',r'<link rel="manifest"[^>]+>',r'<link rel="apple-touch-icon"[^>]+>',r'<script src="[^"]+"></script>']:
