@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / 'GitHub'
@@ -10,11 +11,13 @@ pedagogy = (WEB / 'styles-pedagogy.css').read_text(encoding='utf-8')
 tango = (WEB / 'tango-ui.js').read_text(encoding='utf-8')
 sw = (WEB / 'sw.js').read_text(encoding='utf-8')
 
-# The U10 Safari-facing compatibility asset remains versioned and cached even when
-# later v3.1.8 UI checkpoints legitimately advance the Service Worker cache name.
-assert 'ui-mobile-coach-fixes.css?v=3.1.8-u10' in index
+# The Safari-facing compatibility asset remains versioned and cached even when
+# later v3.1.8 UI checkpoints legitimately advance its cache-bust token.
+asset_match=re.search(r'ui-mobile-coach-fixes\.css\?v=(3\.1\.8-[^"\']+)',index)
+assert asset_match,'ui-mobile-coach-fixes.css v3.1.8 cache-bust token missing'
+asset_token=asset_match.group(1)
 assert "const CACHE='quadlud-v3.1.8-" in sw
-assert "'./ui-mobile-coach-fixes.css?v=3.1.8-u10'" in sw
+assert f"'./ui-mobile-coach-fixes.css?v={asset_token}'" in sw,'current mobile Coach CSS token must be precached exactly'
 
 # The real Tutor renderer uses the same Tango coordinate wrapper and relation markup.
 assert "className:'walkthrough-board-wrap board-wrap grid-coordinate-wrap tango-coordinate-wrap'" in tango
