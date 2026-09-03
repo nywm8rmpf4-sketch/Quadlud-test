@@ -1,0 +1,13 @@
+# Generated QA outputs: never commit these.
+qa-results/
+playwright-report/
+test-results/
+.pytest_cache/
+**/__pycache__/
+*.pyc
+*.pyo
+coverage/
+.coverage
+*.log
+.tmp/
+.qa-tmp/
