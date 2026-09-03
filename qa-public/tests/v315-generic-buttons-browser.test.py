@@ -5,7 +5,12 @@ from qa_runtime_loader import runtime_sources, runtime_styles
 
 ROOT = Path(__file__).resolve().parents[1] / 'GitHub'
 GAMES=json.loads(subprocess.check_output(['node','-e',f"console.log(JSON.stringify(require({json.dumps(str(ROOT/'game-manifest.js'))}).IDS))"],text=True))
-html=(ROOT/'index.html').read_text()
+index_html=(ROOT/'index.html').read_text()
+service_worker=(ROOT/'sw.js').read_text()
+assert 'styles-mobile.css?v=3.1.8-u11-ipad-tutor' in index_html,'adaptive Tutor CSS cache-bust token missing'
+assert "const CACHE='quadlud-v3.1.8-u11-ipad-tutor-layout'" in service_worker,'Tutor layout service-worker cache identity missing'
+assert "'./styles-mobile.css?v=3.1.8-u11-ipad-tutor'" in service_worker,'adaptive Tutor CSS must be precached under the cache-busted URL'
+html=index_html
 for pat in [r'<link rel="stylesheet"[^>]+>',r'<link rel="manifest"[^>]+>',r'<link rel="apple-touch-icon"[^>]+>',r'<script src="[^"]+"></script>']:
     html=re.sub(pat,'',html)
 css=runtime_styles(ROOT)
@@ -51,6 +56,7 @@ with sync_playwright() as p:
         page.locator('#modalClose').tap()
         assert page.locator('#modal').count()==0,game
 
+        # v3.1.8-D4a: every Tutor render gets one compact decorative persona.
         page.locator('#walkthroughBtn').tap()
         page.wait_for_selector('.walkthrough-panel .pedagogy-persona-tutor')
         persona=tutor_persona(page)
@@ -68,6 +74,29 @@ with sync_playwright() as p:
     assert not errors,errors
     ctx.close()
 
+    # v3.1.8-U11 regression: iPad landscape Tutor must use the available width,
+    # keep the full LIGHTHOUSES coordinate board inside the panel, and never
+    # create horizontal page overflow. This catches the previously recurring
+    # narrow 760px Tutor canvas even when the logical Tutor itself is correct.
+    ipad=browser.new_context(viewport={'width':1366,'height':900},locale='fr-FR',has_touch=True)
+    page=ipad.new_page(); ipad_errors=[]
+    page.on('pageerror',lambda e:ipad_errors.append('pageerror:'+str(e)))
+    page.on('console',lambda m:ipad_errors.append('console:'+m.text) if m.type=='error' else None)
+    load(page); open_game(page,'queens')
+    page.locator('#walkthroughBtn').tap()
+    page.wait_for_selector('.walkthrough-panel .walkthrough-queens-coordinate-wrap')
+    layout=page.evaluate("""()=>{const app=document.querySelector('main#app'),panel=document.querySelector('.walkthrough-panel'),board=document.querySelector('.walkthrough-queens-coordinate-wrap');const ar=app.getBoundingClientRect(),pr=panel.getBoundingClientRect(),br=board.getBoundingClientRect(),ps=getComputedStyle(panel);return {tutorActive:document.body.classList.contains('tutor-active'),innerWidth,appWidth:ar.width,panelWidth:pr.width,panelLeft:pr.left,panelRight:pr.right,boardWidth:br.width,boardLeft:br.left,boardRight:br.right,display:ps.display,scrollWidth:document.documentElement.scrollWidth}}""")
+    assert layout['tutorActive'] is True,layout
+    assert layout['display']=='grid',layout
+    assert layout['appWidth']>=layout['innerWidth']*.88,layout
+    assert layout['panelWidth']>=layout['innerWidth']*.82,layout
+    assert layout['boardWidth']>=559,layout
+    assert layout['panelLeft']>=-1 and layout['panelRight']<=layout['innerWidth']+1,layout
+    assert layout['boardLeft']>=layout['panelLeft']-1 and layout['boardRight']<=layout['panelRight']+1,layout
+    assert layout['scrollWidth']<=layout['innerWidth']+1,layout
+    assert not ipad_errors,ipad_errors
+    ipad.close()
+
     reduced=browser.new_context(viewport={'width':390,'height':844},locale='fr-FR',has_touch=True,is_mobile=True,reduced_motion='reduce')
     page=reduced.new_page(); load(page); open_game(page,'queens')
     motion=page.evaluate("""()=>({duration:getComputedStyle(document.querySelector('#resetBtn')).transitionDuration})""")
@@ -84,4 +113,4 @@ with sync_playwright() as p:
     assert forced_state['height']>=43.5,forced_state
     forced.close();browser.close()
 
-print('v3.1.5 LH7 generic buttons + v3.1.8-D4a five-game Tutor persona browser PASS')
+print('v3.1.5 LH7 generic buttons + v3.1.8-D4a Tutor persona + v3.1.8-U11 iPad landscape Tutor PASS')
