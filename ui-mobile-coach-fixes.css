@@ -98,6 +98,53 @@
   }
 }
 
+/* U13 — Mosaïque is taller than the other boards because clues and tool
+   controls surround the square grid. In phone landscape, reserve more of the
+   panel for the game surface and move the three Mosaïque tools beside the
+   clue/grid composite instead of stacking them above it. This keeps every
+   control at a 44px touch target while protecting the playable board floor. */
+@media (orientation:landscape) and (max-height:520px) and (min-width:600px){
+  .panel:has(.nonogram-game){
+    grid-template-columns:minmax(190px,.46fr) minmax(0,1fr);
+    column-gap:8px;
+  }
+  .panel:has(.nonogram-game)>.nonogram-game{
+    width:100%;
+    max-width:100%;
+    display:grid;
+    grid-template-columns:minmax(82px,96px) minmax(0,1fr);
+    grid-template-rows:1fr;
+    column-gap:8px;
+    align-items:center;
+    justify-self:stretch;
+  }
+  .panel:has(.nonogram-game) .nonogram-tools{
+    grid-column:1;
+    grid-row:1;
+    width:100%;
+    margin:0;
+    grid-template-columns:1fr;
+    gap:5px;
+    align-self:center;
+  }
+  .panel:has(.nonogram-game) .nonogram-tools .ng-tool{
+    min-height:44px;
+    padding:4px 3px;
+    font-size:10px;
+    line-height:1.05;
+    white-space:nowrap;
+  }
+  .panel:has(.nonogram-game) .nonogram-layout{
+    grid-column:2;
+    grid-row:1;
+    width:min(calc(100dvh - 104px),calc(100% - 2px),330px);
+    max-width:330px;
+    margin:0 auto;
+    align-self:center;
+    justify-self:center;
+  }
+}
+
 /* U3/U4 — Coach window owns its progressive controls and remains draggable. */
 .coach-window-progressive p{margin:8px 0 0;line-height:1.42}
 .coach-window-action{padding-top:8px;border-top:1px solid color-mix(in srgb,var(--muted) 22%,transparent)}
