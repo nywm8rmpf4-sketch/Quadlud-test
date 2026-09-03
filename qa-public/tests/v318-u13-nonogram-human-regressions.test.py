@@ -29,7 +29,7 @@ FIXTURE="""()=>{
   const A=QuadludGameSessionAdapters.nonogram;
   const puzzle={game:'nonogram',rows:5,cols:5,rowClues:[[5],[],[5],[],[5]],colClues:[[1,1,1],[1,1,1],[1,1,1],[1,1,1],[1,1,1]]};
   current=A.createGeneratedSession('easy',{game:'nonogram',puzzle,unique:true,generated:true,seed:'u13-human',generatorVersion:1,fingerprint:'qfp1-u13-human',generationStats:{},difficultyProfile:{difficulty:'easy'},validationState:{solutionGrid:Array.from({length:5},(_,r)=>Array(5).fill(r%2===0?1:0))}});
-  historyInit(true);drawGameUi();startTimer(true,0,false);updateHistoryButtons();
+  historyInit(true);renderGameUi(current);startTimer(true,0,false);updateHistoryButtons();
 }"""
 
 def load(page):
