@@ -8,7 +8,7 @@ html=(ROOT/'index.html').read_text()
 for pat in [r'<link rel="stylesheet"[^>]+>',r'<link rel="manifest"[^>]+>',r'<link rel="apple-touch-icon"[^>]+>',r'<script src="[^"]+"></script>']:
     html=re.sub(pat,'',html)
 css=runtime_styles(ROOT)
-scripts = runtime_sources(ROOT, exclude=('difficulty-rating.js', 'queens-difficulty.js', 'tango-difficulty.js', 'patches-difficulty.js', 'sudoku-difficulty.js', 'nonogram-difficulty.js', 'nonogram-generator.js'))
+scripts = runtime_sources(ROOT, exclude=('difficulty-rating.js', 'queens-difficulty.js', 'tango-difficulty.js', 'tango-played-move-planner.js', 'tango-played-move-runtime.js', 'patches-difficulty.js', 'sudoku-difficulty.js', 'nonogram-difficulty.js', 'nonogram-generator.js'))
 
 def load(page):
     page.set_content(html,wait_until='domcontentloaded')
@@ -48,11 +48,7 @@ with sync_playwright() as p:
     browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
     ctx=browser.new_context(viewport={'width':390,'height':844},locale='fr-FR')
     page=ctx.new_page(); errors=[]
-    def record_pageerror(error):
-        message=str(error)
-        if message=='Soleil/Lune played-move planner dependencies unavailable': return
-        errors.append('pageerror:'+message)
-    page.on('pageerror',record_pageerror)
+    page.on('pageerror',lambda e:errors.append('pageerror:'+str(e)))
     page.on('console',lambda m:errors.append('console:'+m.text) if m.type=='error' else None)
     load(page)
 
