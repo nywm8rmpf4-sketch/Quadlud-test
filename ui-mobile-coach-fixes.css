@@ -7,6 +7,15 @@
    .relation/.relation.r/.relation.d geometry from styles-core.css.
    Do not add Tutor-only = / × positioning here: it would break board parity. */
 
+/* U9 — styles-pedagogy.css applies generic Tutor child stacking that can
+   otherwise override .relation{position:absolute}. Reassert only the shared
+   Tango positioning mode here, after pedagogy CSS. The r/d offsets remain
+   owned exclusively by styles-core.css for both game and Tutor. */
+.tango-coordinate-wrap .relation{
+  position:absolute;
+  z-index:4;
+}
+
 /* U2 — smartphone game/Tutor immersive chrome. Safari chrome itself can only
    disappear in installed PWA standalone mode; QUADLUD's own horizontal bar
    becomes a floating Home control so the game receives the full 100dvh. */
