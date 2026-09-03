@@ -7,9 +7,9 @@ ROOT = Path(__file__).resolve().parents[1] / 'GitHub'
 GAMES=json.loads(subprocess.check_output(['node','-e',f"console.log(JSON.stringify(require({json.dumps(str(ROOT/'game-manifest.js'))}).IDS))"],text=True))
 index_html=(ROOT/'index.html').read_text()
 service_worker=(ROOT/'sw.js').read_text()
-assert 'styles-mobile.css?v=3.1.8-u11-ipad-tutor' in index_html,'adaptive Tutor CSS cache-bust token missing'
-assert "const CACHE='quadlud-v3.1.8-u11-ipad-tutor-layout'" in service_worker,'Tutor layout service-worker cache identity missing'
-assert "'./styles-mobile.css?v=3.1.8-u11-ipad-tutor'" in service_worker,'adaptive Tutor CSS must be precached under the cache-busted URL'
+assert 'styles-mobile.css?v=3.1.8-u12-ipad-balance' in index_html,'adaptive iPad CSS cache-bust token missing'
+assert "const CACHE='quadlud-v3.1.8-u12-ipad-balance'" in service_worker,'iPad layout service-worker cache identity missing'
+assert "'./styles-mobile.css?v=3.1.8-u12-ipad-balance'" in service_worker,'adaptive iPad CSS must be precached under the cache-busted URL'
 html=index_html
 for pat in [r'<link rel="stylesheet"[^>]+>',r'<link rel="manifest"[^>]+>',r'<link rel="apple-touch-icon"[^>]+>',r'<script src="[^"]+"></script>']:
     html=re.sub(pat,'',html)
@@ -56,7 +56,6 @@ with sync_playwright() as p:
         page.locator('#modalClose').tap()
         assert page.locator('#modal').count()==0,game
 
-        # v3.1.8-D4a: every Tutor render gets one compact decorative persona.
         page.locator('#walkthroughBtn').tap()
         page.wait_for_selector('.walkthrough-panel .pedagogy-persona-tutor')
         persona=tutor_persona(page)
@@ -74,10 +73,25 @@ with sync_playwright() as p:
     assert not errors,errors
     ctx.close()
 
-    # v3.1.8-U11 regression: iPad landscape Tutor must use the available width,
-    # keep the full LIGHTHOUSES coordinate board inside the panel, and never
-    # create horizontal page overflow. This catches the previously recurring
-    # narrow 760px Tutor canvas even when the logical Tutor itself is correct.
+    # v3.1.8-U12: iPad portrait gameplay uses the same compact tablet scale
+    # across all games instead of expanding toward the historical 760px cap.
+    portrait=browser.new_context(viewport={'width':1024,'height':1366},locale='fr-FR',has_touch=True)
+    page=portrait.new_page(); portrait_errors=[]
+    page.on('pageerror',lambda e:portrait_errors.append('pageerror:'+str(e)))
+    page.on('console',lambda m:portrait_errors.append('console:'+m.text) if m.type=='error' else None)
+    load(page)
+    for game in GAMES:
+        open_game(page,game)
+        geom=page.evaluate("""()=>{const surface=document.querySelector('.panel>.board-wrap')||document.querySelector('.panel .nonogram-layout');const panel=document.querySelector('.panel');const r=surface?.getBoundingClientRect(),pr=panel?.getBoundingClientRect();return {width:r?.width||0,left:r?.left||0,right:r?.right||0,panelLeft:pr?.left||0,panelRight:pr?.right||0,scrollWidth:document.documentElement.scrollWidth,innerWidth}}""")
+        assert 500<=geom['width']<=561,(game,geom)
+        assert geom['left']>=geom['panelLeft']-1 and geom['right']<=geom['panelRight']+1,(game,geom)
+        assert geom['scrollWidth']<=geom['innerWidth']+1,(game,geom)
+    assert not portrait_errors,portrait_errors
+    portrait.close()
+
+    # v3.1.8-U11/U12 regression: iPad landscape Tutor must use the available
+    # width, keep the full LIGHTHOUSES coordinate board inside the panel, and
+    # never create horizontal page overflow.
     ipad=browser.new_context(viewport={'width':1366,'height':900},locale='fr-FR',has_touch=True)
     page=ipad.new_page(); ipad_errors=[]
     page.on('pageerror',lambda e:ipad_errors.append('pageerror:'+str(e)))
@@ -113,4 +127,4 @@ with sync_playwright() as p:
     assert forced_state['height']>=43.5,forced_state
     forced.close();browser.close()
 
-print('v3.1.5 LH7 generic buttons + v3.1.8-D4a Tutor persona + v3.1.8-U11 iPad landscape Tutor PASS')
+print('v3.1.5 LH7 buttons + v3.1.8 Tutor persona + U11 landscape Tutor + U12 iPad portrait balance PASS')
