@@ -36,6 +36,7 @@
   --game-board-min-phone-landscape:270px;
   --game-board-min-tablet-portrait:600px;
   --game-board-min-tablet-landscape:560px;
+  --game-board-tablet-balanced:560px;
 }
 
 body:has(#app .panel .board-wrap),
@@ -105,18 +106,22 @@ body:has(#app .panel .nonogram-game) #app>.panel{
   }
 }
 
-/* Tablet portrait: give the board a genuinely tablet-sized floor whenever
-   the viewport can satisfy it. The min() above still keeps smaller devices
-   safe; these floors only apply when the corresponding space exists. */
+/* v3.1.8-U12 — tablet portrait/landscape visual parity.
+   On iPad portrait, do not inflate the game board beyond the established
+   tablet landscape reference. The saved vertical space belongs to Coach/
+   Tutor messaging and keeps orientation changes visually coherent. */
 @media (orientation:portrait) and (min-width:768px) and (min-height:900px){
   .panel:has(.board-wrap)>.board-wrap{
-    width:clamp(var(--game-board-min-tablet-portrait),min(calc(100vw - 120px),calc(100dvh - 360px)),var(--game-board-max));
+    width:min(calc(100vw - 120px),var(--game-board-tablet-balanced));
+    max-width:var(--game-board-tablet-balanced);
   }
   .panel:has(.sudoku)>.board-wrap{
-    width:clamp(var(--game-board-min-tablet-portrait),min(calc(100vw - 120px),calc(100dvh - 460px)),var(--game-board-max));
+    width:min(calc(100vw - 120px),var(--game-board-tablet-balanced));
+    max-width:var(--game-board-tablet-balanced);
   }
   .panel:has(.nonogram-game) .nonogram-layout{
-    width:clamp(var(--game-board-min-tablet-portrait),min(calc(100vw - 120px),calc(100dvh - 430px)),var(--game-board-max));
+    width:min(calc(100vw - 120px),var(--game-board-tablet-balanced));
+    max-width:var(--game-board-tablet-balanced);
   }
 }
 
