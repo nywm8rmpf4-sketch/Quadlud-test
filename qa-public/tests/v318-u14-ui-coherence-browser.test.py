@@ -4,17 +4,17 @@ from playwright.sync_api import sync_playwright
 from qa_runtime_loader import runtime_sources, runtime_styles
 
 ROOT=Path(__file__).resolve().parents[1]/'GitHub'
-TOKEN='3.1.8-u14-ui-coherence'
+TOKEN='3.1.8-u14r1-coach-stability'
 index_html=(ROOT/'index.html').read_text()
 service_worker=(ROOT/'sw.js').read_text()
 GAMES=json.loads(subprocess.check_output(['node','-e',f"console.log(JSON.stringify(require({json.dumps(str(ROOT/'game-manifest.js'))}).IDS))"],text=True))
 CANONICAL=['newBtn','resetBtn','undoBtn','redoBtn','hintBtn','walkthroughBtn','rulesBtn']
 
-assert f'ui-consistency-v318.css?v={TOKEN}' in index_html,'U14 coherence stylesheet missing from page'
-assert f'ui-consistency-v318.js?v={TOKEN}' in index_html,'U14 coherence runtime missing from page'
-assert "const CACHE='quadlud-v3.1.8-u14-ui-coherence'" in service_worker,'U14 cache identity missing'
+assert f'ui-consistency-v318.css?v={TOKEN}' in index_html,'U14R1 coherence stylesheet missing from page'
+assert f'ui-consistency-v318.js?v={TOKEN}' in index_html,'U14R1 coherence runtime missing from page'
+assert "const CACHE='quadlud-v3.1.8-u14r1-coach-stability'" in service_worker,'U14R1 cache identity missing'
 for asset in ['ui-consistency-v318.css','ui-consistency-v318.js']:
-    assert f"'./{asset}?v={TOKEN}'" in service_worker,(asset,'U14 precache mismatch')
+    assert f"'./{asset}?v={TOKEN}'" in service_worker,(asset,'U14R1 precache mismatch')
 
 html=index_html
 for pat in [r'<link rel="stylesheet"[^>]+>',r'<link rel="manifest"[^>]+>',r'<link rel="apple-touch-icon"[^>]+>',r'<script src="[^"]+"></script>']:
@@ -47,6 +47,9 @@ def wide_coach_geometry(page):
     page.locator('#hintBtn').click()
     page.wait_for_selector('#hintNotice')
     page.wait_for_function("()=>document.querySelector('#hintNotice')?.classList.contains('coach-docked-wide')")
+    # U14R1 regression: docking must remain true after the post-render settle window,
+    # not merely appear transiently for a single animation frame.
+    page.wait_for_timeout(140)
     return page.evaluate("""()=>{const r=s=>document.querySelector(s)?.getBoundingClientRect(),panel=r('#app>.panel'),surface=r('#app>.panel>.board-wrap')||r('#app>.panel>.nonogram-game'),toolbar=r('#app>.panel>.toolbar'),notice=r('#hintNotice');return {innerWidth,scrollWidth:document.documentElement.scrollWidth,panel:{l:panel.left,r:panel.right,t:panel.top,b:panel.bottom},surface:{l:surface.left,r:surface.right,t:surface.top,b:surface.bottom},toolbar:{l:toolbar.left,r:toolbar.right,t:toolbar.top,b:toolbar.bottom},notice:{l:notice.left,r:notice.right,t:notice.top,b:notice.bottom,w:notice.width,h:notice.height},docked:document.querySelector('#hintNotice').classList.contains('coach-docked-wide')}}""")
 
 with sync_playwright() as p:
@@ -90,4 +93,4 @@ with sync_playwright() as p:
         ctx.close()
     browser.close()
 
-print('v3.1.8-U14 UI coherence PASS — canonical 7 actions across 5 games/6 viewports + phone portrait Coach row 2 + wide-landscape Coach rail')
+print('v3.1.8-U14R1 UI coherence PASS — canonical 7 actions across 5 games/6 viewports + phone portrait Coach row 2 + stable wide-landscape Coach rail')

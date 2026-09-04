@@ -5,8 +5,8 @@
  */
 (function(root){
   'use strict';
-  let installed=false,raf=0;
-  const CLASS='coach-docked-wide';
+  let installed=false,raf=0,settleFrames=0,settleTimer=0;
+  const CLASS='coach-docked-wide',STABILIZE_FRAMES=4,STABILIZE_DELAY_MS=80;
 
   function doc(){return root?.document||null}
   function wideLandscape(){
@@ -50,8 +50,20 @@
     n.style.transform='none';
     return true
   }
-  function sync(){raf=0;const n=doc()?.getElementById?.('hintNotice');if(n)dock(n)}
-  function schedule(){if(raf)return;raf=root.requestAnimationFrame?root.requestAnimationFrame(sync):root.setTimeout(sync,0)}
+  function queueFrame(){
+    if(raf)return;
+    raf=root.requestAnimationFrame?root.requestAnimationFrame(sync):root.setTimeout(sync,0)
+  }
+  function sync(){
+    raf=0;
+    const n=doc()?.getElementById?.('hintNotice');if(n)dock(n);
+    if(settleFrames>0){settleFrames--;queueFrame()}
+  }
+  function schedule(frames=STABILIZE_FRAMES){
+    settleFrames=Math.max(settleFrames,Math.max(0,Number(frames)||0));queueFrame();
+    if(settleTimer)root.clearTimeout?.(settleTimer);
+    settleTimer=root.setTimeout?.(()=>{settleTimer=0;settleFrames=Math.max(settleFrames,1);queueFrame()},STABILIZE_DELAY_MS)||0
+  }
   function install(){
     if(installed||!doc())return false;installed=true;
     const observer=new MutationObserver(records=>{
@@ -61,10 +73,10 @@
     });
     observer.observe(doc().body,{childList:true,subtree:true});
     doc().addEventListener('click',e=>{if(e.target?.closest?.('#hintBtn'))schedule()},true);
-    root.addEventListener?.('resize',schedule,{passive:true});
-    root.addEventListener?.('orientationchange',schedule,{passive:true});
+    root.addEventListener?.('resize',()=>schedule(2),{passive:true});
+    root.addEventListener?.('orientationchange',()=>schedule(2),{passive:true});
     schedule();return true
   }
   install();
-  root.QuadludUiConsistencyV318=Object.freeze({install,dock,wideLandscape,_test:Object.freeze({gameSurface,controlsBottom})});
+  root.QuadludUiConsistencyV318=Object.freeze({install,dock,wideLandscape,_test:Object.freeze({gameSurface,controlsBottom,schedule})});
 })(typeof globalThis!=='undefined'?globalThis:this);

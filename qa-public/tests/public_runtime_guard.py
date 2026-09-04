@@ -3,6 +3,7 @@ import json
 import subprocess
 
 REPO = Path(__file__).resolve().parents[2]
+EXPECTED_PRIVATE_RUNTIME_TREE = '71a6f39b735a2db4e56c70afea27c09d62759eed'
 
 # Public pre-production repository must contain only deployable runtime plus
 # explicitly public QA harness/workflow material.
@@ -39,4 +40,23 @@ assert not any('/research/' in f'/{p}/' for p in qa_files), qa_files
 assert not any('/results/' in f'/{p}/' for p in qa_files), qa_files
 assert not any(Path(p).name.startswith(('ROADMAP', 'REPRISE', 'CHECKPOINT', 'PROJECT_STATE', 'PROMPT_REPRISE')) for p in qa_files), qa_files
 
-print(f'public runtime boundary PASS — version {build["version"]}, tracked files {len(tracked)}')
+# Exact-source gate: rebuild a synthetic Git tree containing only the public
+# runtime files. Its tree SHA must equal the private candidate's GitHub/ subtree.
+# This proves names, modes and Git blob identities for the complete runtime in one
+# deterministic value without exposing any private project material.
+excluded = {'.github', '.gitignore', 'qa-public', 'qa-release'}
+entries = []
+for line in subprocess.check_output(['git', 'ls-tree', 'HEAD'], cwd=REPO, text=True).splitlines():
+    name = line.split('\t', 1)[1]
+    if name not in excluded:
+        entries.append(line)
+assert entries, 'runtime tree materialization is empty'
+synthetic = subprocess.run(
+    ['git', 'mktree'], cwd=REPO, input='\n'.join(entries) + '\n',
+    text=True, capture_output=True, check=True
+).stdout.strip()
+assert synthetic == EXPECTED_PRIVATE_RUNTIME_TREE, (
+    f'public runtime tree {synthetic} != private candidate tree {EXPECTED_PRIVATE_RUNTIME_TREE}'
+)
+
+print(f'public runtime boundary PASS — version {build["version"]}, tracked files {len(tracked)}, exact runtime tree {synthetic}')
