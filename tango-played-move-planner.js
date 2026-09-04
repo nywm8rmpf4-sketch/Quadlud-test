@@ -55,10 +55,29 @@ function causalProofForTarget(trace,target,value){
   const chain=(trace||[]).filter(d=>!d?.id||needed.has(d.id));
   return {source:copy(source),proofChain:copy(chain.length?chain:[source])};
 }
-function firstPlacementFromApplied(before,after,trace,proofPrefix=[]){
+function firstCausalVisiblePlacement(before,after,trace){
   const changes=stateDiff(before,after).filter(isVisiblePlacement);
   if(!changes.length)return null;
-  const target=changes[0],fullTrace=[...(proofPrefix||[]),...(trace||[])],causal=causalProofForTarget(fullTrace,target.cell,target.to);
+  const byKey=new Map(changes.map(change=>[`${change.cell[0]}:${change.cell[1]}:${change.to}`,change]));
+  for(const deduction of trace||[]){
+    const matches=[];
+    for(const conclusion of deduction?.conclusions||[]){
+      if(conclusion?.type!=='VALUE'||!Array.isArray(conclusion.cell)||conclusion.cell.length!==2)continue;
+      const key=`${conclusion.cell[0]}:${conclusion.cell[1]}:${conclusion.value}`;
+      const change=byKey.get(key);
+      if(change)matches.push(change);
+    }
+    if(matches.length){
+      matches.sort((a,b)=>a.cell[0]-b.cell[0]||a.cell[1]-b.cell[1]||a.to-b.to);
+      return {target:matches[0],changes};
+    }
+  }
+  return {target:changes[0],changes};
+}
+function firstPlacementFromApplied(before,after,trace,proofPrefix=[]){
+  const picked=firstCausalVisiblePlacement(before,after,trace);
+  if(!picked)return null;
+  const {target,changes}=picked,fullTrace=[...(proofPrefix||[]),...(trace||[])],causal=causalProofForTarget(fullTrace,target.cell,target.to);
   return {
     target:target.cell.slice(),
     value:target.to,
@@ -195,6 +214,6 @@ return Object.freeze({
   nextPlayedMove,
   applyPlayedMoveToState,
   solveByPlayedMoves,
-  _test:Object.freeze({firstPlacementFromApplied,traceEntries,dependencyIds,causalProofForTarget,allowedDirectDeductions,advancedDeductionsDetailed,planFromFirstDeduction,planMetrics,planCostVector,buildSelectorCandidates,selectPlans,evaluateStartingDeductions})
+  _test:Object.freeze({firstCausalVisiblePlacement,firstPlacementFromApplied,traceEntries,dependencyIds,causalProofForTarget,allowedDirectDeductions,advancedDeductionsDetailed,planFromFirstDeduction,planMetrics,planCostVector,buildSelectorCandidates,selectPlans,evaluateStartingDeductions})
 });
 });
