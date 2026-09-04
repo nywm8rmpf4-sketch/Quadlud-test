@@ -3,10 +3,10 @@ import json
 import subprocess
 
 REPO = Path(__file__).resolve().parents[2]
-EXPECTED_PRIVATE_RUNTIME_TREE = 'd6463e41d9f2fac761bdff9b2f8b58d246675ab4'
+EXPECTED_PRIVATE_RUNTIME_TREE = 'a15d6ddf0194cdfcbf689c3423d3e2744e20d73a'
 
-# Temporary A1.3 qualification guard. Preserve the normal public/private
-# boundary rules while pinning this branch to the exact A1.3 runtime tree.
+# Temporary A1.3R1 qualification guard. Preserve the normal public/private
+# boundary rules while pinning this branch to the exact corrected runtime tree.
 forbidden_top = {
     'documentation', 'tests', 'ROADMAP.md', 'REPRISE.md', 'PROMPT_REPRISE.md',
     'PROJECT_STATE.md', 'CHECKPOINT_REPORT.md', 'CHECKPOINT_STATE.json'
@@ -49,7 +49,7 @@ synthetic = subprocess.run(
     text=True, capture_output=True, check=True
 ).stdout.strip()
 assert synthetic == EXPECTED_PRIVATE_RUNTIME_TREE, (
-    f'public runtime tree {synthetic} != pinned A1.3 candidate tree {EXPECTED_PRIVATE_RUNTIME_TREE}'
+    f'public runtime tree {synthetic} != pinned A1.3R1 candidate tree {EXPECTED_PRIVATE_RUNTIME_TREE}'
 )
 
-print(f'v3.1.9-A1.3 public runtime boundary PASS — version {build["version"]}, tracked files {len(tracked)}, exact runtime tree {synthetic}')
+print(f'v3.1.9-A1.3R1 public runtime boundary PASS — version {build["version"]}, tracked files {len(tracked)}, exact runtime tree {synthetic}')
