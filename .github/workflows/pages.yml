@@ -20,8 +20,8 @@ jobs:
       - name: Checkout public candidate
         uses: actions/checkout@v4
 
-      - name: Enforce public/private boundary
-        run: python3 qa-public/tests/public_runtime_guard.py
+      - name: Enforce A1.3 public/private boundary
+        run: python3 qa-public/tests/v319_a13_public_candidate_guard.py
 
       - name: Set up Node 22
         uses: actions/setup-node@v4
