@@ -26,6 +26,7 @@
       id:'tango',
       metadata:Object.freeze({labelKey:'gameTango',descriptionKey:'tangoSub',challengeCode:'T',icon:'☀︎'}),
       modules:Object.freeze({logic:'tango-logic.js',difficulty:'tango-difficulty.js',generator:'tango-generator.js',session:'game-session-adapters.js',ui:'tango-ui.js',runtime:'tango-runtime.js',pedagogy:'tango-pedagogy.js',reasoning:'tango-reasoning-presentation.js',i18n:'tango-i18n.js'}),
+      supportModules:Object.freeze(['tango-played-move-planner.js','tango-played-move-runtime.js']),
       worker:true,offline:true
     }),
     Object.freeze({
