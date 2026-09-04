@@ -12,9 +12,13 @@ CANONICAL=['newBtn','resetBtn','undoBtn','redoBtn','hintBtn','walkthroughBtn','r
 
 assert f'ui-consistency-v318.css?v={TOKEN}' in index_html,'U14R1 coherence stylesheet missing from page'
 assert f'ui-consistency-v318.js?v={TOKEN}' in index_html,'U14R1 coherence runtime missing from page'
-assert "const CACHE='quadlud-v3.1.8-u14r1-coach-stability'" in service_worker,'U14R1 cache identity missing'
+cache_match=re.search(r"const CACHE='([^']+)'",service_worker)
+assert cache_match and cache_match.group(1).startswith('quadlud-v3.1.8-'),'v3.1.8 cache identity missing'
 for asset in ['ui-consistency-v318.css','ui-consistency-v318.js']:
     assert f"'./{asset}?v={TOKEN}'" in service_worker,(asset,'U14R1 precache mismatch')
+manifest_match=re.search(r'game-manifest\.js\?v=([^"\']+)',index_html)
+assert manifest_match,'game manifest cache-bust token missing'
+assert f"'./game-manifest.js?v={manifest_match.group(1)}'" in service_worker,'current game manifest token must be precached exactly'
 
 html=index_html
 for pat in [r'<link rel="stylesheet"[^>]+>',r'<link rel="manifest"[^>]+>',r'<link rel="apple-touch-icon"[^>]+>',r'<script src="[^"]+"></script>']:
@@ -93,4 +97,4 @@ with sync_playwright() as p:
         ctx.close()
     browser.close()
 
-print('v3.1.8-U14R1 UI coherence PASS — canonical 7 actions across 5 games/6 viewports + phone portrait Coach row 2 + stable wide-landscape Coach rail')
+print('v3.1.8-U14R2 UI coherence PASS — canonical 7 actions across 5 games/6 viewports + phone portrait Coach row 2 + stable wide-landscape Coach rail + current manifest/PWA delivery')
