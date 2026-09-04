@@ -3,7 +3,7 @@ import json
 import subprocess
 
 REPO = Path(__file__).resolve().parents[2]
-EXPECTED_PRIVATE_RUNTIME_TREE = 'a15d6ddf0194cdfcbf689c3423d3e2744e20d73a'
+EXPECTED_PRIVATE_RUNTIME_TREE = 'b47ef9aa0ba51a02d7cf725ccfb8819dab5a54dd'
 
 # Temporary A1.3R1 qualification guard. Preserve the normal public/private
 # boundary rules while pinning this branch to the exact corrected runtime tree.
