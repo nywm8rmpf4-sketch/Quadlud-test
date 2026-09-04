@@ -130,7 +130,7 @@ assert(!source.includes('QuadludQueens')&&!source.includes('QuadludSudoku')&&!so
 const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8');
 const sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
 const selectorBrowser='tutor-move-selector.js?v=3.1.9-a11';
-const plannerBrowser='tango-played-move-planner.js?v=3.1.8';
+const plannerBrowser='tango-played-move-planner.js?v=3.1.9-a13r1';
 const selectorCache='./'+selectorBrowser;
 const plannerCache='./'+plannerBrowser;
 assert.strictEqual(index.split(selectorBrowser).length-1,1,'index.html must load the selector exactly once');
