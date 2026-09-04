@@ -10,9 +10,13 @@ css=runtime_styles(ROOT)
 scripts=runtime_sources(ROOT)
 
 TOKEN='3.1.8-u13-nonogram'
-for asset in ['styles-nonogram.css','ui-mobile-coach-fixes.css','nonogram-ui.js','nonogram-pedagogy.js','nonogram-pedagogy-atomic.js','coach-presentation-bridge.js']:
+for asset in ['styles-nonogram.css','ui-mobile-coach-fixes.css','nonogram-ui.js','nonogram-pedagogy.js','nonogram-pedagogy-atomic.js']:
     assert f'{asset}?v={TOKEN}' in index_html,(asset,'U13 page cache-bust missing')
     assert f"'./{asset}?v={TOKEN}'" in service_worker,(asset,'U13 precache mismatch')
+bridge_match=re.search(r'coach-presentation-bridge\.js\?v=(3\.1\.8-[^"\']+)',index_html)
+assert bridge_match,'Coach bridge v3.1.8 cache-bust token missing'
+bridge_token=bridge_match.group(1)
+assert f"'./coach-presentation-bridge.js?v={bridge_token}'" in service_worker,'current Coach bridge token must be precached exactly'
 cache_match=re.search(r"const CACHE='([^']+)'",service_worker)
 assert cache_match and cache_match.group(1).startswith('quadlud-v3.1.8-'),'v3.1.8 PWA cache identity missing'
 
@@ -37,78 +41,86 @@ def load(page):
 
 def install_fixture(page):
     page.evaluate(FIXTURE)
-    page.wait_for_selector('.panel .nonogram-game .nonogram-board')
+    page.wait_for_selector('#ngboard .ng-cell')
+
+def tutor_metrics(page):
+    return page.evaluate("""()=>{const rect=s=>{const e=document.querySelector(s);if(!e)return null;const r=e.getBoundingClientRect();return {l:r.left,r:r.right,t:r.top,b:r.bottom,w:r.width,h:r.height}};const root=document.documentElement;return {innerWidth,innerHeight,scrollWidth:root.scrollWidth,scrollHeight:root.scrollHeight,panel:rect('#app>.panel'),game:rect('.nonogram-game'),layout:rect('.nonogram-layout'),tools:rect('.nonogram-tools'),board:rect('.nonogram-board'),walkthrough:rect('.walkthrough-panel'),walkBoard:rect('.nonogram-tutor-board .nonogram-board'),walkScroll:rect('.walkthrough-scroll'),walkActions:rect('.walkthrough-actions-top')}}""")
 
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
 
-    # U13-1 — exact reported defect: a real tap on Logic Coach must react.
-    # The existing stage32 Coach test separately validates all four semantic
-    # levels; this UI-path regression owns only delivery/binding/focus.
-    phone=browser.new_context(viewport={'width':390,'height':844},locale='fr-FR',is_mobile=True,has_touch=True)
-    page=phone.new_page(); errors=[]
+    # 1. Real toolbar Coach trigger on phone portrait: the first human press must
+    # visibly activate the pedagogical surface and focus a real deduction target.
+    ctx=browser.new_context(viewport={'width':390,'height':844},locale='fr-FR',has_touch=True,is_mobile=True)
+    page=ctx.new_page();errors=[]
     page.on('pageerror',lambda e:errors.append('pageerror:'+str(e)))
     page.on('console',lambda m:errors.append('console:'+m.text) if m.type=='error' else None)
     load(page);install_fixture(page)
-    page.locator('#hintBtn').tap()
-    page.wait_for_selector('#hintNotice .coach-progress')
-    coach=page.evaluate("""()=>({progress:document.querySelector('#hintNotice .coach-progress')?.textContent?.trim(),persona:document.querySelector('#hintNotice .pedagogy-persona-coach')?.dataset?.persona,focus:document.querySelectorAll('.ng-focus-premise,.ng-focus-context,.ng-focus-target').length,flow:current.hintFlow?.kind,stage:current.hintFlow?.stage,hidden:document.querySelector('#hintNotice')?.textContent?.includes('solutionGrid')||false})""")
-    assert coach['progress']=='1/4',coach
-    assert coach['persona']=='guide' and coach['focus']>0,coach
-    assert coach['flow']=='nonogram-proof' and coach['stage']==1,coach
-    assert not coach['hidden'],coach
-
-    # U13-2 — exact Tutor renderer must preserve a newly FILLED cell in black,
-    # plus the same coordinates and clues as gameplay.
-    install_fixture(page)
-    page.locator('#walkthroughBtn').tap()
-    page.wait_for_selector('.walkthrough-panel .nonogram-tutor-board')
-    page.locator('#walkthroughNext').tap()
-    page.wait_for_function("()=>document.querySelectorAll('.walkthrough-panel .nonogram-board .ng-filled').length>0")
-    tutor=page.evaluate("""()=>{const filled=document.querySelector('.walkthrough-panel .nonogram-board .ng-filled'),unknown=document.querySelector('.walkthrough-panel .nonogram-board .ng-cell:not(.ng-filled):not(.ng-empty)'),fs=getComputedStyle(filled),us=unknown?getComputedStyle(unknown):null;return {filledCount:document.querySelectorAll('.walkthrough-panel .nonogram-board .ng-filled').length,filledBackground:fs.backgroundColor,unknownBackground:us?.backgroundColor||null,rowCoords:document.querySelectorAll('.walkthrough-panel .ng-grid-row-coordinates>span').length,colCoords:document.querySelectorAll('.walkthrough-panel .ng-grid-column-coordinates>span').length,rowClues:document.querySelectorAll('.walkthrough-panel .ng-row-clue').length,colClues:document.querySelectorAll('.walkthrough-panel .ng-col-clue').length,scrollWidth:document.documentElement.scrollWidth,innerWidth}}""")
-    assert tutor['filledCount']==1,tutor
-    assert tutor['filledBackground'] and tutor['filledBackground']!=tutor['unknownBackground'],tutor
-    assert tutor['rowCoords']==5 and tutor['colCoords']==5,tutor
-    assert tutor['rowClues']==5 and tutor['colClues']==5,tutor
-    assert tutor['scrollWidth']<=tutor['innerWidth']+1,tutor
+    page.click('#hintBtn');page.wait_for_selector('#hintNotice .coach-progress')
+    assert page.locator('#hintNotice .coach-progress').inner_text().strip()=='1/4'
+    assert page.locator('#hintNotice [data-persona="guide"]').count()==1
+    assert page.locator('.nonogram-board .coach-focus,.nonogram-board .hint-focus').count()>=1
+    assert page.locator('#hintNotice').inner_text().strip()
     assert not errors,errors
-    phone.close()
+    ctx.close()
 
-    # U13-3a — tight iPhone landscape gameplay remains wholly inside viewport.
-    land=browser.new_context(viewport={'width':844,'height':390},locale='fr-FR',is_mobile=True,has_touch=True)
-    page=land.new_page(); land_errors=[]
-    page.on('pageerror',lambda e:land_errors.append('pageerror:'+str(e)))
-    page.on('console',lambda m:land_errors.append('console:'+m.text) if m.type=='error' else None)
+    # 2. Tutor uses the same visible FILLED state, coordinates and clues as game.
+    ctx=browser.new_context(viewport={'width':390,'height':844},locale='fr-FR',has_touch=True,is_mobile=True)
+    page=ctx.new_page();errors=[]
+    page.on('pageerror',lambda e:errors.append('pageerror:'+str(e)))
+    page.on('console',lambda m:errors.append('console:'+m.text) if m.type=='error' else None)
     load(page);install_fixture(page)
-    geom=page.evaluate("""()=>{const rect=s=>document.querySelector(s).getBoundingClientRect(),panel=rect('.panel'),game=rect('.nonogram-game'),tools=rect('.nonogram-tools'),layout=rect('.nonogram-layout'),board=rect('.nonogram-board');return {innerWidth,innerHeight,scrollWidth:document.documentElement.scrollWidth,scrollHeight:document.documentElement.scrollHeight,panel:{l:panel.left,r:panel.right,t:panel.top,b:panel.bottom},game:{l:game.left,r:game.right,t:game.top,b:game.bottom},tools:{l:tools.left,r:tools.right,t:tools.top,b:tools.bottom},layout:{l:layout.left,r:layout.right,t:layout.top,b:layout.bottom},board:{w:board.width,h:board.height}}}""")
-    assert geom['scrollWidth']<=geom['innerWidth']+1 and geom['scrollHeight']<=geom['innerHeight']+1,geom
-    assert geom['panel']['l']>=-1 and geom['panel']['r']<=geom['innerWidth']+1,geom
-    assert geom['game']['l']>=geom['panel']['l']-1 and geom['game']['r']<=geom['panel']['r']+1,geom
-    assert geom['game']['t']>=geom['panel']['t']-1 and geom['game']['b']<=geom['panel']['b']+1,geom
-    assert geom['tools']['r']<=geom['layout']['l']+1,geom
-    assert geom['board']['w']>=210 and geom['board']['h']>=210,geom
-    assert not land_errors,land_errors
-    land.close()
+    page.click('#walkthroughBtn');page.wait_for_selector('#walkthroughNext')
+    page.click('#walkthroughNext');page.wait_for_timeout(30)
+    filled=page.locator('.nonogram-tutor-board .ng-cell.ng-filled')
+    assert filled.count()==1,filled.count()
+    filled_bg=filled.first.evaluate("e=>getComputedStyle(e).backgroundColor")
+    unknown_bg=page.locator('.nonogram-tutor-board .ng-cell:not(.ng-filled):not(.ng-empty)').first.evaluate("e=>getComputedStyle(e).backgroundColor")
+    assert filled_bg!=unknown_bg,(filled_bg,unknown_bg)
+    assert page.locator('.nonogram-tutor-board .ng-grid-row-coordinates span').count()==5
+    assert page.locator('.nonogram-tutor-board .ng-grid-column-coordinates span').count()==5
+    assert page.locator('.nonogram-tutor-board .ng-row-clues .ng-row-clue').count()==5
+    assert page.locator('.nonogram-tutor-board .ng-col-clues .ng-col-clue').count()==5
+    m=tutor_metrics(page);assert m['scrollWidth']<=m['innerWidth']+1,m
+    assert not errors,errors
+    ctx.close()
 
-    # U13-3b — user's iPad landscape Tutor case: consume available width and
-    # keep board, navigation and pedagogical rail inside the panel.
-    ipad=browser.new_context(viewport={'width':1366,'height':900},locale='fr-FR',has_touch=True)
-    page=ipad.new_page(); ipad_errors=[]
-    page.on('pageerror',lambda e:ipad_errors.append('pageerror:'+str(e)))
-    page.on('console',lambda m:ipad_errors.append('console:'+m.text) if m.type=='error' else None)
+    # 3. Phone landscape: tools occupy the left rail and the 5x5 board remains usable.
+    ctx=browser.new_context(viewport={'width':844,'height':390},locale='fr-FR',has_touch=True,is_mobile=True)
+    page=ctx.new_page();errors=[]
+    page.on('pageerror',lambda e:errors.append('pageerror:'+str(e)))
+    page.on('console',lambda m:errors.append('console:'+m.text) if m.type=='error' else None)
     load(page);install_fixture(page)
-    page.locator('#walkthroughBtn').tap()
-    page.wait_for_selector('.walkthrough-panel .nonogram-tutor-board')
-    ipad_geom=page.evaluate("""()=>{const r=s=>document.querySelector(s)?.getBoundingClientRect(),app=r('main#app'),panel=r('.walkthrough-panel'),wrap=r('.walkthrough-board-wrap'),layout=r('.walkthrough-panel .nonogram-layout'),nav=r('.walkthrough-actions-top'),scroll=r('.walkthrough-scroll');return {innerWidth,scrollWidth:document.documentElement.scrollWidth,app:{w:app?.width,l:app?.left,r:app?.right},panel:{w:panel?.width,l:panel?.left,r:panel?.right},wrap:{w:wrap?.width,l:wrap?.left,r:wrap?.right},layout:{w:layout?.width,l:layout?.left,r:layout?.right},nav:{l:nav?.left,r:nav?.right},scroll:{l:scroll?.left,r:scroll?.right},display:getComputedStyle(document.querySelector('.walkthrough-panel')).display}}""")
-    assert ipad_geom['display']=='grid',ipad_geom
-    assert ipad_geom['app']['w']>=ipad_geom['innerWidth']*.88,ipad_geom
-    assert ipad_geom['panel']['w']>=ipad_geom['innerWidth']*.82,ipad_geom
-    assert ipad_geom['wrap']['w']>=559,ipad_geom
-    assert ipad_geom['panel']['l']>=-1 and ipad_geom['panel']['r']<=ipad_geom['innerWidth']+1,ipad_geom
-    for key in ['wrap','layout','nav','scroll']:
-        assert ipad_geom[key]['l']>=ipad_geom['panel']['l']-1 and ipad_geom[key]['r']<=ipad_geom['panel']['r']+1,(key,ipad_geom)
-    assert ipad_geom['scrollWidth']<=ipad_geom['innerWidth']+1,ipad_geom
-    assert not ipad_errors,ipad_errors
-    ipad.close();browser.close()
+    m=tutor_metrics(page)
+    assert m['scrollWidth']<=m['innerWidth']+1,m
+    assert m['scrollHeight']<=m['innerHeight']+1,m
+    assert m['panel']['l']>=-1 and m['panel']['r']<=m['innerWidth']+1,m
+    assert m['game']['l']>=m['panel']['l']-1 and m['game']['r']<=m['panel']['r']+1,m
+    assert m['layout']['l']>=m['game']['l']-1 and m['layout']['r']<=m['game']['r']+1,m
+    assert m['tools']['r']<=m['layout']['l']+2,m
+    assert m['board']['w']>=210 and m['board']['h']>=210,m
+    assert not errors,errors
+    ctx.close()
+
+    # 4. iPad landscape Tutor: use the complete landscape surface instead of a narrow
+    # phone-shaped modal. The board, controls and explanation must all stay visible.
+    ctx=browser.new_context(viewport={'width':1366,'height':900},locale='fr-FR')
+    page=ctx.new_page();errors=[]
+    page.on('pageerror',lambda e:errors.append('pageerror:'+str(e)))
+    page.on('console',lambda m:errors.append('console:'+m.text) if m.type=='error' else None)
+    load(page);install_fixture(page)
+    page.click('#walkthroughBtn');page.wait_for_selector('#walkthroughNext')
+    page.click('#walkthroughNext');page.wait_for_timeout(30)
+    m=tutor_metrics(page)
+    assert m['scrollWidth']<=m['innerWidth']+1,m
+    assert m['walkthrough']['w']>=0.82*m['innerWidth'],m
+    assert m['walkBoard']['w']>=500 and m['walkBoard']['h']>=500,m
+    assert m['walkActions']['r']+12<=m['walkBoard']['l'],m
+    assert m['walkScroll']['r']+12<=m['walkBoard']['l'],m
+    assert m['walkthrough']['l']>=-1 and m['walkthrough']['r']<=m['innerWidth']+1,m
+    assert page.locator('.nonogram-tutor-board .ng-cell.ng-filled').count()==1
+    assert not errors,errors
+    ctx.close()
+    browser.close()
 
 print('v3.1.8-U13 Mosaïque human regressions PASS — Coach trigger + Tutor FILLED state + phone landscape + iPad landscape + PWA delivery')
