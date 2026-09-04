@@ -2,7 +2,7 @@ name: QUADLUD public QA + pre-production deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, automation/v319-a13-qa]
   workflow_dispatch:
 
 permissions:
