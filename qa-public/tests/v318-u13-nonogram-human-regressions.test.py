@@ -50,7 +50,7 @@ with sync_playwright() as p:
     browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
 
     # 1. Real toolbar Coach trigger on phone portrait: the first human press must
-    # visibly activate the pedagogical surface and focus a real deduction target.
+    # visibly activate the pedagogical surface and focus a real deduction entity.
     ctx=browser.new_context(viewport={'width':390,'height':844},locale='fr-FR',has_touch=True,is_mobile=True)
     page=ctx.new_page();errors=[]
     page.on('pageerror',lambda e:errors.append('pageerror:'+str(e)))
@@ -59,7 +59,9 @@ with sync_playwright() as p:
     page.click('#hintBtn');page.wait_for_selector('#hintNotice .coach-progress')
     assert page.locator('#hintNotice .coach-progress').inner_text().strip()=='1/4'
     assert page.locator('#hintNotice [data-persona="guide"]').count()==1
-    assert page.locator('.nonogram-board .coach-focus,.nonogram-board .hint-focus').count()>=1
+    focus=page.locator('.nonogram-game .ng-focus-premise,.nonogram-game .ng-focus-context,.nonogram-game .ng-focus-target,.nonogram-game .ng-focus-contradiction')
+    assert focus.count()>=1,'canonical Nonogram Coach focus missing'
+    assert focus.first.evaluate("e=>{const s=getComputedStyle(e);return s.outlineStyle!=='none'&&parseFloat(s.outlineWidth)>0}"),'Nonogram Coach focus must be visibly outlined'
     assert page.locator('#hintNotice').inner_text().strip()
     assert not errors,errors
     ctx.close()
@@ -123,4 +125,4 @@ with sync_playwright() as p:
     ctx.close()
     browser.close()
 
-print('v3.1.8-U13 Mosaïque human regressions PASS — Coach trigger + Tutor FILLED state + phone landscape + iPad landscape + PWA delivery')
+print('v3.1.8-U13 Mosaïque human regressions PASS — Coach trigger + canonical visible focus + Tutor FILLED state + phone landscape + iPad landscape + PWA delivery')
