@@ -37,7 +37,7 @@ with sync_playwright() as p:
         move('reasoning',{premises:[{kind:'VALUE',cell:[0,2],value:0,hypothesis:true}],focusCells:[[0,2],[1,2]],conclusions:[{type:'VALUE',cell:[1,2],value:1}]}),
         move('reasoning',{premises:[{kind:'VALUE',cell:[1,2],value:1,hypothesis:true}],focusCells:[[1,2],[2,2]],conclusions:[{type:'RELATION',a:[1,2],b:[2,2],parity:1}]}),
         move('reasoning',{premises:[{kind:'VALUE',cell:[1,2],value:1,hypothesis:true}],focusCells:[[2,2],[3,2]],conclusions:[{type:'VALUE',cell:[2,2],value:0},{type:'VALUE',cell:[3,2],value:1}]}),
-        move('contradiction',{premises:[],focusCells:[[2,2],[3,2]],focusUnits:[{family:'column',id:2}],explanationData:{witness:{cells:[[3,2]],family:'column',id:2}},conclusions:[]}),
+        move('contradiction',{premises:[],focusCells:[[2,2],[3,2]],focusUnits:[{family:'column',id:2}],explanationData:{witness:{cells:[[2,2],[3,2]],family:'column',id:2}},conclusions:[]}),
         move('action',{premises:[],focusCells:[[0,2]],conclusions:[{type:'VALUE',cell:[0,2],value:1}]})
       ];
       walkthroughSession={base:{game:'tango',n:6},initial:{state:blank()},moves,pedagogyNavigationByMove:moves.map((_,i)=>nav(i)),navigation:nav(0),atStart:false,index:1,done:false,stalled:false};
@@ -75,10 +75,12 @@ with sync_playwright() as p:
     assert all(s['outlineStyle']=='solid' and float(s['outlineWidth'].replace('px',''))>=4 and s['boxShadow']!='none' for s in contradiction['styles']),contradiction
 
     page.evaluate("__setProofStep(5)")
-    action=page.evaluate("""()=>({hypothetical:document.querySelectorAll('.walkthrough-hypothetical-piece').length,contradiction:document.querySelectorAll('.walkthrough-contradiction-cell').length,action:document.querySelector('[data-r="0"][data-c="2"]').classList.contains('walkthrough-current-action')})""")
+    action=page.evaluate("""()=>({hypothetical:document.querySelectorAll('.walkthrough-hypothetical-piece').length,contradiction:document.querySelectorAll('.walkthrough-contradiction-cell').length,action:document.querySelector('[data-r="0"][data-c="2"]').classList.contains('walkthrough-current-action'),a11y:[...document.querySelectorAll('.walkthrough-board [aria-label]')].map(x=>x.getAttribute('aria-label'))})""")
     assert action['hypothetical']==0,action
     assert action['contradiction']==0,action
     assert action['action'],action
+    assert not any(('Hypothèse' in label or 'Conséquence' in label or 'Contradiction' in label) for label in action['a11y']),action
+    assert 'A3' in action['a11y'],action
 
     assert not errors,errors
     ctx.close();browser.close()
