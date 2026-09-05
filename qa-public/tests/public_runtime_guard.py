@@ -3,7 +3,7 @@ import json
 import subprocess
 
 REPO = Path(__file__).resolve().parents[2]
-EXPECTED_PRIVATE_RUNTIME_TREE = 'b47ef9aa0ba51a02d7cf725ccfb8819dab5a54dd'
+EXPECTED_PRIVATE_RUNTIME_TREE = '5e7e1f5bd7bc4a5a3f30c753a232cb7e5b480cde'
 
 # Public pre-production repository must contain only deployable runtime plus
 # explicitly public QA harness/workflow material.
@@ -27,9 +27,6 @@ for prefix in ('qa-results/', 'playwright-report/', 'test-results/', '.qa-tmp/',
     assert not any(path == prefix.rstrip('/') or path.startswith(prefix) for path in tracked), f'generated QA output is tracked: {prefix}'
 assert not any(path.endswith(('.pyc', '.pyo', '.log')) for path in tracked), 'generated/transient file is tracked'
 
-# QA material may be public, but project documentation/state/research/results must
-# never be smuggled into either QA namespace. Reference fixture/corpus material is
-# allowed only below the explicit qa-release/tests allowlist.
 qa_files = []
 for namespace in ('qa-public', 'qa-release'):
     base = REPO / namespace
@@ -40,10 +37,6 @@ assert not any('/research/' in f'/{p}/' for p in qa_files), qa_files
 assert not any('/results/' in f'/{p}/' for p in qa_files), qa_files
 assert not any(Path(p).name.startswith(('ROADMAP', 'REPRISE', 'CHECKPOINT', 'PROJECT_STATE', 'PROMPT_REPRISE')) for p in qa_files), qa_files
 
-# Exact-source gate: rebuild a synthetic Git tree containing only the public
-# runtime files. Its tree SHA must equal the private candidate's GitHub/ subtree.
-# This proves names, modes and Git blob identities for the complete runtime in one
-# deterministic value without exposing any private project material.
 excluded = {'.github', '.gitignore', 'qa-public', 'qa-release'}
 entries = []
 for line in subprocess.check_output(['git', 'ls-tree', 'HEAD'], cwd=REPO, text=True).splitlines():
