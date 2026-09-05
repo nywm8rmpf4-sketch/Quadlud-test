@@ -34,7 +34,10 @@ function relationHumanPathLength(session,d){
 function humanProofCost(session,deductions){
   const list=(deductions||[]).filter(Boolean),cells=new Set();let premiseCount=0,techniqueLevel=0,rank=0,relationExtra=0,abstractPenalty=0;
   for(const d of list){premiseCount+=(d?.premises||[]).length;techniqueLevel=Math.max(techniqueLevel,Number(d?.techniqueLevel)||0);rank=Math.max(rank,Number(d?.rank)||0);abstractPenalty+=ABSTRACT_DISPLAY_RULES.has(String(d?.rule||''))?1:0;relationExtra+=Math.max(0,relationHumanPathLength(session,d)-1);collectCostCells(d,cells);for(const p of d?.premises||[])collectCostCells(p,cells);for(const c of d?.conclusions||[])collectCostCells(c,cells)}
-  return Object.freeze([Math.max(1,list.length)+relationExtra,premiseCount+relationExtra,Math.max(1,cells.size),techniqueLevel,rank,abstractPenalty])
+  // Abstract line-domain support is an additional human indirection layer: it
+  // must not masquerade as a one-step local proof merely because the engine
+  // emits it as one deduction object.
+  return Object.freeze([Math.max(1,list.length)+relationExtra+abstractPenalty,premiseCount+relationExtra,Math.max(1,cells.size),techniqueLevel,rank,abstractPenalty])
 }
 function compareCostVector(a,b){for(let i=0;i<Math.max(a?.length||0,b?.length||0);i++){const x=Number(a?.[i])||0,y=Number(b?.[i])||0;if(x!==y)return x-y}return 0}
 function directProofCandidates(session,target,value){
