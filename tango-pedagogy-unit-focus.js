@@ -96,6 +96,9 @@ function normalizePresentationDeduction(d,depth=0,reg=null){
     if(rejected&&!validUnitRef({family:x.family,id:x.id})){x.family=rejected.family;x.id=rejected.id;out.explanationData=x}
   }
   if(out.explanationData){for(const key of ['causalTrace','trace','moonCausalTrace','sunCausalTrace','moonTrace','sunTrace'])if(Array.isArray(out.explanationData[key]))out.explanationData[key]=out.explanationData[key].map(step=>normalizePresentationDeduction(step,depth+1,reg))}
+  // Engine focusCells may intentionally contain an entire unit for search/audit.
+  // Presentation must instead expose only the concrete premises/relations and
+  // conclusions needed by this sub-step; focusUnits carries the unit context.
   const minimal=minimalStepCells(out,reg),original=Array.isArray(out.focusCells)?out.focusCells:[];
   if(minimal.length&&(!original.length||minimal.length<=original.length))out.focusCells=minimal;
   return out
