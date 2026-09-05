@@ -10,6 +10,18 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 
+# Test-only dependency closure for deliberately partial browser harnesses.
+# A harness that removes a runtime prerequisite must not keep product modules
+# whose only valid execution context requires that prerequisite. The full
+# product runtime remains strict and unchanged.
+_EXCLUDE_DEPENDENTS: dict[str, tuple[str, ...]] = {
+    "tango-played-move-runtime.js": (
+        "tango-human-pedagogy-r4.js",
+        "tango-progressive-proof-bridge.js",
+    ),
+}
+
+
 class _ScriptParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
@@ -73,8 +85,29 @@ def runtime_styles(web_root: Path) -> str:
     return "".join((web_root / name).read_text(encoding="utf-8") for name in runtime_style_order(web_root))
 
 
+def _dependency_closed_excludes(excluded: tuple[str, ...]) -> set[str]:
+    blocked = set(excluded)
+    changed = True
+    while changed:
+        changed = False
+        for prerequisite, dependents in _EXCLUDE_DEPENDENTS.items():
+            if prerequisite not in blocked:
+                continue
+            before = len(blocked)
+            blocked.update(dependents)
+            changed = changed or len(blocked) != before
+    return blocked
+
+
 def runtime_source_order(web_root: Path, *, include=(), exclude=(), extras=()) -> list[str]:
-    """Resolve a test-only runtime subset while preserving product order."""
+    """Resolve a test-only runtime subset while preserving product order.
+
+    ``include`` is intended for narrow boundary harnesses: callers name only the
+    modules they need, while ordering/existence still come from ``index.html``.
+    ``include`` and ``exclude`` are deliberately mutually exclusive so a test's
+    dependency intent remains unambiguous. Exclusions are closed over the small
+    explicit test-only dependency map above.
+    """
     web_root = Path(web_root)
     canonical = runtime_module_order(web_root)
     included = tuple(include)
@@ -96,7 +129,7 @@ def runtime_source_order(web_root: Path, *, include=(), exclude=(), extras=()) -
         missing = set(excluded).difference(known)
         if missing:
             raise ValueError(f"excluded modules are not in index.html: {sorted(missing)}")
-        blocked = set(excluded)
+        blocked = _dependency_closed_excludes(excluded)
         order = [name for name in canonical if name not in blocked]
     for name in extras:
         if name in order:
@@ -110,4 +143,7 @@ def runtime_source_order(web_root: Path, *, include=(), exclude=(), extras=()) -
 def runtime_sources(web_root: Path, *, include=(), exclude=(), extras=()) -> list[str]:
     """Read runtime sources in canonical product order for a QA-only selection."""
     web_root = Path(web_root)
-    return [(web_root / name).read_text(encoding="utf-8") for name in runtime_source_order(web_root, include=include, exclude=exclude, extras=extras)]
+    return [
+        (web_root / name).read_text(encoding="utf-8")
+        for name in runtime_source_order(web_root, include=include, exclude=exclude, extras=extras)
+    ]
