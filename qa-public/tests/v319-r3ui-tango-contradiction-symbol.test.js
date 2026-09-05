@@ -38,8 +38,8 @@ assert.strictEqual(
 );
 assert.strictEqual(
   fr.contradictionText({kind:'TRIPLE_OVERFLOW',family:'row',id:1,value:1}),
-  'ligne 2 : sun ☀ × 3 — trois symboles identiques consécutifs.',
-  'the same concrete wording must work for a sun triple'
+  'ligne B : sun ☀ × 3 — trois symboles identiques consécutifs.',
+  'visible Tango row coordinates must use board letters instead of numeric row ids'
 );
 assert.strictEqual(
   fr.contradictionReason({kind:'TRIPLE_OVERFLOW'}),
@@ -56,15 +56,15 @@ assert.strictEqual(
 
 const source=fs.readFileSync(path.join(RUNTIME,'tango-reasoning-presentation.js'),'utf8');
 assert(source.includes("valueHuman(w.value)} × 3 — ${tr('tlgContrTriple')}"),'presenter must render the engine-provided triple value');
-const token='3.1.9-r3ui-contradiction-symbol';
 const index=fs.readFileSync(path.join(RUNTIME,'index.html'),'utf8');
 const sw=fs.readFileSync(path.join(RUNTIME,'sw.js'),'utf8');
-assert(index.includes(`tango-reasoning-presentation.js?v=${token}`),'presenter cache-bust missing from index');
-assert(sw.includes(`./tango-reasoning-presentation.js?v=${token}`),'presenter cache-bust missing from service worker');
+const indexPresenter=index.match(/tango-reasoning-presentation\.js\?v=([^"']+)/);
+assert(indexPresenter,'presenter cache-bust missing from index');
+assert(/^3\.1\.9-/.test(indexPresenter[1]),'presenter cache-bust must stay on the v3.1.9 candidate family');
+assert(sw.includes(`./tango-reasoning-presentation.js?v=${indexPresenter[1]}`),'service worker must precache the same presenter URL as index');
 const cacheMatch=sw.match(/const CACHE='([^']+)'/);
 assert(cacheMatch,'service-worker cache identity missing');
 assert(/^quadlud-v3\.1\.9-/.test(cacheMatch[1]),'service-worker cache must stay on the v3.1.9 candidate family');
 assert.notStrictEqual(cacheMatch[1],'quadlud-v3.1.8','service-worker cache must not regress to certified v3.1.8');
-assert.notStrictEqual(cacheMatch[1],`quadlud-v${token}`,'later UI delivery must be allowed to advance beyond the contradiction-only cache identity');
 
 console.log('v319-r3ui-tango-contradiction-symbol.test.js: PASS');
