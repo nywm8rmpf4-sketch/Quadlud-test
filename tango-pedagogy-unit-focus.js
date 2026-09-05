@@ -12,7 +12,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=4;
+const VERSION=5;
 const UNIT_CLASS='hint-unit-context';
 const SUBSTEP_CLASS='hint-substep-focus';
 const TRACE_KEYS=['causalTrace','moonCausalTrace','sunCausalTrace'];
@@ -87,7 +87,7 @@ function evidenceCells(d){let gameState=null;try{gameState=typeof current!=='und
 function conclusionCells(d){
   const out=new Map();for(const conclusion of d?.conclusions||[]){if(conclusion?.type==='VALUE')addCell(out,conclusion.cell);else{addCell(out,conclusion?.a);addCell(out,conclusion?.b)}}return [...out.values()]
 }
-function normalizePresentationDeduction(d,depth=0){
+function normalizePresentationDeduction(d,depth=0,reg=null){
   if(!d||typeof d!=='object'||depth>6)return d;
   const out=copy(d),x=out.explanationData||{};
   if(RELATION_BALANCE_RULES.has(String(out.rule||''))){
@@ -95,7 +95,9 @@ function normalizePresentationDeduction(d,depth=0){
     if(rejected&&!hasUnit)out.focusUnits=[...(out.focusUnits||[]),rejected];
     if(rejected&&!validUnitRef({family:x.family,id:x.id})){x.family=rejected.family;x.id=rejected.id;out.explanationData=x}
   }
-  if(out.explanationData){for(const key of ['causalTrace','trace','moonCausalTrace','sunCausalTrace','moonTrace','sunTrace'])if(Array.isArray(out.explanationData[key]))out.explanationData[key]=out.explanationData[key].map(step=>normalizePresentationDeduction(step,depth+1))}
+  if(out.explanationData){for(const key of ['causalTrace','trace','moonCausalTrace','sunCausalTrace','moonTrace','sunTrace'])if(Array.isArray(out.explanationData[key]))out.explanationData[key]=out.explanationData[key].map(step=>normalizePresentationDeduction(step,depth+1,reg))}
+  const minimal=minimalStepCells(out,reg),original=Array.isArray(out.focusCells)?out.focusCells:[];
+  if(minimal.length&&(!original.length||minimal.length<=original.length))out.focusCells=minimal;
   return out
 }
 function boardCell(board,n,cell){
@@ -108,7 +110,7 @@ function clearExtended(board){
 }
 function applyFocus(d,reveal=false){
   const board=(root.document?.querySelector?.('#tboard')||root.document?.querySelector?.('.board'));let gameState=null;try{gameState=typeof current!=='undefined'?current:null}catch(_){ }
-  if(!board||!gameState||!d)return false;const n=Number(gameState.n)||6,normalized=normalizePresentationDeduction(d);clearExtended(board);
+  if(!board||!gameState||!d)return false;const n=Number(gameState.n)||6,normalized=normalizePresentationDeduction(d,0,gameState.reg||null);clearExtended(board);
   for(const unit of unitRefs(normalized))for(const cell of unitCells(unit,n,gameState.reg)){const el=boardCell(board,n,cell);if(el)el.classList.add(UNIT_CLASS)}
   const conclusions=conclusionCells(normalized),isConclusion=cell=>conclusions.some(x=>sameCell(x,cell));
   for(const cell of causalEvidenceCells(normalized,gameState.reg)){const el=boardCell(board,n,cell);if(!el)continue;if(reveal&&isConclusion(cell))el.classList.add('hint-focus');else el.classList.add(reveal?SUBSTEP_CLASS:'hint-context')}
@@ -131,9 +133,16 @@ function actionDeduction(){
   return move.deduction||move.presentation?.evidence?.primary||null
 }
 function pruneWalkthrough(){
-  const d=actionDeduction(),trace=causalTraces(d);if(!d||!trace.length)return false;
+  const d=actionDeduction();if(!d)return false;
   const board=root.document?.querySelector?.('.walkthrough-board');if(!board)return false;
-  const allowed=new Set(causalEvidenceCells(normalizePresentationDeduction(d)).map(cellKey));
+  const base=(()=>{try{return typeof walkthroughSession!=='undefined'?walkthroughSession?.base:null}catch(_){return null}})(),n=Number(base?.n)||6,reg=base?.reg||null,normalized=normalizePresentationDeduction(d,0,reg),trace=causalTraces(normalized);
+  const allowed=new Set((trace.length?causalEvidenceCells(normalized,reg):minimalStepCells(normalized,reg)).map(cellKey));
+  const actions=new Set(conclusionCells(normalized).map(cellKey));
+  const units=unitRefs(normalized);
+  for(const unit of units)for(const cell of unitCells(unit,n,reg)){
+    const key=cellKey(cell),el=boardCell(board,n,cell);if(!el)continue;el.classList.add('walkthrough-unit-context',`walkthrough-unit-context-${unit.family}`);
+    if(!allowed.has(key)&&!actions.has(key))el.classList.remove('walkthrough-context','walkthrough-reasoning-context','walkthrough-current-focus')
+  }
   board.querySelectorAll('.walkthrough-reasoning-context,.walkthrough-current-focus').forEach(el=>{const key=`${Number(el.dataset.r)},${Number(el.dataset.c)}`;if(!allowed.has(key)&&!el.classList.contains('walkthrough-current-action'))el.classList.remove('walkthrough-reasoning-context','walkthrough-current-focus')});
   board.dataset.pedagogyCausalProjection='minimal';return true
 }
