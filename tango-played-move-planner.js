@@ -87,10 +87,68 @@ function firstPlacementFromApplied(before,after,trace,proofPrefix=[]){
     engineVisiblePlacements:copy(changes)
   };
 }
+function placementsFromApplied(before,after,trace,proofPrefix=[]){
+  const changes=stateDiff(before,after).filter(isVisiblePlacement).sort((a,b)=>a.cell[0]-b.cell[0]||a.cell[1]-b.cell[1]||a.to-b.to);
+  if(!changes.length)return [];
+  const fullTrace=[...(proofPrefix||[]),...(trace||[])];
+  return changes.map(target=>{
+    const causal=causalProofForTarget(fullTrace,target.cell,target.to);
+    return {
+      target:target.cell.slice(),
+      value:target.to,
+      deduction:causal.source||copy(trace?.[trace.length-1]||null),
+      proofChain:causal.proofChain,
+      engineVisiblePlacementCount:changes.length,
+      engineVisiblePlacements:copy(changes)
+    };
+  });
+}
 function allowedDirectDeductions(session,tierIndex){
   const policy=TD.TIER_POLICY?.[tierIndex],allowed=new Set(policy?.allowedRules||[]);
   if(!allowed.size||typeof session?.directDeductions!=='function')return [];
   return uniqDeductions(session.directDeductions().filter(d=>allowed.has(d.rule))).sort(TL.deductionComparator);
+}
+function directlyConcludesValue(deduction,change){
+  return !!(deduction?.conclusions||[]).some(c=>c?.type==='VALUE'&&Array.isArray(c.cell)&&c.cell[0]===change.cell[0]&&c.cell[1]===change.cell[1]&&c.value===change.to);
+}
+function placementFromProof(change,changes,trace){
+  const causal=causalProofForTarget(trace,change.cell,change.to);
+  return {
+    target:change.cell.slice(),
+    value:change.to,
+    deduction:causal.source||copy(trace?.[trace.length-1]||null),
+    proofChain:causal.proofChain,
+    engineVisiblePlacementCount:changes.length,
+    engineVisiblePlacements:copy(changes)
+  };
+}
+function frontierPlacementsFromApplied(preSession,tierIndex,deduction,before,after,trace,proofPrefix=[]){
+  const changes=stateDiff(before,after).filter(isVisiblePlacement).sort((a,b)=>a.cell[0]-b.cell[0]||a.cell[1]-b.cell[1]||a.to-b.to);
+  if(!changes.length)return [];
+
+  const ownChanges=changes.filter(change=>directlyConcludesValue(deduction,change));
+  if(ownChanges.length){
+    const staged=preSession.clone(),applied=staged.applyDeduction(copy(deduction),{close:false});
+    if(applied?.deduction){
+      const baseTrace=[...(proofPrefix||[]),...traceEntries(applied)];
+      return ownChanges.map(change=>placementFromProof(change,changes,baseTrace));
+    }
+  }
+
+  const frontier=preSession.clone(),staged=frontier.applyDeduction(copy(deduction),{close:false});
+  if(staged?.deduction){
+    const stagedTrace=traceEntries(staged),baseTrace=[...(proofPrefix||[]),...stagedTrace];
+    const direct=allowedDirectDeductions(frontier,tierIndex).filter(d=>(d?.conclusions||[]).some(c=>c?.type==='VALUE'));
+    const placements=[];
+    for(const change of changes){
+      const proof=direct.find(d=>directlyConcludesValue(d,change));
+      if(!proof)continue;
+      placements.push(placementFromProof(change,changes,[...baseTrace,copy(proof)]));
+    }
+    if(placements.length)return placements;
+  }
+
+  return placementsFromApplied(before,after,trace,proofPrefix);
 }
 function advancedDeductionsDetailed(session,tierIndex){
   if(tierIndex<3)return {deductions:[],budgetHit:false};
@@ -112,11 +170,15 @@ function planFromFirstDeduction(session,tierIndex,firstDeduction,{maxEngineSteps
     if(!fork.state.some(row=>row.includes(VALUE_EMPTY)))return {status:'solved',tierIndex,proofChain:copy(proof)};
     if(step>0){const next=TD.nextAllowedDeduction(fork,tierIndex,false);deduction=next?.deduction||null;if(!deduction)return {status:next?.budgetHit?'budget-exhausted':'blocked',budgetHit:!!next?.budgetHit,tierIndex,proofChain:copy(proof)}}
     if(!deduction)return {status:'blocked',budgetHit:false,tierIndex,proofChain:copy(proof)};
-    const before=copy(fork.state),applied=fork.applyDeduction(deduction);
+    const preApply=fork.clone(),before=copy(fork.state),applied=fork.applyDeduction(deduction);
     if(!applied?.deduction)return {status:'invalid',tierIndex,error:'Soleil/Lune deduction could not be applied',proofChain:copy(proof)};
-    const trace=traceEntries(applied),placement=firstPlacementFromApplied(before,fork.state,trace,proof);
+    const trace=traceEntries(applied),placements=frontierPlacementsFromApplied(preApply,tierIndex,deduction,before,fork.state,trace,proof);
     proof.push(...copy(trace));
-    if(placement)return {status:'move',tierIndex,...placement,engineStepCount:step+1,advancedStart:!!advancedStart,startingDeduction:copy(firstDeduction)};
+    if(placements.length){
+      const branchPlans=placements.map(placement=>({status:'move',tierIndex,...placement,engineStepCount:step+1,advancedStart:!!advancedStart,startingDeduction:copy(firstDeduction)}));
+      const selected=selectPlans(branchPlans,{frontierComplete:true});
+      return selected.plan||branchPlans[0];
+    }
   }
   return {status:'budget-exhausted',budgetHit:true,tierIndex,proofChain:copy(proof)};
 }
@@ -214,6 +276,6 @@ return Object.freeze({
   nextPlayedMove,
   applyPlayedMoveToState,
   solveByPlayedMoves,
-  _test:Object.freeze({firstCausalVisiblePlacement,firstPlacementFromApplied,traceEntries,dependencyIds,causalProofForTarget,allowedDirectDeductions,advancedDeductionsDetailed,planFromFirstDeduction,planMetrics,planCostVector,buildSelectorCandidates,selectPlans,evaluateStartingDeductions})
+  _test:Object.freeze({firstCausalVisiblePlacement,firstPlacementFromApplied,placementsFromApplied,frontierPlacementsFromApplied,traceEntries,dependencyIds,causalProofForTarget,allowedDirectDeductions,advancedDeductionsDetailed,planFromFirstDeduction,planMetrics,planCostVector,buildSelectorCandidates,selectPlans,evaluateStartingDeductions})
 });
 });
