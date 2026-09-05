@@ -12,7 +12,6 @@ const TD=require(path.join(ROOT,'GitHub','tango-difficulty.js'));
 assert.strictEqual(Planner.VERSION,3);
 assert.strictEqual(Planner.COST_MODEL,'tango-tutor-ordinal-v1');
 
-// Real visible-state case: two rows each expose an immediate no-three deduction.
 const state=[
   [0,0,-1,-1,-1,-1],
   [1,1,-1,-1,-1,-1],
@@ -69,9 +68,6 @@ assert.strictEqual(directVsIndirect.plan,directPlan,'direct visible move must be
 const limited=Planner._test.selectPlans([directPlan],{frontierComplete:false});
 assert.strictEqual(limited.selection.status,Selector.STATUS.BEST_AVAILABLE_BUDGET_LIMITED);
 
-// Historical Stage-28 Soleil-Lune regression subset. These four public puzzles
-// are copied from generation-stage25-app-boundaries-v240.json and are the exact
-// sources referenced by pedagogy-stage28-v227.json.
 const historical=[
   {
     difficulty:'easy',seed:'quadlud-v2.25-stage25.0:tango:easy:reference-00',fingerprint:'qfp1-ff444bbaf1b16b898b0e044e9b01e184',tier:0,preSteps:0,rule:'RELATION_PROPAGATION',
@@ -92,7 +88,6 @@ const historical=[
 ];
 
 for(const expected of historical){
-  // Reproduce the historical Stage-28 proof path on the exact public puzzle.
   const legacy=TL.createSession(TD._test.initialBoard(expected.puzzle));
   let found=null,preSteps=0;
   for(;preSteps<500;preSteps++){
@@ -106,8 +101,6 @@ for(const expected of historical){
   assert.strictEqual(preSteps,expected.preSteps,`${expected.difficulty}: historical Stage-28 path length stable`);
   assert.strictEqual(found.rule,expected.rule,`${expected.difficulty}: historical Stage-28 rule stable`);
 
-  // The new Tutor planner must solve the same puzzle using only visible-state moves,
-  // deterministically, without hidden-solution access.
   const runA=Planner.solveByPlayedMoves(expected.puzzle,expected.difficulty,{maxMoves:80,maxEngineSteps:96,maxCandidatePlans:128,maxHypothesisSteps:18,maxCommonSteps:10});
   const runB=Planner.solveByPlayedMoves(expected.puzzle,expected.difficulty,{maxMoves:80,maxEngineSteps:96,maxCandidatePlans:128,maxHypothesisSteps:18,maxCommonSteps:10});
   assert.strictEqual(runA.status,'solved',`${expected.difficulty}: Tutor planner must solve historical Stage-28 puzzle`);
@@ -125,12 +118,10 @@ const source=fs.readFileSync(path.join(ROOT,'GitHub','tango-played-move-planner.
 for(const forbidden of ['current.sol','hiddenSolution','solutionGrid','answerGrid','backtracking'])assert(!source.includes(forbidden),`Soleil-Lune Tutor planner must not use ${forbidden}`);
 assert(!source.includes('QuadludQueens')&&!source.includes('QuadludSudoku')&&!source.includes('QuadludPatches')&&!source.includes('QuadludNonogram'),'Soleil-Lune planner must not know other games');
 
-// Browser/PWA dependency graph: the exact selector URL must be loaded and cached
-// before the specialized Soleil-Lune planner that consumes it.
 const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8');
 const sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
 const selectorBrowser='tutor-move-selector.js?v=3.1.9-a11';
-const plannerBrowser='tango-played-move-planner.js?v=3.1.9-a13r1';
+const plannerBrowser='tango-played-move-planner.js?v=3.1.9-a13r2';
 const selectorCache='./'+selectorBrowser;
 const plannerCache='./'+plannerBrowser;
 assert.strictEqual(index.split(selectorBrowser).length-1,1,'index.html must load the selector exactly once');
