@@ -9,8 +9,8 @@ const PlayedMoveRuntime=require(path.join(ROOT,'GitHub','tango-played-move-runti
 
 assert.strictEqual(Planner.VERSION,4);
 assert.strictEqual(Planner.COST_MODEL,'tango-tutor-ordinal-v2');
-assert.strictEqual(PlayedMoveRuntime.VERSION,4);
-assert.strictEqual(PlayedMoveRuntime.HUMAN_PROOF_POLICY,'tango-human-proof-minimal-v1');
+assert.strictEqual(PlayedMoveRuntime.VERSION,5);
+assert.strictEqual(PlayedMoveRuntime.HUMAN_PROOF_POLICY,'tango-human-proof-minimal-v2');
 
 const state=Array.from({length:6},()=>Array(6).fill(-1));
 state[2][1]=1;
@@ -38,8 +38,6 @@ const selected=Planner.nextPlayedMove(session,'medium',{maxEngineSteps:24,maxCan
 assert.strictEqual(selected.status,'move');assert.deepStrictEqual(selected.target,[3,1]);assert.strictEqual(selected.value,0);assert.strictEqual(selected.humanRelationPathLength,1);
 const mutated=state.map(row=>row.slice());assert.strictEqual(Planner.applyPlayedMoveToState(mutated,selected),true);const changed=Planner.stateDiff(state,mutated);assert.strictEqual(changed.length,1);assert.deepStrictEqual(changed[0].cell,[3,1]);assert.strictEqual(changed[0].to,0);
 
-// R4: A6=moon, C6=sun, F6=moon. Hypothesis B6=moon reaches the moon quota,
-// forces D6/E6=sun, then violates the three-consecutive-suns rule on C6-D6-E6.
 const r4State=Array.from({length:6},()=>Array(6).fill(-1));
 r4State[0][5]=0;r4State[2][5]=1;r4State[5][5]=0;
 const r4Session=Planner.sessionFromPublicBoard({n:6,state:r4State.map(row=>row.slice()),edges:[]});
@@ -71,8 +69,8 @@ const serialized=JSON.stringify(human);for(const forbidden of ['solutionGrid','h
 const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8');
 const sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
 const runtimeSource=fs.readFileSync(path.join(ROOT,'GitHub','tango-played-move-runtime.js'),'utf8');
-assert(index.includes('tango-played-move-runtime.js?v=3.1.9-a13r4b'));
-assert(sw.includes('tango-played-move-runtime.js?v=3.1.9-a13r4b'));
+assert(index.includes('tango-played-move-runtime.js?v=3.1.9-a13r5-proof-min'));
+assert(sw.includes('tango-played-move-runtime.js?v=3.1.9-a13r5-proof-min'));
 assert(runtimeSource.includes('plan=planHumanMove(engine,s.base.diff)'));
 assert(runtimeSource.includes('plan=planHumanMove(engine,current?.diff)'));
 assert(runtimeSource.includes('tangoCoachHandleDeduction=coherent'));
