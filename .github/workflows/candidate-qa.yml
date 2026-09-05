@@ -70,16 +70,49 @@ jobs:
           set -euo pipefail
           find "$RUNNER_TEMP/quadlud-public-qa/GitHub" -maxdepth 1 -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
-      - name: Run exported public QA suites
+      - name: Gate R3UI semantic hierarchy
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          node tests/v319-r3ui-pedagogy-visual-hierarchy.test.js
+
+      - name: Gate v3.1.9 Soleil-Lune logic and proof regressions
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          while IFS= read -r test; do
+            echo "TANGO V319 JS: $test"
+            node "$test"
+          done < <(find tests -maxdepth 1 -type f \( -name 'v319-a13*.test.js' -o -name 'v319-r3ui-tango-*.test.js' \) | sort)
+
+      - name: Gate remaining public JavaScript suites
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          while IFS= read -r test; do
+            case "$test" in
+              *v319-r3ui-pedagogy-visual-hierarchy.test.js|*v319-a13*.test.js|*v319-r3ui-tango-*.test.js) continue ;;
+            esac
+            echo "OTHER PUBLIC QA JS: $test"
+            node "$test"
+          done < <(find tests -maxdepth 1 -type f -name '*.test.js' | sort)
+
+      - name: Gate R3UI mobile browser hierarchy
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python tests/v319-r3ui-pedagogy-visual-hierarchy-browser.test.py
+
+      - name: Gate remaining public browser and Python suites
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/quadlud-public-qa"
           export PYTHONPATH="$PWD/tests"
           while IFS= read -r test; do
-            echo "PUBLIC QA JS: $test"
-            node "$test"
-          done < <(find tests -maxdepth 1 -type f -name '*.test.js' | sort)
-          while IFS= read -r test; do
-            echo "PUBLIC QA PY: $test"
+            case "$test" in
+              *v319-r3ui-pedagogy-visual-hierarchy-browser.test.py) continue ;;
+            esac
+            echo "OTHER PUBLIC QA PY: $test"
             python "$test"
           done < <(find tests -maxdepth 1 -type f -name '*.test.py' | sort)
