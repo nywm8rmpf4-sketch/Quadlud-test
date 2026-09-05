@@ -3,13 +3,71 @@
  * Copyright © 2026 Serge Benoliel. All rights reserved.
  */
 
-.walkthrough-current-action{position:relative}
-.walkthrough-current-action-chain{
-  z-index:6;
-  box-shadow:
-    inset 0 0 0 3px color-mix(in srgb,var(--accent) 76%,transparent),
-    inset 0 0 0 6px color-mix(in srgb,var(--accent) 16%,transparent)!important;
+/*
+ * v3.1.9-R3UI — permanent pedagogical visual hierarchy.
+ * Three roles must remain identifiable without relying on colour alone:
+ *   1. complete reasoning context/premises = dashed outline;
+ *   2. current proof sub-step focus = solid outline;
+ *   3. actually advised/played action = double outline.
+ */
+.walkthrough-reasoning-context:not(.walkthrough-current-focus):not(.walkthrough-current-action){
+  position:relative;
+  z-index:2;
+  outline:2px dashed color-mix(in srgb,var(--accent) 62%,var(--ink));
+  outline-offset:-3px;
+  box-shadow:none!important;
 }
+.walkthrough-current-focus:not(.walkthrough-current-action){
+  position:relative;
+  z-index:5;
+  outline:3px solid var(--accent);
+  outline-offset:-4px;
+  box-shadow:inset 0 0 0 6px color-mix(in srgb,var(--accent) 12%,transparent)!important;
+}
+.walkthrough-current-action{
+  position:relative;
+  z-index:8!important;
+  outline:5px double #b77a2f!important;
+  outline-offset:-5px!important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--paper) 88%,transparent)!important;
+}
+
+/* Existing per-game target/context classes remain fallback semantics when the
+   action-first decorator is unavailable. They must still be visibly distinct. */
+.walkthrough-context:not(.walkthrough-target):not(.walkthrough-current-focus):not(.walkthrough-current-action){
+  outline:2px dashed color-mix(in srgb,var(--accent) 58%,var(--ink));
+  outline-offset:-3px;
+}
+.walkthrough-target:not(.walkthrough-current-action){
+  outline:3px solid var(--accent);
+  outline-offset:-4px;
+}
+
+/* Logic Coach uses the same visual grammar: premises/context are dashed and
+   the final played/revealed move is double-bordered. */
+.hint-context:not(.hint-substep-focus):not(.hint-focus){
+  outline:2px dashed color-mix(in srgb,var(--accent) 62%,var(--ink))!important;
+  outline-offset:-3px!important;
+  box-shadow:none!important;
+}
+.hint-substep-focus:not(.hint-focus){
+  outline:3px solid var(--accent)!important;
+  outline-offset:-4px!important;
+  box-shadow:inset 0 0 0 6px color-mix(in srgb,var(--accent) 12%,transparent)!important;
+}
+.cell.hint-focus{
+  outline:5px double #b77a2f!important;
+  outline-offset:-5px!important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--paper) 88%,transparent)!important;
+}
+
+/* Mosaïque already exposes semantic EntityRef roles; make their geometry
+   follow the same non-colour-only hierarchy. */
+.ng-focus-premise,.ng-focus-context{outline-style:dashed!important}
+.ng-focus-target{outline-style:double!important;outline-width:5px!important}
+.ng-focus-contradiction{outline-style:double!important;outline-width:5px!important}
+
+.walkthrough-current-action-chain{z-index:9!important}
 .walkthrough-chain-badge{
   position:absolute;
   inset-inline-end:3px;
@@ -35,5 +93,17 @@
   background:color-mix(in srgb,var(--accent) 5%,transparent);
 }
 @media(max-width:520px){
+  .walkthrough-reasoning-context:not(.walkthrough-current-focus):not(.walkthrough-current-action),
+  .walkthrough-context:not(.walkthrough-target):not(.walkthrough-current-focus):not(.walkthrough-current-action){outline-width:2px;outline-offset:-3px}
+  .walkthrough-current-focus:not(.walkthrough-current-action),.walkthrough-target:not(.walkthrough-current-action),.hint-substep-focus:not(.hint-focus){outline-width:3px;outline-offset:-4px}
+  .walkthrough-current-action,.cell.hint-focus{outline-width:4px!important;outline-offset:-4px!important}
   .walkthrough-chain-badge{min-width:18px;height:18px;font-size:12px;top:2px;inset-inline-end:2px}
+}
+@media(prefers-reduced-motion:reduce){.cell.hint-focus{animation:none!important}}
+@media(forced-colors:active){
+  .walkthrough-reasoning-context:not(.walkthrough-current-focus):not(.walkthrough-current-action),
+  .walkthrough-context:not(.walkthrough-target):not(.walkthrough-current-focus):not(.walkthrough-current-action),
+  .hint-context:not(.hint-substep-focus):not(.hint-focus){outline:2px dashed CanvasText!important;box-shadow:none!important}
+  .walkthrough-current-focus:not(.walkthrough-current-action),.walkthrough-target:not(.walkthrough-current-action),.hint-substep-focus:not(.hint-focus){outline:3px solid Highlight!important;box-shadow:none!important}
+  .walkthrough-current-action,.cell.hint-focus,.ng-focus-target,.ng-focus-contradiction{outline:5px double Highlight!important;box-shadow:none!important}
 }
