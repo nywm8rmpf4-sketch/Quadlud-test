@@ -12,7 +12,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=2;
+const VERSION=3;
 const UNIT_CLASS='hint-unit-context';
 const SUBSTEP_CLASS='hint-substep-focus';
 function sameCell(a,b){return Array.isArray(a)&&Array.isArray(b)&&a.length>=2&&b.length>=2&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1])}
@@ -65,9 +65,11 @@ function install(){
 }
 function scheduleInstall(){
   if(typeof document==='undefined')return false;
-  if(install())return true;
-  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',()=>install(),{once:true});return true}
-  setTimeout(()=>install(),0);return true
+  let remaining=60,timer=null;
+  const retry=()=>{if(install()){if(timer!=null)clearTimeout(timer);return true}if(remaining--<=0)return false;timer=setTimeout(retry,10);return true};
+  retry();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});
+  return true
 }
 
 return Object.freeze({VERSION,install,scheduleInstall,applyFocus,_test:Object.freeze({unitRefs,unitCells,evidenceCells,conclusionCells,sameCell})});
