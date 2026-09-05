@@ -3,10 +3,11 @@
 const assert=require('assert');
 const fs=require('fs');
 const path=require('path');
-const ROOT=path.resolve(__dirname,'..','..');
+const ROOT=path.resolve(__dirname,'..');
+const RUNTIME=path.join(ROOT,'GitHub');
 
 global.walkthroughSession={navigation:{proofStepIndex:1},base:{n:4,reg:[[0,0,1,1],[0,0,1,1],[2,2,3,3],[2,2,3,3]]}};
-const Navigation=require(path.join(ROOT,'tutor-action-first-navigation.js'));
+const Navigation=require(path.join(RUNTIME,'tutor-action-first-navigation.js'));
 const T=Navigation._test;
 const keys=cells=>new Set((cells||[]).map(c=>c.join(',')));
 
@@ -27,7 +28,7 @@ T.collectDeductionCoords({focusRelations:[{a:[1,0],b:[1,1]}],focusUnits:[{family
 for(const key of ['1,0','1,1','2,0','2,1','2,2','2,3','0,3','1,3','3,3','0,0','0,1','3,2'])assert(collected.has(key),`generic semantic resolver must contain ${key}`);
 const ng=new Set();T.collectCoords({kind:'cell',id:'r2c3'},ng);assert(ng.has('2,3'),'Mosaïque cell EntityRef must resolve to a grid coordinate');
 
-const css=fs.readFileSync(path.join(ROOT,'tutor-action-first-navigation.css'),'utf8');
+const css=fs.readFileSync(path.join(RUNTIME,'tutor-action-first-navigation.css'),'utf8');
 assert(css.includes('.walkthrough-reasoning-context'),'context style missing');
 assert(css.includes('.walkthrough-current-focus'),'current-focus style missing');
 assert(css.includes('.walkthrough-current-action'),'action style missing');
@@ -38,8 +39,8 @@ assert(css.includes('@media(forced-colors:active)'),'forced-colors hierarchy mus
 assert(css.includes('.ng-focus-target{outline-style:double'),'Mosaïque target must share double-action grammar');
 
 const token='3.1.9-r3ui-focus-hierarchy';
-const index=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
-const sw=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');
+const index=fs.readFileSync(path.join(RUNTIME,'index.html'),'utf8');
+const sw=fs.readFileSync(path.join(RUNTIME,'sw.js'),'utf8');
 for(const asset of ['tutor-action-first-navigation.css','tutor-action-first-navigation.js']){
   assert(index.includes(`${asset}?v=${token}`),`${asset} cache-bust missing from index`);
   assert(sw.includes(`./${asset}?v=${token}`),`${asset} cache-bust missing from service worker`);
