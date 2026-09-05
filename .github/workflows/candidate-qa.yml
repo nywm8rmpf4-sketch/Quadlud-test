@@ -2,7 +2,9 @@ name: QUADLUD v3.1.9 R3UI candidate QA
 
 on:
   push:
-    branches: [candidate/v3.1.9-r3ui-unit-context-r1]
+    branches:
+      - candidate/v3.1.9-r3ui-unit-context-r1
+      - candidate/v3.1.9-r3ui-human-r4
   workflow_dispatch:
 
 permissions:
