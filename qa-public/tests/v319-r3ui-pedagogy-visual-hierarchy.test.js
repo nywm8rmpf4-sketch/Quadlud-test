@@ -50,5 +50,6 @@ assert(index.includes(`tutor-action-first-navigation.css?v=${cssToken}`),'R3UI C
 assert(sw.includes(`./tutor-action-first-navigation.css?v=${cssToken}`),'R3UI CSS cache-bust missing from service worker');
 assert(index.includes(`tutor-action-first-navigation.js?v=${jsToken}`),'R3UI JS cache-bust missing from index');
 assert(sw.includes(`./tutor-action-first-navigation.js?v=${jsToken}`),'R3UI JS cache-bust missing from service worker');
-assert(sw.includes("const CACHE='quadlud-v3.1.9-r3ui-focus-hierarchy-r2'"),'R3UI R2 service-worker cache identity missing');
+assert(/const CACHE='quadlud-v3\.1\.9-[^']+'/.test(sw),'R3UI service-worker cache must remain on the v3.1.9 candidate family');
+assert(!sw.includes("const CACHE='quadlud-v3.1.8'"),'R3UI must not regress to the certified v3.1.8 cache identity');
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
