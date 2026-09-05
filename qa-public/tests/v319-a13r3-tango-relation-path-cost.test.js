@@ -9,8 +9,8 @@ const PlayedMoveRuntime=require(path.join(ROOT,'GitHub','tango-played-move-runti
 
 assert.strictEqual(Planner.VERSION,4);
 assert.strictEqual(Planner.COST_MODEL,'tango-tutor-ordinal-v2');
-assert.strictEqual(PlayedMoveRuntime.VERSION,5);
-assert.strictEqual(PlayedMoveRuntime.HUMAN_PROOF_POLICY,'tango-human-proof-minimal-v2');
+assert.strictEqual(PlayedMoveRuntime.VERSION,6);
+assert.strictEqual(PlayedMoveRuntime.HUMAN_PROOF_POLICY,'tango-human-proof-minimal-v3');
 
 const state=Array.from({length:6},()=>Array(6).fill(-1));
 state[2][1]=1;
@@ -45,7 +45,7 @@ const r4Plan=Planner.nextPlayedMove(r4Session,'hard',{maxEngineSteps:24,maxCandi
 assert.strictEqual(r4Plan.status,'move');assert.deepStrictEqual(r4Plan.target,[1,5]);assert.strictEqual(r4Plan.value,1);
 assert.strictEqual(r4Plan.deduction.rule,'LINE_DOMAIN_SUPPORT');assert((r4Plan.deduction.conclusions||[]).length>1);
 const rawHypothesis=r4Session.hypothesisResult([1,5],0);
-assert.strictEqual(rawHypothesis.contradiction?.kind,'NO_LINE_COMPLETION','baseline must reproduce abstract short-circuit');
+assert.strictEqual(rawHypothesis.contradiction?.kind,'NO_LINE_COMPLETION');
 const concreteSearch=PlayedMoveRuntime._test.concreteHumanContradictionSearch(r4Session,[1,5],0);
 assert(concreteSearch&&concreteSearch.contradiction);
 assert.strictEqual(concreteSearch.contradiction.kind,'TRIPLE_OVERFLOW');
@@ -63,14 +63,15 @@ const simpleState=Array.from({length:6},()=>Array(6).fill(-1));simpleState[0][0]
 const simpleSession=Planner.sessionFromPublicBoard({n:6,state:simpleState,edges:[]});
 const simplePlan=Planner.nextPlayedMove(simpleSession,'easy',{maxEngineSteps:24,maxCandidatePlans:64});
 assert.strictEqual(simplePlan.status,'move');assert.strictEqual(simplePlan.deduction.rule,'TRIPLE_CONSTRAINT');
-const simpleHuman=PlayedMoveRuntime.selectDisplayProof(simpleSession,simplePlan);assert.strictEqual(simpleHuman.replaced,false);assert.strictEqual(simpleHuman.deduction.rule,'TRIPLE_CONSTRAINT');
+const simpleHuman=PlayedMoveRuntime.selectDisplayProof(simpleSession,simplePlan);assert.strictEqual(simpleHuman.replaced,false);assert.strictEqual(simpleHuman.deduction.rule,'TRIPLE_CONSTRAINT');assert.strictEqual(simpleHuman.displayDeductions.length,1);
 const serialized=JSON.stringify(human);for(const forbidden of ['solutionGrid','hiddenSolution','validationState','answerGrid','backtracking'])assert(!serialized.includes(forbidden));
 
 const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8');
 const sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
 const runtimeSource=fs.readFileSync(path.join(ROOT,'GitHub','tango-played-move-runtime.js'),'utf8');
-assert(index.includes('tango-played-move-runtime.js?v=3.1.9-a13r5-proof-min'));
-assert(sw.includes('tango-played-move-runtime.js?v=3.1.9-a13r5-proof-min'));
+assert(index.includes('tango-played-move-runtime.js?v=3.1.9-a13r6-single-proof'));
+assert(sw.includes('tango-played-move-runtime.js?v=3.1.9-a13r6-single-proof'));
+assert(sw.includes("const CACHE='quadlud-v3.1.9-r3ui-single-proof-r1'"));
 assert(runtimeSource.includes('plan=planHumanMove(engine,s.base.diff)'));
 assert(runtimeSource.includes('plan=planHumanMove(engine,current?.diff)'));
 assert(runtimeSource.includes('tangoCoachHandleDeduction=coherent'));
