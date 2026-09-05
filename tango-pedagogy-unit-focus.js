@@ -12,7 +12,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=5;
+const VERSION=6;
 const UNIT_CLASS='hint-unit-context';
 const SUBSTEP_CLASS='hint-substep-focus';
 const TRACE_KEYS=['causalTrace','moonCausalTrace','sunCausalTrace'];
@@ -96,9 +96,6 @@ function normalizePresentationDeduction(d,depth=0,reg=null){
     if(rejected&&!validUnitRef({family:x.family,id:x.id})){x.family=rejected.family;x.id=rejected.id;out.explanationData=x}
   }
   if(out.explanationData){for(const key of ['causalTrace','trace','moonCausalTrace','sunCausalTrace','moonTrace','sunTrace'])if(Array.isArray(out.explanationData[key]))out.explanationData[key]=out.explanationData[key].map(step=>normalizePresentationDeduction(step,depth+1,reg))}
-  // Engine focusCells may intentionally contain an entire unit for search/audit.
-  // Presentation must instead expose only the concrete premises/relations and
-  // conclusions needed by this sub-step; focusUnits carries the unit context.
   const minimal=minimalStepCells(out,reg),original=Array.isArray(out.focusCells)?out.focusCells:[];
   if(minimal.length&&(!original.length||minimal.length<=original.length))out.focusCells=minimal;
   return out
@@ -130,25 +127,44 @@ function installPresenterBridge(){
   const replacement={...source,createPresenter(h){const p=previousCreate(h),wrap=name=>(d,...args)=>p[name](normalizePresentationDeduction(d),...args);return Object.freeze({...p,orientation:wrap('orientation'),explanation:wrap('explanation'),advancedProofGroups:wrap('advancedProofGroups'),advancedSupports:wrap('advancedSupports'),legacyReasoning:wrap('legacyReasoning'),presentation:wrap('presentation')})},__quadludCausalNormalization:true};
   root.QuadludTangoReasoningPresenter=Object.freeze(replacement);return true
 }
-function actionDeduction(){
-  const group=typeof root.walkthroughCurrentGroup==='function'?root.walkthroughCurrentGroup():null;if(!group?.entries?.length)return null;
-  const nav=root.QuadludTutorActionFirstNavigation,entry=typeof nav?.actionEntry==='function'?nav.actionEntry(group):group.entries[group.entries.length-1],move=entry?.move||{};
-  return move.deduction||move.presentation?.evidence?.primary||null
+function walkthroughGroup(){try{return typeof root.walkthroughCurrentGroup==='function'?root.walkthroughCurrentGroup():null}catch(_){return null}}
+function walkthroughEntryDeduction(entry){const move=entry?.move||entry||{};return move.deduction||move.presentation?.evidence?.primary||null}
+function walkthroughStageKind(entry){const move=entry?.move||entry||{};return String(move.pedagogyStageKind||move.proofStage?.kind||'')}
+function currentWalkthroughEntry(group=walkthroughGroup()){
+  const entries=Array.isArray(group?.entries)?group.entries:[];let s=null;try{s=typeof walkthroughSession!=='undefined'?walkthroughSession:null}catch(_){ }
+  const index=Math.max(0,Math.min(entries.length-1,Number(s?.navigation?.proofStepIndex)||0));return entries[index]||null
+}
+function currentFocusCells(entry,reg=null){
+  const d=walkthroughEntryDeduction(entry);if(!d)return [];
+  const normalized=normalizePresentationDeduction(d,0,reg),out=new Map();
+  for(const cell of normalized?.focusCells||[])addCell(out,cell);
+  for(const rel of normalized?.focusRelations||[]){addCell(out,rel?.a);addCell(out,rel?.b)}
+  addCell(out,normalized?.walkthroughHypothesisCell);for(const cell of normalized?.walkthroughTemporaryCells||[])addCell(out,cell);
+  addCell(out,normalized?.explanationData?.assumption?.cell);
+  for(const cell of normalized?.explanationData?.witness?.cells||[])addCell(out,cell);
+  for(const cell of normalized?.explanationData?.witness?.block||[])addCell(out,cell);
+  if(!out.size)for(const cell of conclusionCells(normalized))addCell(out,cell);
+  return [...out.values()]
+}
+function proofContextCells(group,reg=null){
+  const out=new Map();for(const entry of group?.entries||[]){if(walkthroughStageKind(entry)==='action')continue;const d=walkthroughEntryDeduction(entry);if(!d)continue;const normalized=normalizePresentationDeduction(d,0,reg),trace=causalTraces(normalized),cells=trace.length?causalEvidenceCells(normalized,reg):minimalStepCells(normalized,reg);for(const cell of cells)addCell(out,cell)}return [...out.values()]
+}
+function proofUnits(group){
+  const out=new Map();for(const entry of group?.entries||[]){const d=walkthroughEntryDeduction(entry);for(const unit of unitRefs(d)){const ref=validUnitRef(unit);if(ref)out.set(`${ref.family}:${ref.id}`,ref)}}return [...out.values()]
 }
 function pruneWalkthrough(){
-  const d=actionDeduction();if(!d)return false;
+  const group=walkthroughGroup(),entry=currentWalkthroughEntry(group);if(!group||!entry)return false;
   const board=root.document?.querySelector?.('.walkthrough-board');if(!board)return false;
   const base=(()=>{try{return typeof walkthroughSession!=='undefined'?walkthroughSession?.base:null}catch(_){return null}})();if(base?.game!=='tango')return false;
-  const n=Number(base?.n)||6,reg=base?.reg||null,normalized=normalizePresentationDeduction(d,0,reg),trace=causalTraces(normalized);
-  const allowed=new Set((trace.length?causalEvidenceCells(normalized,reg):minimalStepCells(normalized,reg)).map(cellKey));
-  const actions=new Set(conclusionCells(normalized).map(cellKey));
-  const units=unitRefs(normalized);
-  for(const unit of units)for(const cell of unitCells(unit,n,reg)){
+  const n=Number(base?.n)||6,reg=base?.reg||null,contextAllowed=new Set(proofContextCells(group,reg).map(cellKey)),focusAllowed=new Set(currentFocusCells(entry,reg).map(cellKey)),kind=walkthroughStageKind(entry);
+  for(const unit of proofUnits(group))for(const cell of unitCells(unit,n,reg)){
     const key=cellKey(cell),el=boardCell(board,n,cell);if(!el)continue;el.classList.add('walkthrough-unit-context',`walkthrough-unit-context-${unit.family}`);
-    if(!allowed.has(key)&&!actions.has(key))el.classList.remove('walkthrough-context','walkthrough-reasoning-context','walkthrough-current-focus')
+    if(!contextAllowed.has(key)&&!el.classList.contains('walkthrough-current-action'))el.classList.remove('walkthrough-context','walkthrough-reasoning-context')
   }
-  board.querySelectorAll('.walkthrough-reasoning-context,.walkthrough-current-focus').forEach(el=>{const key=`${Number(el.dataset.r)},${Number(el.dataset.c)}`;if(!allowed.has(key)&&!el.classList.contains('walkthrough-current-action'))el.classList.remove('walkthrough-reasoning-context','walkthrough-current-focus')});
-  board.dataset.pedagogyCausalProjection='minimal';return true
+  board.querySelectorAll('.walkthrough-reasoning-context').forEach(el=>{const key=`${Number(el.dataset.r)},${Number(el.dataset.c)}`;if(!contextAllowed.has(key)&&!el.classList.contains('walkthrough-current-action'))el.classList.remove('walkthrough-reasoning-context')});
+  board.querySelectorAll('.walkthrough-current-focus').forEach(el=>el.classList.remove('walkthrough-current-focus'));
+  if(kind!=='action')for(const key of focusAllowed){const [r,c]=key.split(',').map(Number),el=boardCell(board,n,[r,c]);if(el&&!el.classList.contains('walkthrough-current-action'))el.classList.add('walkthrough-current-focus')}
+  board.dataset.pedagogyCausalProjection='minimal-current-substep';return true
 }
 function installWalkthroughBridge(){
   const previous=root.renderWalkthrough;if(typeof previous!=='function')return false;if(previous.__quadludCausalProjection===true)return true;
@@ -161,5 +177,5 @@ function scheduleInstall(){
   retry();if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true
 }
 
-return Object.freeze({VERSION,install,installPresenterBridge,installWalkthroughBridge,scheduleInstall,applyFocus,pruneWalkthrough,_test:Object.freeze({unitRefs,unitCells,evidenceCells,legacyEvidenceCells,causalTraces,minimalStepCells,causalEvidenceCells,conclusionCells,normalizePresentationDeduction,sameCell,cellInUnit})});
+return Object.freeze({VERSION,install,installPresenterBridge,installWalkthroughBridge,scheduleInstall,applyFocus,pruneWalkthrough,_test:Object.freeze({unitRefs,unitCells,evidenceCells,legacyEvidenceCells,causalTraces,minimalStepCells,causalEvidenceCells,conclusionCells,normalizePresentationDeduction,sameCell,cellInUnit,walkthroughEntryDeduction,walkthroughStageKind,currentWalkthroughEntry,currentFocusCells,proofContextCells,proofUnits})});
 });
