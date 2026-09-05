@@ -8,11 +8,11 @@
   const api=factory(root);
   if(typeof module==='object'&&module.exports)module.exports=api;
   if(root)root.QuadludTangoPedagogyUnitFocus=api;
-  if(typeof document!=='undefined')api.install();
+  if(typeof document!=='undefined')api.scheduleInstall();
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=1;
+const VERSION=2;
 const UNIT_CLASS='hint-unit-context';
 const SUBSTEP_CLASS='hint-substep-focus';
 function sameCell(a,b){return Array.isArray(a)&&Array.isArray(b)&&a.length>=2&&b.length>=2&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1])}
@@ -63,6 +63,12 @@ function install(){
   const previous=root.tangoFocusDeduction;if(typeof previous!=='function')return false;if(previous.__quadludUnitCellSeparation===true)return true;
   const wrapped=function(d,reveal=false){return applyFocus(d,reveal)||previous(d,reveal)};wrapped.__quadludUnitCellSeparation=true;wrapped.__quadludPrevious=previous;root.tangoFocusDeduction=wrapped;return true
 }
+function scheduleInstall(){
+  if(typeof document==='undefined')return false;
+  if(install())return true;
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',()=>install(),{once:true});return true}
+  setTimeout(()=>install(),0);return true
+}
 
-return Object.freeze({VERSION,install,applyFocus,_test:Object.freeze({unitRefs,unitCells,evidenceCells,conclusionCells,sameCell})});
+return Object.freeze({VERSION,install,scheduleInstall,applyFocus,_test:Object.freeze({unitRefs,unitCells,evidenceCells,conclusionCells,sameCell})});
 });
