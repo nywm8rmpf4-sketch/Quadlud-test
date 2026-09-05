@@ -3,7 +3,7 @@ import json
 import subprocess
 
 REPO = Path(__file__).resolve().parents[2]
-EXPECTED_PRIVATE_RUNTIME_TREE = 'cf88d9d05bcab18f44f874d70e9ee4e4ab2cc39c'
+EXPECTED_PRIVATE_RUNTIME_TREE = 'f70ac88c9200a455a2c924ec32045bc428fb944e'
 
 # Public pre-production repository must contain only deployable runtime plus
 # explicitly public QA harness/workflow material.
