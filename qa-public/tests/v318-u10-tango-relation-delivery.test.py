@@ -12,11 +12,11 @@ tango = (WEB / 'tango-ui.js').read_text(encoding='utf-8')
 sw = (WEB / 'sw.js').read_text(encoding='utf-8')
 
 # The Safari-facing compatibility asset remains versioned and cached even when
-# later v3.1.8 UI checkpoints legitimately advance its cache-bust token.
+# later v3.1 UI checkpoints legitimately advance the service-worker cache identity.
 asset_match=re.search(r'ui-mobile-coach-fixes\.css\?v=(3\.1\.8-[^"\']+)',index)
 assert asset_match,'ui-mobile-coach-fixes.css v3.1.8 cache-bust token missing'
 asset_token=asset_match.group(1)
-assert "const CACHE='quadlud-v3.1.8-" in sw
+assert "const CACHE='quadlud-v3.1." in sw,'v3.1 service-worker cache identity missing'
 assert f"'./ui-mobile-coach-fixes.css?v={asset_token}'" in sw,'current mobile Coach CSS token must be precached exactly'
 
 # The real Tutor renderer uses the same Tango coordinate wrapper and relation markup.
