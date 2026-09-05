@@ -19,7 +19,8 @@
   function createPresenter(h={}){
     const tr=h.tr||((k)=>k),lang=h.lang||(()=> 'en'),cellName=h.cellName||((r,c)=>`${r},${c}`),pieceName=h.pieceName||((_,v)=>String(v)),genericLocalizedHint=h.genericLocalizedHint||(()=>({where:tr('visibleOnly'),why:'',move:''})),isDetailedLanguage=h.isDetailedLanguage||(()=>false);
     const format=(key,vars={})=>String(tr(key)||key).replace(/\{([A-Za-z0-9_]+)\}/g,(_,k)=>vars[k]??'');
-    const unitHuman=ref=>!ref?'':`${tr(ref.family==='row'?'rowLabel':'columnLabel')} ${Number(ref.id)+1}`;
+    const rowHuman=id=>{let n=Number(id)+1,out='';while(Number.isFinite(n)&&n>0){n--;out=String.fromCharCode(65+(n%26))+out;n=Math.floor(n/26)}return out};
+    const unitHuman=ref=>!ref?'':`${tr(ref.family==='row'?'rowLabel':'columnLabel')} ${ref.family==='row'?rowHuman(ref.id):Number(ref.id)+1}`;
     const valueHuman=v=>pieceName(GAME,Number(v));
     const relationHuman=p=>tr(Number(p)===0?'tlgSame':'tlgOpposite');
     function ruleTitle(d){let k=d?.rule==='RELATION_PROPAGATION'?'tlgRelationPropagation':d?.rule==='TRIPLE_CONSTRAINT'?'tlgTriple':d?.rule==='BALANCE_QUOTA'?'tlgBalanceQuota':d?.rule==='BALANCE_RELATION'?'tlgBalanceRelation':d?.rule==='RELATION_BALANCE'?'tlgRelationBalance':d?.rule==='RELATION_BALANCE_COMPONENT'?'tlgRelationComponent':d?.rule==='LINE_DOMAIN_SUPPORT'?'tlgDomain':d?.rule==='ASSUMPTION_CONTRADICTION'?'tlgContradiction':d?.rule==='COMMON_CONSEQUENCE'?'tlgCommon':null;return k?tr(k):tr('logicalDeduction')}
