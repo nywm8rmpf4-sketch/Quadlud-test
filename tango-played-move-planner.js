@@ -126,6 +126,9 @@ function frontierPlacementsFromApplied(preSession,tierIndex,deduction,before,aft
   const changes=stateDiff(before,after).filter(isVisiblePlacement).sort((a,b)=>a.cell[0]-b.cell[0]||a.cell[1]-b.cell[1]||a.to-b.to);
   if(!changes.length)return [];
 
+  // If the current deduction itself places values, only those values are
+  // immediately playable from the pre-move visible state. Automatic values
+  // derived from them are downstream and must wait for a later Tutor move.
   const ownChanges=changes.filter(change=>directlyConcludesValue(deduction,change));
   if(ownChanges.length){
     const staged=preSession.clone(),applied=staged.applyDeduction(copy(deduction),{close:false});
@@ -135,6 +138,11 @@ function frontierPlacementsFromApplied(preSession,tierIndex,deduction,before,aft
     }
   }
 
+  // Relation-only deductions are invisible intermediate reasoning. Rebuild the
+  // frontier with automatic value propagation disabled, then ask the same logic
+  // engine which allowed value deductions are directly demonstrable there.
+  // This prevents engine propagation order from making a downstream consequence
+  // look cheaper than the human-visible premise that enables it.
   const frontier=preSession.clone(),staged=frontier.applyDeduction(copy(deduction),{close:false});
   if(staged?.deduction){
     const stagedTrace=traceEntries(staged),baseTrace=[...(proofPrefix||[]),...stagedTrace];
@@ -148,6 +156,8 @@ function frontierPlacementsFromApplied(preSession,tierIndex,deduction,before,aft
     if(placements.length)return placements;
   }
 
+  // Fail-safe for an unusual engine trace: retain the already proven causal
+  // reconstruction rather than inventing a proof or consulting hidden state.
   return placementsFromApplied(before,after,trace,proofPrefix);
 }
 function advancedDeductionsDetailed(session,tierIndex){
