@@ -3,10 +3,10 @@
  * Copyright © 2026 Serge Benoliel. All rights reserved.
  * Proprietary software. Copying, modification, redistribution or exploitation without prior written authorization is prohibited.
  */
-const CACHE='quadlud-v3.1.8-a13r4-tango-human-proof';
+const CACHE='quadlud-v3.1.8-a13r4b-tango-human-proof';
 const ASSETS=['./','./index.html','./styles-core.css?v=3.1.8','./styles-patches.css?v=3.1.8','./styles-i18n.css?v=3.1.8','./styles-pedagogy.css?v=3.1.8','./styles-patches-direct.css?v=3.1.8','./styles-accessibility.css?v=3.1.8','./styles-sudoku-proof.css?v=3.1.8','./styles-data.css?v=3.1.8','./styles-nonogram.css?v=3.1.8-u13-nonogram','./styles-mobile.css?v=3.1.8-u12-ipad-balance','./ui-mobile-coach-fixes.css?v=3.1.8-u13-nonogram','./tutor-action-first-navigation.css?v=3.1.8','./ui-consistency-v318.css?v=3.1.8-u14r1-coach-stability','./queens-logic.js?v=3.1.8','./difficulty-rating.js?v=3.1.8','./queens-difficulty.js?v=3.1.8','./tango-logic.js?v=3.1.8','./tango-difficulty.js?v=3.1.8','./tutor-move-selector.js?v=3.1.9-a11','./tango-played-move-planner.js?v=3.1.9-a13r3','./patches-logic.js?v=3.1.8','./patches-difficulty.js?v=3.1.8','./sudoku-logic.js?v=3.1.8','./sudoku-difficulty.js?v=3.1.8','./platform-web.js?v=3.1.8','./web-storage.js?v=3.1.8','./data-serialization.js?v=3.1.8','./persistence-services.js?v=3.1.8','./generation-common.js?v=3.1.8','./queens-qpool4.js?v=3.1.8','./queens-generator.js?v=3.1.8','./tango-generator.js?v=3.1.8','./sudoku-generator.js?v=3.1.8','./patches-generator.js?v=3.1.8','./session-core.js?v=3.1.8','./logical-move.js?v=3.1.8','./game-session-adapters.js?v=3.1.8','./reasoning-view.js?v=3.1.8','./game-ui-adapters.js?v=3.1.8','./game-contract.js?v=3.1.8','./game-manifest.js?v=3.1.8-u14r2-manifest','./game-registry.js?v=3.1.8','./queens-ui.js?v=3.1.8','./tango-ui.js?v=3.1.8','./sudoku-ui.js?v=3.1.8','./patches-ui.js?v=3.1.8','./queens-runtime.js?v=3.1.8',
   './tango-runtime.js?v=3.1.8',
-  './tango-played-move-runtime.js?v=3.1.9-a13r4',
+  './tango-played-move-runtime.js?v=3.1.9-a13r4b',
   './sudoku-runtime.js?v=3.1.8',
   './patches-runtime.js?v=3.1.8',
   './game-pedagogy-adapters.js?v=3.1.8','./queens-pedagogy.js?v=3.1.8','./tango-pedagogy.js?v=3.1.8','./sudoku-pedagogy.js?v=3.1.8','./patches-pedagogy.js?v=3.1.8','./pedagogy-metadata.js?v=3.1.8','./reasoning-presentation.js?v=3.1.8','./queens-reasoning-presentation.js?v=3.1.8','./tango-reasoning-presentation.js?v=3.1.8','./sudoku-reasoning-presentation.js?v=3.1.8','./patches-reasoning-presentation.js?v=3.1.8','./i18n-catalog.js?v=3.1.8',
