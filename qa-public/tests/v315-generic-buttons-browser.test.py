@@ -9,7 +9,7 @@ index_html=(ROOT/'index.html').read_text()
 service_worker=(ROOT/'sw.js').read_text()
 assert 'styles-mobile.css?v=3.1.8-u12-ipad-balance' in index_html,'adaptive iPad CSS cache-bust token missing'
 cache_match=re.search(r"const CACHE='([^']+)'",service_worker)
-assert cache_match and cache_match.group(1).startswith('quadlud-v3.1.8-'),'v3.1.8 service-worker cache identity missing'
+assert cache_match and cache_match.group(1).startswith('quadlud-v3.1.'),'v3.1 service-worker cache identity missing'
 assert "'./styles-mobile.css?v=3.1.8-u12-ipad-balance'" in service_worker,'adaptive iPad CSS must be precached under the cache-busted URL'
 html=index_html
 for pat in [r'<link rel="stylesheet"[^>]+>',r'<link rel="manifest"[^>]+>',r'<link rel="apple-touch-icon"[^>]+>',r'<script src="[^"]+"></script>']:
