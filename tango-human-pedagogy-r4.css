@@ -1,0 +1,36 @@
+/*
+ * QUADLUD — Soleil/Lune progressive human proof UI
+ * Copyright © 2026 Serge Benoliel. All rights reserved.
+ */
+
+/* A long proof is temporal, not cumulative: past premises stay readable but
+   attenuated, current premises are strong, future premises are not decorated. */
+.walkthrough-past-proof:not(.walkthrough-current-focus):not(.walkthrough-current-action){
+  outline-width:1px!important;
+  outline-style:dashed!important;
+  outline-color:color-mix(in srgb,var(--accent) 34%,var(--ink))!important;
+  box-shadow:inset 0 0 0 999px color-mix(in srgb,var(--ink) 2.5%,transparent)!important;
+}
+.walkthrough-board[data-pedagogy-progression="past-current-future-hidden"] .walkthrough-current-focus:not(.walkthrough-current-action){
+  outline-width:3px!important;
+  outline-style:solid!important;
+}
+.walkthrough-panel[data-proof-stage-kind="hypothesis"] .walkthrough-move,
+.walkthrough-panel[data-proof-stage-kind="reasoning"] .walkthrough-move,
+.walkthrough-panel[data-proof-stage-kind="contradiction"] .walkthrough-move{
+  display:none!important;
+}
+.walkthrough-panel[data-proof-stage-kind="action"] .walkthrough-move{display:block}
+
+/* Coach uses only the current causal slice while a progressive proof is being
+   explained. The final advised/applied action keeps the strongest double edge. */
+.cell.hint-substep-focus:not(.hint-focus){
+  outline:3px solid var(--accent)!important;
+  outline-offset:-4px!important;
+  box-shadow:inset 0 0 0 6px color-mix(in srgb,var(--accent) 12%,transparent)!important;
+}
+
+@media(forced-colors:active){
+  .walkthrough-past-proof:not(.walkthrough-current-focus):not(.walkthrough-current-action){outline:1px dashed CanvasText!important;box-shadow:none!important}
+  .cell.hint-substep-focus:not(.hint-focus){outline:3px solid Highlight!important;box-shadow:none!important}
+}
