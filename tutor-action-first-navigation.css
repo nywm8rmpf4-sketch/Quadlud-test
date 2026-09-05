@@ -40,14 +40,18 @@
 }
 
 /* Existing per-game target/context classes remain fallback semantics. A cell
-   that belongs only to a logical unit must not inherit the legacy selected-cell
-   outline merely because an older renderer used walkthrough-context. */
+   that belongs only to a logical unit must never retain the historical
+   selected-cell frame merely because the base renderer emitted
+   walkthrough-context for a broad focusCells list. */
 .walkthrough-context:not(.walkthrough-unit-context):not(.walkthrough-target):not(.walkthrough-current-focus):not(.walkthrough-current-action),
 .walkthrough-unit-context.walkthrough-context.walkthrough-reasoning-context:not(.walkthrough-current-focus):not(.walkthrough-current-action){
   outline:2px dashed color-mix(in srgb,var(--accent) 58%,var(--ink));
   outline-offset:-3px;
 }
-.walkthrough-unit-context.walkthrough-context:not(.walkthrough-reasoning-context):not(.walkthrough-current-focus):not(.walkthrough-current-action){outline:none!important}
+.walkthrough-unit-context.walkthrough-context:not(.walkthrough-reasoning-context):not(.walkthrough-current-focus):not(.walkthrough-current-action){
+  outline:none!important;
+  box-shadow:inset 0 0 0 999px color-mix(in srgb,var(--ink) 6%,transparent)!important;
+}
 .walkthrough-target:not(.walkthrough-current-action){outline:3px solid var(--accent);outline-offset:-4px}
 
 /* Logic Coach follows the same grammar. */
