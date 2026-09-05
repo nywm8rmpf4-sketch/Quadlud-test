@@ -14,9 +14,12 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root,Base,Planner){
 'use strict';
 
-if(!Base)throw new Error('QuadludTangoPlayedMoveRuntime is required');
 const VERSION=1;
 const POLICY='tango-human-proof-minimal-v4';
+if(!Base){
+  const unavailable=()=>false;
+  return Object.freeze({VERSION,POLICY,available:false,installEarly:unavailable,installLate:unavailable,chooseGloballySimplestPlan:()=>null,proofStagesForDeduction:()=>[],decorateProgressiveProof:unavailable,_test:Object.freeze({})})
+}
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
 const sameCell=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&a.length>=2&&b.length>=2&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1]);
 const moveKey=p=>Array.isArray(p?.target)?`${Number(p.target[0])},${Number(p.target[1])}:${Number(p.value)}`:'';
@@ -138,5 +141,5 @@ function installEarly(){
   if(typeof document!=='undefined'){const run=()=>setTimeout(installLate,0);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});else run()}return true
 }
 
-return Object.freeze({VERSION,POLICY,installEarly,installLate,chooseGloballySimplestPlan,proofStagesForDeduction,decorateProgressiveProof,_test:Object.freeze({playableDirectPlans,evaluatePlanHumanProof,compareHumanCandidate,chooseGloballySimplestPlan,proofStagesForDeduction,stageFocusDeduction,traceForAdvanced,concreteExplanation,moveKey,planStableKey})});
+return Object.freeze({VERSION,POLICY,available:true,installEarly,installLate,chooseGloballySimplestPlan,proofStagesForDeduction,decorateProgressiveProof,_test:Object.freeze({playableDirectPlans,evaluatePlanHumanProof,compareHumanCandidate,chooseGloballySimplestPlan,proofStagesForDeduction,stageFocusDeduction,traceForAdvanced,concreteExplanation,moveKey,planStableKey})});
 });
