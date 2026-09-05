@@ -62,14 +62,16 @@ with sync_playwright() as p:
     assert result['prior']['outlineStyle']=='dashed',result
     assert 'walkthrough-current-focus' in result['current']['classes'],result
     assert result['current']['outlineStyle']=='solid',result
-    assert 'walkthrough-current-action' in result['action']['classes'],result
-    assert result['action']['outlineStyle']=='double',result
-    assert int(float(result['action']['outlineWidth'].replace('px',''))) >= 4,result
+    # While explaining a non-action proof step, the final advised move must not
+    # be highlighted yet. It may remain part of the accumulated premise context.
+    assert 'walkthrough-current-action' not in result['action']['classes'],result
+    assert result['action']['outlineStyle']!='double',result
+    assert 'walkthrough-reasoning-context' in result['action']['classes'],result
     assert 'walkthrough-unit-context' not in result['outside']['classes'],result
     assert 'walkthrough-reasoning-context' in result['clue']['classes'],result
     assert 'walkthroughProofPrev' in result['proofControls'] and 'walkthroughProofNext' in result['proofControls'] and '2/3' in result['proofControls'],result
 
-    # Move proof cursor: cell focus moves; unit context remains stable; action stays strongest.
+    # Move proof cursor backward: focus moves and the final action remains hidden.
     page.evaluate("""()=>{walkthroughSession.navigation={schema:1,logicalMoveIndex:0,proofStepIndex:0};walkthroughSession.index=1;QuadludTutorActionFirstNavigation.decorateCurrentAction()}""")
     moved=page.evaluate("""()=>({first:[...document.querySelector('[data-r="5"][data-c="3"]').classList],later:[...document.querySelector('[data-r="2"][data-c="3"]').classList],unitOnly:[...document.querySelector('[data-r="1"][data-c="3"]').classList],action:[...document.querySelector('[data-r="0"][data-c="3"]').classList]})""")
     assert 'walkthrough-current-focus' in moved['first'],moved
@@ -77,7 +79,14 @@ with sync_playwright() as p:
     assert 'walkthrough-reasoning-context' in moved['later'],moved
     assert 'walkthrough-unit-context' in moved['unitOnly'],moved
     assert 'walkthrough-current-focus' not in moved['unitOnly'],moved
-    assert 'walkthrough-current-action' in moved['action'],moved
+    assert 'walkthrough-current-action' not in moved['action'],moved
+
+    # Only the actual action stage may expose the strongest action treatment.
+    page.evaluate("""()=>{walkthroughSession.navigation={schema:1,logicalMoveIndex:0,proofStepIndex:2};walkthroughSession.index=3;QuadludTutorActionFirstNavigation.decorateCurrentAction()}""")
+    final_action=page.evaluate("""()=>{const el=document.querySelector('[data-r="0"][data-c="3"]');return {classes:[...el.classList],outlineStyle:getComputedStyle(el).outlineStyle,outlineWidth:getComputedStyle(el).outlineWidth}}""")
+    assert 'walkthrough-current-action' in final_action['classes'],final_action
+    assert final_action['outlineStyle']=='double',final_action
+    assert int(float(final_action['outlineWidth'].replace('px',''))) >= 4,final_action
 
     assert not errors,errors
     ctx.close();browser.close()
