@@ -22,9 +22,11 @@
     const entries=Array.isArray(group?.entries)?group.entries:[],nav=session()?.navigation,index=Number(nav?.proofStepIndex);
     return entries[Math.max(0,Math.min(entries.length-1,Number.isInteger(index)?index:0))]||null
   }
+  function pedagogicalStageKind(entry){return String(entry?.move?.pedagogyStageKind||entry?.move?.proofStage?.kind||'')}
+  function suppressProjectedAction(group){const kind=pedagogicalStageKind(currentEntry(group));return !!kind&&kind!=='action'}
   function isActionMove(move){
     if(!move)return false;
-    if(move.proofStage?.kind==='action'||move.proofStage?.apply===true)return true;
+    if(move.pedagogyStageKind==='action'||move.proofStage?.kind==='action'||move.proofStage?.apply===true)return true;
     if(move.presentation?.metadata?.showTutorMove===true)return true;
     return false
   }
@@ -135,14 +137,14 @@
   }
   function decorateCurrentAction(){
     const group=currentGroup(),doc=root?.document;if(!group||!doc)return false;
-    const chain=(group.entries?.length||0)>1,entry=actionEntry(group),board=doc.querySelector('.walkthrough-board');if(!board||!entry)return false;
+    const chain=(group.entries?.length||0)>1,entry=actionEntry(group),board=doc.querySelector('.walkthrough-board'),showAction=!suppressProjectedAction(group);if(!board||!entry)return false;
     const scope=doc.querySelector('.walkthrough-panel')||board.parentElement||board,roles=semanticRoles(group);clearSemanticRoles(scope);
     applyUnitClass(board,roles.unitContext,'walkthrough-unit-context');
     applyCoordClass(board,roles.context,'walkthrough-reasoning-context');applyEntityClass(scope,roles.contextEntities,'walkthrough-reasoning-context');
     applyCoordClass(board,roles.focus,'walkthrough-current-focus');applyEntityClass(scope,roles.focusEntities,'walkthrough-current-focus');
-    applyCoordClass(board,roles.action,'walkthrough-current-action');applyEntityClass(scope,roles.actionEntities,'walkthrough-current-action');
+    if(showAction){applyCoordClass(board,roles.action,'walkthrough-current-action');applyEntityClass(scope,roles.actionEntities,'walkthrough-current-action')}
     board.classList.toggle('walkthrough-proof-chain-active',chain);board.dataset.proofSteps=String(group.entries?.length||1);board.dataset.pedagogyHierarchy='unit-context-premise-focus-action';
-    for(const el of findActionElements(entry)){
+    if(showAction)for(const el of findActionElements(entry)){
       el.classList.add('walkthrough-current-action');
       if(chain){el.classList.add('walkthrough-current-action-chain');if(!el.querySelector(':scope > .walkthrough-chain-badge')){const badge=doc.createElement('span');badge.className='walkthrough-chain-badge';badge.setAttribute('aria-hidden','true');badge.textContent='⋯';el.appendChild(badge)}}
     }
@@ -151,7 +153,7 @@
 
   function installBoardProjection(){
     if(typeof walkthroughBoardHtml!=='function'||walkthroughBoardHtml.__quadludActionFirst)return false;previousBoardHtml=walkthroughBoardHtml;
-    const wrapped=function(snapshot,target,deduction,options={}){const s=session(),group=currentGroup(),projection=projectedAction(group);if(!s||s.atStart||!projection?.snapshot)return previousBoardHtml(snapshot,target,deduction,options);const nextOptions={...options,previousSnapshot:previousActionSnapshot(group)};if(proofNavigationActive)nextOptions.animatePlacement=false;return previousBoardHtml(projection.snapshot,projection.target??target,deduction,nextOptions)};
+    const wrapped=function(snapshot,target,deduction,options={}){const s=session(),group=currentGroup(),projection=projectedAction(group);if(!s||s.atStart||suppressProjectedAction(group)||!projection?.snapshot)return previousBoardHtml(snapshot,target,deduction,options);const nextOptions={...options,previousSnapshot:previousActionSnapshot(group)};if(proofNavigationActive)nextOptions.animatePlacement=false;return previousBoardHtml(projection.snapshot,projection.target??target,deduction,nextOptions)};
     wrapped.__quadludActionFirst=true;walkthroughBoardHtml=wrapped;return true
   }
   function installRenderProjection(){
@@ -164,5 +166,5 @@
   }
   function install(){if(installed)return true;const ok=installBoardProjection()&&installRenderProjection()&&installProofNavigationProjection();installed=ok;if(ok)decorateCurrentAction();return ok}
 
-  return Object.freeze({install,actionEntry,actionCoords,decorateCurrentAction,_test:Object.freeze({isActionMove,collectCoords,collectUnitCoords,collectDeductionUnits,collectPremiseCoords,collectDeductionCoords,currentEntry,entryReasoningCoords,groupReasoningCoords,entryUnits,groupUnits,semanticRoles,projectedAction})})
+  return Object.freeze({install,actionEntry,actionCoords,decorateCurrentAction,_test:Object.freeze({isActionMove,pedagogicalStageKind,suppressProjectedAction,collectCoords,collectUnitCoords,collectDeductionUnits,collectPremiseCoords,collectDeductionCoords,currentEntry,entryReasoningCoords,groupReasoningCoords,entryUnits,groupUnits,semanticRoles,projectedAction})})
 });
