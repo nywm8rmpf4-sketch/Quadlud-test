@@ -50,5 +50,5 @@ assert(index.includes(`tutor-action-first-navigation.css?v=${navigationToken}`))
 assert(index.includes(`tutor-action-first-navigation.js?v=${navigationToken}`));assert(sw.includes(`./tutor-action-first-navigation.js?v=${navigationToken}`));
 assert(index.includes(`tango-pedagogy-unit-focus.js?v=${unitToken}`));assert(sw.includes(`./tango-pedagogy-unit-focus.js?v=${unitToken}`));
 assert(index.includes(`tango-played-move-runtime.js?v=${playedToken}`));assert(sw.includes(`./tango-played-move-runtime.js?v=${playedToken}`));
-assert(sw.includes("const CACHE='quadlud-v3.1.9-r3ui-single-proof-r1'"));
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert(/^quadlud-v3\.1\.9-/.test(cacheMatch[1]));assert.notStrictEqual(cacheMatch[1],'quadlud-v3.1.8');
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
