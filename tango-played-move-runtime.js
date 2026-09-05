@@ -15,9 +15,41 @@ function firstValueTarget(d){const c=(d?.conclusions||[]).find(x=>x?.type==='VAL
 function sameCell(a,b){return Array.isArray(a)&&Array.isArray(b)&&a.length===2&&b.length===2&&a[0]===b[0]&&a[1]===b[1]}
 function concludesMove(d,target,value){return !!(d?.conclusions||[]).some(c=>c?.type==='VALUE'&&sameCell(c.cell,target)&&Number(c.value)===Number(value))}
 function planner(){const p=root.QuadludTangoPlayedMovePlanner;if(!p||typeof p.sessionFromPublicBoard!=='function'||typeof p.nextPlayedMove!=='function')throw new Error('Soleil/Lune played-move planner unavailable');return p}
+function sessionStateKey(session){
+  const snap=typeof session?.snapshot==='function'?session.snapshot():{state:session?.state,derivedRelations:[]};
+  const relations=(snap?.derivedRelations||[]).map(r=>[r?.a,r?.b,Number(r?.parity)]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  return JSON.stringify({state:snap?.state||null,relations})
+}
+function touchesTarget(d,target){
+  if(!Array.isArray(target))return false;
+  if((d?.focusCells||[]).some(c=>sameCell(c,target)))return true;
+  if((d?.conclusions||[]).some(c=>c?.type==='VALUE'&&sameCell(c.cell,target)))return true;
+  return false
+}
+function concreteHumanContradictionSearch(session,target,rejected,{maxDepth=3,maxNodes=96,maxBranch=24}={}){
+  if(!session||typeof session.clone!=='function'||typeof session.assume!=='function'||typeof session.directViolations!=='function'||typeof session.directDeductions!=='function'||typeof session.applyDeduction!=='function')return null;
+  const seed=session.clone();
+  if(!seed.assume(target,rejected))return {contradiction:{kind:'VALUE_CONFLICT',cells:[target.slice()]},trace:[],session:seed,budgetHit:false};
+  const queue=[{session:seed,trace:[],depth:0}],seen=new Set([sessionStateKey(seed)]);let visited=0;
+  while(queue.length&&visited++<maxNodes){
+    const node=queue.shift(),violations=node.session.directViolations().filter(v=>CONCRETE_WITNESSES.has(String(v?.kind||'')));
+    if(violations.length)return {contradiction:copy(violations[0]),trace:node.trace.map(copy),session:node.session,budgetHit:false};
+    if(node.depth>=maxDepth)continue;
+    const raw=node.session.directDeductions().filter(d=>d&&!ABSTRACT_DISPLAY_RULES.has(String(d.rule||'')));
+    const relevant=raw.filter(d=>touchesTarget(d,target)),other=raw.filter(d=>!touchesTarget(d,target)),candidates=relevant.concat(other).slice(0,maxBranch);
+    for(const d of candidates){
+      const child=node.session.clone(),applied=child.applyDeduction(d,{close:false});
+      if(!applied?.deduction)continue;
+      const key=sessionStateKey(child);if(seen.has(key))continue;seen.add(key);
+      queue.push({session:child,trace:node.trace.concat([applied.deduction],applied.automatic||[]),depth:node.depth+1})
+    }
+  }
+  return null
+}
 function concreteContradictionForMove(session,target,value){
   if(!session||typeof session.hypothesisResult!=='function'||typeof session.contradictionDeduction!=='function'||!Array.isArray(target)||(value!==0&&value!==1))return null;
-  const rejected=1-value,result=session.hypothesisResult(target,rejected);
+  const rejected=1-value;let result=session.hypothesisResult(target,rejected);
+  if(!result||result.budgetHit||!result.contradiction||!CONCRETE_WITNESSES.has(String(result.contradiction.kind||'')))result=concreteHumanContradictionSearch(session,target,rejected)||result;
   if(!result||result.budgetHit||!result.contradiction||!CONCRETE_WITNESSES.has(String(result.contradiction.kind||'')))return null;
   const deduction=session.contradictionDeduction(target,rejected,result);
   if(!deduction||deduction.rule!=='ASSUMPTION_CONTRADICTION'||!concludesMove(deduction,target,value))return null;
@@ -61,7 +93,7 @@ function installCoachBridge(){
   coherent.__quadludA13R4Coherent=true;tangoCoachHandleDeduction=coherent;return true
 }
 function scheduleCoachBridge(){if(typeof document==='undefined')return;if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>installCoachBridge(),{once:true});else setTimeout(()=>installCoachBridge(),0)}
-const api=Object.freeze({VERSION,HUMAN_PROOF_POLICY,walkthroughGenerateTangoPlannedNext,selectDisplayProof,planHumanMove,installCoachBridge,_test:Object.freeze({proofDeductions,firstValueTarget,concludesMove,concreteContradictionForMove,selectDisplayProof,applyVisibleMove,ABSTRACT_DISPLAY_RULES,CONCRETE_WITNESSES})});
+const api=Object.freeze({VERSION,HUMAN_PROOF_POLICY,walkthroughGenerateTangoPlannedNext,selectDisplayProof,planHumanMove,installCoachBridge,_test:Object.freeze({proofDeductions,firstValueTarget,concludesMove,sessionStateKey,touchesTarget,concreteHumanContradictionSearch,concreteContradictionForMove,selectDisplayProof,applyVisibleMove,ABSTRACT_DISPLAY_RULES,CONCRETE_WITNESSES})});
 root.walkthroughGenerateTangoNext=walkthroughGenerateTangoPlannedNext;root.QuadludTangoPlayedMoveRuntime=api;scheduleCoachBridge();
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
