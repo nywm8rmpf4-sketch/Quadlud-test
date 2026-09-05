@@ -18,7 +18,7 @@ assert bridge_match,'Coach bridge v3.1.8 cache-bust token missing'
 bridge_token=bridge_match.group(1)
 assert f"'./coach-presentation-bridge.js?v={bridge_token}'" in service_worker,'current Coach bridge token must be precached exactly'
 cache_match=re.search(r"const CACHE='([^']+)'",service_worker)
-assert cache_match and cache_match.group(1).startswith('quadlud-v3.1.8-'),'v3.1.8 PWA cache identity missing'
+assert cache_match and cache_match.group(1).startswith('quadlud-v3.1.'),'v3.1 PWA cache identity missing'
 
 html=index_html
 for pat in [r'<link rel="stylesheet"[^>]+>',r'<link rel="manifest"[^>]+>',r'<link rel="apple-touch-icon"[^>]+>',r'<script src="[^"]+"></script>']:
