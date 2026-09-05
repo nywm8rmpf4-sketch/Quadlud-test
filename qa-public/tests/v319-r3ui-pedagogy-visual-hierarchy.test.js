@@ -69,12 +69,12 @@ const css=fs.readFileSync(path.join(ROOT,'GitHub','tutor-action-first-navigation
 assert(css.includes('.walkthrough-unit-context'));assert(css.includes('.hint-unit-context'));assert(css.includes('.walkthrough-reasoning-context'));assert(css.includes('.walkthrough-current-focus'));assert(css.includes('.walkthrough-current-action'));
 assert(/walkthrough-unit-context[\s\S]*?outline:none/.test(css));assert(/walkthrough-unit-context\.walkthrough-context[\s\S]*?box-shadow:inset 0 0 0 999px/.test(css));assert(/walkthrough-reasoning-context[\s\S]*?outline:2px dashed/.test(css));assert(/walkthrough-current-focus[^\{]*\{[\s\S]*?outline:3px solid/.test(css));assert(/walkthrough-current-action[^\{]*\{[\s\S]*?outline:5px double/.test(css));assert(css.includes('@media(forced-colors:active)'));assert(css.includes('.ng-focus-target{outline-style:double'));
 
-const unitToken='3.1.9-r3ui-causal-focus-r2',cssToken='3.1.9-r3ui-unit-context-r2',navigationToken='3.1.9-r3ui-unit-context-r1',bridgeToken='3.1.9-r3ui-progressive-proof-r1',playedToken='3.1.9-a13r6-single-proof';
+const unitToken='3.1.9-r3ui-causal-focus-r2',cssToken='3.1.9-r3ui-unit-context-r2',navigationToken='3.1.9-r3ui-unit-context-r1',bridgeToken='3.1.9-r3ui-progressive-proof-r2',playedToken='3.1.9-a13r6-single-proof';
 const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8'),sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
 assert(index.includes(`tutor-action-first-navigation.css?v=${cssToken}`));assert(sw.includes(`./tutor-action-first-navigation.css?v=${cssToken}`));
 assert(index.includes(`tutor-action-first-navigation.js?v=${navigationToken}`));assert(sw.includes(`./tutor-action-first-navigation.js?v=${navigationToken}`));
 assert(index.includes(`tango-pedagogy-unit-focus.js?v=${unitToken}`));assert(sw.includes(`./tango-pedagogy-unit-focus.js?v=${unitToken}`));
 assert(index.includes(`tango-progressive-proof-bridge.js?v=${bridgeToken}`));assert(sw.includes(`./tango-progressive-proof-bridge.js?v=${bridgeToken}`));
 assert(index.includes(`tango-played-move-runtime.js?v=${playedToken}`));assert(sw.includes(`./tango-played-move-runtime.js?v=${playedToken}`));
-const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-r3ui-unit-min-nav-r1');
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-r3ui-contradiction-visual-r1');
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
