@@ -9,9 +9,10 @@ const Planner=require(path.join(ROOT,'GitHub','tango-played-move-planner.js'));
 const TL=require(path.join(ROOT,'GitHub','tango-logic.js'));
 const TD=require(path.join(ROOT,'GitHub','tango-difficulty.js'));
 
-assert.strictEqual(Planner.VERSION,3);
-assert.strictEqual(Planner.COST_MODEL,'tango-tutor-ordinal-v1');
+assert.strictEqual(Planner.VERSION,4);
+assert.strictEqual(Planner.COST_MODEL,'tango-tutor-ordinal-v2');
 
+// Real visible-state case: two rows each expose an immediate no-three deduction.
 const state=[
   [0,0,-1,-1,-1,-1],
   [1,1,-1,-1,-1,-1],
@@ -121,7 +122,7 @@ assert(!source.includes('QuadludQueens')&&!source.includes('QuadludSudoku')&&!so
 const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8');
 const sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
 const selectorBrowser='tutor-move-selector.js?v=3.1.9-a11';
-const plannerBrowser='tango-played-move-planner.js?v=3.1.9-a13r2';
+const plannerBrowser='tango-played-move-planner.js?v=3.1.9-a13r3';
 const selectorCache='./'+selectorBrowser;
 const plannerCache='./'+plannerBrowser;
 assert.strictEqual(index.split(selectorBrowser).length-1,1,'index.html must load the selector exactly once');

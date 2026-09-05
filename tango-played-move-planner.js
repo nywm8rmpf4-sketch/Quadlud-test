@@ -18,7 +18,7 @@ if(!TL||!TD||typeof TD.nextAllowedDeduction!=='function'||!Selector||typeof Sele
 
 const VALUE_EMPTY=TL.constants.VALUE_EMPTY;
 const DIFF_TO_TIER=Object.freeze({easy:0,medium:1,hard:2,expert:3,facile:0,moyen:1,difficile:2});
-const COST_MODEL='tango-tutor-ordinal-v1';
+const COST_MODEL='tango-tutor-ordinal-v2';
 
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function tierIndexForDifficulty(diff){
@@ -111,13 +111,21 @@ function allowedDirectDeductions(session,tierIndex){
 function directlyConcludesValue(deduction,change){
   return !!(deduction?.conclusions||[]).some(c=>c?.type==='VALUE'&&Array.isArray(c.cell)&&c.cell[0]===change.cell[0]&&c.cell[1]===change.cell[1]&&c.value===change.to);
 }
-function placementFromProof(change,changes,trace){
-  const causal=causalProofForTarget(trace,change.cell,change.to);
+function relationPathLengthForDeduction(session,deduction){
+  if(deduction?.rule!=='RELATION_PROPAGATION'||typeof session?.relationBetween!=='function')return 0;
+  const source=deduction?.explanationData?.source,target=deduction?.explanationData?.target;
+  if(!Array.isArray(source)||!Array.isArray(target))return 0;
+  const rel=session.relationBetween(source,target),length=Array.isArray(rel?.path)?rel.path.length:0;
+  return Math.max(1,length||1);
+}
+function placementFromProof(change,changes,trace,proofSession=null){
+  const causal=causalProofForTarget(trace,change.cell,change.to),deduction=causal.source||copy(trace?.[trace.length-1]||null);
   return {
     target:change.cell.slice(),
     value:change.to,
-    deduction:causal.source||copy(trace?.[trace.length-1]||null),
+    deduction,
     proofChain:causal.proofChain,
+    humanRelationPathLength:relationPathLengthForDeduction(proofSession,deduction),
     engineVisiblePlacementCount:changes.length,
     engineVisiblePlacements:copy(changes)
   };
@@ -134,7 +142,7 @@ function frontierPlacementsFromApplied(preSession,tierIndex,deduction,before,aft
     const staged=preSession.clone(),applied=staged.applyDeduction(copy(deduction),{close:false});
     if(applied?.deduction){
       const baseTrace=[...(proofPrefix||[]),...traceEntries(applied)];
-      return ownChanges.map(change=>placementFromProof(change,changes,baseTrace));
+      return ownChanges.map(change=>placementFromProof(change,changes,baseTrace,preSession));
     }
   }
 
@@ -151,7 +159,7 @@ function frontierPlacementsFromApplied(preSession,tierIndex,deduction,before,aft
     for(const change of changes){
       const proof=direct.find(d=>directlyConcludesValue(d,change));
       if(!proof)continue;
-      placements.push(placementFromProof(change,changes,[...baseTrace,copy(proof)]));
+      placements.push(placementFromProof(change,changes,[...baseTrace,copy(proof)],frontier));
     }
     if(placements.length)return placements;
   }
@@ -203,9 +211,11 @@ function planMetrics(plan){
   const proof=Array.isArray(plan?.proofChain)?plan.proofChain.filter(Boolean):[],cells=new Set();
   let premises=0,techniqueLevel=0,rank=0;
   for(const d of proof){premises+=(d?.premises||[]).length;techniqueLevel=Math.max(techniqueLevel,Number(d?.techniqueLevel)||0);rank=Math.max(rank,Number(d?.rank)||0);collectCellsFromObject(cells,d);for(const p of d?.premises||[])collectCellsFromObject(cells,p);for(const c of d?.conclusions||[])collectCellsFromObject(cells,c)}
+  const relationPathLength=Math.max(0,Number(plan?.humanRelationPathLength)||0);
+  premises+=Math.max(0,relationPathLength-1);
   addCell(cells,plan?.target);
   const engineStepCount=Math.max(1,Number(plan?.engineStepCount)||proof.length||1),indirectionTier=plan?.advancedStart?2:(engineStepCount===1?0:1);
-  return {indirectionTier,engineStepCount,proofDepth:Math.max(1,proof.length),premiseCount:premises,spatialExtent:Math.max(1,cells.size),techniqueLevel,rank};
+  return {indirectionTier,engineStepCount,proofDepth:Math.max(1,proof.length),premiseCount:premises,spatialExtent:Math.max(1,cells.size),techniqueLevel,rank,relationPathLength};
 }
 function planCostVector(plan){const m=planMetrics(plan);return [m.indirectionTier,m.engineStepCount,m.proofDepth,m.premiseCount,m.spatialExtent,m.techniqueLevel,m.rank]}
 function candidateIdForPlan(plan){return `tango:${plan.target?.[0]}:${plan.target?.[1]}:${plan.value}|${deductionKey(plan.startingDeduction||plan.deduction)}`}
@@ -277,7 +287,7 @@ function solveByPlayedMoves(puzzle,diff,options={}){
 }
 
 return Object.freeze({
-  VERSION:3,
+  VERSION:4,
   COST_MODEL,
   tierIndexForDifficulty,
   stateDiff,
@@ -286,6 +296,6 @@ return Object.freeze({
   nextPlayedMove,
   applyPlayedMoveToState,
   solveByPlayedMoves,
-  _test:Object.freeze({firstCausalVisiblePlacement,firstPlacementFromApplied,placementsFromApplied,frontierPlacementsFromApplied,traceEntries,dependencyIds,causalProofForTarget,allowedDirectDeductions,advancedDeductionsDetailed,planFromFirstDeduction,planMetrics,planCostVector,buildSelectorCandidates,selectPlans,evaluateStartingDeductions})
+  _test:Object.freeze({firstCausalVisiblePlacement,firstPlacementFromApplied,placementsFromApplied,frontierPlacementsFromApplied,traceEntries,dependencyIds,causalProofForTarget,allowedDirectDeductions,relationPathLengthForDeduction,advancedDeductionsDetailed,planFromFirstDeduction,planMetrics,planCostVector,buildSelectorCandidates,selectPlans,evaluateStartingDeductions})
 });
 });
