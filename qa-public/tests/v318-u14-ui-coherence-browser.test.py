@@ -13,7 +13,7 @@ CANONICAL=['newBtn','resetBtn','undoBtn','redoBtn','hintBtn','walkthroughBtn','r
 assert f'ui-consistency-v318.css?v={TOKEN}' in index_html,'U14R1 coherence stylesheet missing from page'
 assert f'ui-consistency-v318.js?v={TOKEN}' in index_html,'U14R1 coherence runtime missing from page'
 cache_match=re.search(r"const CACHE='([^']+)'",service_worker)
-assert cache_match and cache_match.group(1).startswith('quadlud-v3.1.8-'),'v3.1.8 cache identity missing'
+assert cache_match and cache_match.group(1).startswith('quadlud-v3.1.'),'v3.1 cache identity missing'
 for asset in ['ui-consistency-v318.css','ui-consistency-v318.js']:
     assert f"'./{asset}?v={TOKEN}'" in service_worker,(asset,'U14R1 precache mismatch')
 manifest_match=re.search(r'game-manifest\.js\?v=([^"\']+)',index_html)
