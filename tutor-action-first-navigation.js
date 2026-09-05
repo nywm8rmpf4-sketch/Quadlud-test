@@ -43,6 +43,7 @@
   }
 
   function keyCoord(r,c){return `${Number(r)},${Number(c)}`}
+  function listify(value){return Array.isArray(value)?value:(value&&typeof value==='object'?[value]:[])}
   function parseEntityCell(value){
     if(value?.kind!=='cell')return null;
     const match=/^r(\d+)c(\d+)$/.exec(String(value.id||''));return match?[Number(match[1]),Number(match[2])]:null
@@ -58,7 +59,7 @@
     if(Number.isInteger(Number(value.row))&&Number.isInteger(Number(value.column)))out.add(keyCoord(value.row,value.column));
     if(Number.isInteger(Number(value.r))&&Number.isInteger(Number(value.c)))out.add(keyCoord(value.r,value.c));
     if(Array.isArray(value.cell)||value.cell?.kind==='cell')collectCoords(value.cell,out,depth+1);
-    for(const key of ['a','b','target','targets','cells','changes','conclusions','action','actions','focusCells','focusRelations','walkthroughTemporaryCells','walkthroughHypothesisCell'])if(value[key]!=null)collectCoords(value[key],out,depth+1)
+    for(const key of ['a','b','target','targets','cells','changes','conclusions','action','actions','focusCells','focusRelations','walkthroughTemporaryCells','walkthroughHypothesisCell','clues','visible','unit','units','sourceUnits','targetUnits'])if(value[key]!=null)collectCoords(value[key],out,depth+1)
   }
   function collectUnitCoords(ref,out,base=session()?.base){
     if(!ref||!base)return;const n=Number(base.n)||Number(base.puzzle?.rows)||0,id=Number(ref.id);if(!n||!Number.isInteger(id)||id<0)return;
@@ -69,10 +70,13 @@
   function collectDeductionCoords(d,out,base=session()?.base){
     if(!d||typeof d!=='object')return out;
     collectCoords(d.focusCells,out);collectCoords(d.focusRelations,out);collectCoords(d.conclusions,out);collectCoords(d.walkthroughTemporaryCells,out);collectCoords(d.walkthroughHypothesisCell,out);
-    for(const unit of d.focusUnits||[])collectUnitCoords(unit,out,base);
-    for(const premise of d.premises||[]){collectCoords(premise,out);if(premise?.unit)collectUnitCoords(premise.unit,out,base)}
+    for(const unit of listify(d.focusUnits))collectUnitCoords(unit,out,base);
+    for(const premise of listify(d.premises)){collectCoords(premise,out);for(const unit of listify(premise?.unit))collectUnitCoords(unit,out,base);for(const unit of listify(premise?.units))collectUnitCoords(unit,out,base)}
     if(d.explanationData?.assumption?.cell)collectCoords(d.explanationData.assumption.cell,out);
-    if(d.explanationData?.witness){collectCoords(d.explanationData.witness.cells,out);collectCoords(d.explanationData.witness.block,out);for(const unit of [...(d.explanationData.witness.sourceUnits||[]),...(d.explanationData.witness.targetUnits||[]),...(d.explanationData.witness.unit?[d.explanationData.witness.unit]:[])])collectUnitCoords(unit,out,base)}
+    if(d.explanationData?.witness){
+      const witness=d.explanationData.witness;collectCoords(witness.cells,out);collectCoords(witness.block,out);
+      for(const unit of [...listify(witness.sourceUnits),...listify(witness.targetUnits),...listify(witness.unit)])collectUnitCoords(unit,out,base)
+    }
     return out
   }
   function reasoningDeduction(entry){const move=entry?.move||{};return move.deduction||move.presentation?.evidence?.primary||move.presentation?.proofDetails?.primary||null}
