@@ -4,11 +4,10 @@ const assert=require('assert');
 const fs=require('fs');
 const path=require('path');
 const ROOT=path.resolve(__dirname,'..');
-const RUNTIME=path.join(ROOT,'GitHub');
 
 global.walkthroughSession={navigation:{proofStepIndex:1},base:{n:4,reg:[[0,0,1,1],[0,0,1,1],[2,2,3,3],[2,2,3,3]]}};
-const Navigation=require(path.join(RUNTIME,'tutor-action-first-navigation.js'));
-const TangoUnitFocus=require(path.join(RUNTIME,'tango-pedagogy-unit-focus.js'));
+const Navigation=require(path.join(ROOT,'GitHub','tutor-action-first-navigation.js'));
+const TangoUnitFocus=require(path.join(ROOT,'GitHub','tango-pedagogy-unit-focus.js'));
 const T=Navigation._test;
 const keys=cells=>new Set((cells||[]).map(c=>c.join(',')));
 
@@ -41,15 +40,15 @@ assert.strictEqual(TangoUnitFocus._test.unitCells({family:'column',id:3},6,null)
 assert.strictEqual(TangoUnitFocus._test.evidenceCells(tangoDeduction).length,4);
 assert.deepStrictEqual(TangoUnitFocus._test.conclusionCells(tangoDeduction),[[0,3]]);
 
-const css=fs.readFileSync(path.join(RUNTIME,'tutor-action-first-navigation.css'),'utf8');
+const css=fs.readFileSync(path.join(ROOT,'GitHub','tutor-action-first-navigation.css'),'utf8');
 assert(css.includes('.walkthrough-unit-context'));assert(css.includes('.hint-unit-context'));assert(css.includes('.walkthrough-reasoning-context'));assert(css.includes('.walkthrough-current-focus'));assert(css.includes('.walkthrough-current-action'));
 assert(/walkthrough-unit-context[\s\S]*?outline:none/.test(css));assert(/walkthrough-reasoning-context[\s\S]*?outline:2px dashed/.test(css));assert(/walkthrough-current-focus[^\{]*\{[\s\S]*?outline:3px solid/.test(css));assert(/walkthrough-current-action[^\{]*\{[\s\S]*?outline:5px double/.test(css));assert(css.includes('@media(forced-colors:active)'));assert(css.includes('.ng-focus-target{outline-style:double'));
 
-const unitToken='3.1.9-r3ui-causal-focus-r1',navigationToken='3.1.9-r3ui-unit-context-r1',playedToken='3.1.9-a13r5-proof-min';
-const index=fs.readFileSync(path.join(RUNTIME,'index.html'),'utf8'),sw=fs.readFileSync(path.join(RUNTIME,'sw.js'),'utf8');
+const unitToken='3.1.9-r3ui-causal-focus-r1',navigationToken='3.1.9-r3ui-unit-context-r1',playedToken='3.1.9-a13r6-single-proof';
+const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8'),sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
 assert(index.includes(`tutor-action-first-navigation.css?v=${navigationToken}`));assert(sw.includes(`./tutor-action-first-navigation.css?v=${navigationToken}`));
 assert(index.includes(`tutor-action-first-navigation.js?v=${navigationToken}`));assert(sw.includes(`./tutor-action-first-navigation.js?v=${navigationToken}`));
 assert(index.includes(`tango-pedagogy-unit-focus.js?v=${unitToken}`));assert(sw.includes(`./tango-pedagogy-unit-focus.js?v=${unitToken}`));
 assert(index.includes(`tango-played-move-runtime.js?v=${playedToken}`));assert(sw.includes(`./tango-played-move-runtime.js?v=${playedToken}`));
-assert(sw.includes("const CACHE='quadlud-v3.1.9-r3ui-proof-min-r1'"));
+assert(sw.includes("const CACHE='quadlud-v3.1.9-r3ui-single-proof-r1'"));
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
