@@ -12,7 +12,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=1;
+const VERSION=2;
 const ACTIVE_STAGE_KINDS=new Set(['hypothesis','reasoning','contradiction']);
 const copy=value=>value==null?value:JSON.parse(JSON.stringify(value));
 const sameCell=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1]);
@@ -79,14 +79,27 @@ function unitCells(unit,n=6){
 }
 function locale(){try{return String(typeof lang==='function'?lang():'en').toLowerCase().split('-')[0]}catch(_){return'en'}}
 function pieceWord(value){const fr=locale()==='fr';return Number(value)===1?(fr?'soleil':'sun'):(fr?'lune':'moon')}
+function rememberA11yBase(cell){
+  if(!cell||cell.hasAttribute?.('data-contradiction-a11y-base'))return;
+  const had=cell.hasAttribute?.('aria-label'),base=String(cell.getAttribute?.('aria-label')||'');
+  cell.setAttribute?.('data-contradiction-a11y-base',base);
+  cell.setAttribute?.('data-contradiction-a11y-had-label',had?'1':'0')
+}
 function appendA11y(cell,text){
-  if(!cell||!text)return;const current=String(cell.getAttribute?.('aria-label')||'').trim();
+  if(!cell||!text)return;rememberA11yBase(cell);const current=String(cell.getAttribute?.('aria-label')||'').trim();
   if(!current.includes(text))cell.setAttribute?.('aria-label',current?`${current}, ${text}`:text)
+}
+function restoreA11y(cell){
+  if(!cell||!cell.hasAttribute?.('data-contradiction-a11y-base'))return;
+  const base=String(cell.getAttribute('data-contradiction-a11y-base')||''),had=cell.getAttribute('data-contradiction-a11y-had-label')==='1';
+  if(had)cell.setAttribute('aria-label',base);else cell.removeAttribute('aria-label');
+  cell.removeAttribute('data-contradiction-a11y-base');cell.removeAttribute('data-contradiction-a11y-had-label')
 }
 function clearVisuals(board,panel){
   if(!board)return;
   board.querySelectorAll?.('.walkthrough-hypothetical-piece').forEach(el=>el.remove());
   board.querySelectorAll?.('.walkthrough-hypothesis-cell,.walkthrough-hypothetical-cell,.walkthrough-contradiction-cell').forEach(el=>el.classList.remove('walkthrough-hypothesis-cell','walkthrough-hypothetical-cell','walkthrough-contradiction-cell'));
+  board.querySelectorAll?.('[data-contradiction-a11y-base]').forEach(restoreA11y);
   board.removeAttribute?.('data-contradiction-visual');
   panel?.removeAttribute?.('data-contradiction-visual')
 }
@@ -128,5 +141,5 @@ function scheduleInstall(){
   retry();if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true
 }
 
-return Object.freeze({VERSION,install,scheduleInstall,decorate,_test:Object.freeze({stageKind,assumptionOf,valueConclusions,contradictionWitness,proofVisualState,unitCells,sameCell})})
+return Object.freeze({VERSION,install,scheduleInstall,decorate,_test:Object.freeze({stageKind,assumptionOf,valueConclusions,contradictionWitness,proofVisualState,unitCells,sameCell,rememberA11yBase,restoreA11y})})
 });
