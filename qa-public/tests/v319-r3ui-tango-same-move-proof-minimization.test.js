@@ -3,8 +3,7 @@
 const assert=require('assert');
 const path=require('path');
 const ROOT=path.resolve(__dirname,'..');
-const RUNTIME=path.join(ROOT,'GitHub');
-const Runtime=require(path.join(RUNTIME,'tango-played-move-runtime.js'));
+const Runtime=require(path.join(ROOT,'GitHub','tango-played-move-runtime.js'));
 const T=Runtime._test;
 
 const target=[1,4],value=0;
@@ -49,14 +48,15 @@ const plan={status:'move',target,value,deduction:finalComplex,proofChain:[lineSu
 const original=JSON.parse(JSON.stringify(plan));
 const proof=Runtime.selectDisplayProof(session,plan);
 
-assert.strictEqual(Runtime.VERSION,5);
-assert.strictEqual(Runtime.HUMAN_PROOF_POLICY,'tango-human-proof-minimal-v2');
-assert.strictEqual(proof.replaced,true,'a simpler direct proof must replace the longer display chain');
+assert.strictEqual(Runtime.VERSION,6);
+assert.strictEqual(Runtime.HUMAN_PROOF_POLICY,'tango-human-proof-minimal-v3');
+assert.strictEqual(proof.replaced,true,'a simpler direct proof must replace the longer engine proof');
 assert.strictEqual(proof.kind,'simpler-direct-proof');
-assert.strictEqual(proof.displayDeductions.length,1,'direct proof must collapse four display substeps to one');
+assert.strictEqual(proof.displayDeductions.length,1,'only one top-level proof may be displayed for one selected move');
 assert.strictEqual(proof.deduction.rule,'RELATION_PROPAGATION');
 assert.deepStrictEqual(proof.deduction.conclusions,[{type:'VALUE',cell:target,value,rank:0}]);
-assert(T.compareCostVector(proof.costVector,proof.replacedCostVector)<0,'replacement cost must be strictly lower');
+assert.strictEqual(proof.traceCollapsed,true,'the engine trace must be recognized as wider than the displayed proof');
+assert.strictEqual(proof.discardedAlternativeCount,3,'three non-selected engine proof entries must not become Tutor pages');
 assert.deepStrictEqual(plan,original,'proof minimization must not mutate the selected engine plan');
 assert(!JSON.stringify(proof).match(/hidden|solution|backtrack/i),'display proof must remain visible-state only');
 
@@ -68,8 +68,29 @@ assert.strictEqual(T.relationHumanPathLength(transitiveSession,direct),2);
 assert(T.humanProofCost(transitiveSession,[direct])[0]>T.humanProofCost(session,[direct])[0],'two visible relation edges must cost more human steps than one');
 
 const noDirect={directDeductions:()=>[unrelated]};
-const unchanged=Runtime.selectDisplayProof(noDirect,{status:'move',target,value,deduction:finalComplex,proofChain:[finalComplex]});
-assert.strictEqual(unchanged.replaced,false);
-assert.strictEqual(unchanged.deduction.rule,'BALANCE_QUOTA');
+const single=Runtime.selectDisplayProof(noDirect,{status:'move',target,value,deduction:finalComplex,proofChain:[lineSupport,intermediate,downstream,finalComplex]});
+assert.strictEqual(single.replaced,false);
+assert.strictEqual(single.deduction.rule,'BALANCE_QUOTA');
+assert.strictEqual(single.displayDeductions.length,1,'one engine proof must not expand into alternative proof pages');
+assert.strictEqual(single.traceCollapsed,true);
+assert.strictEqual(single.discardedAlternativeCount,3);
+
+const neededStep={id:'D2',signature:'TRIPLE_CONSTRAINT|needed',rule:'TRIPLE_CONSTRAINT',premises:[],focusCells:[[2,3],[3,3],[4,3]],conclusions:[{type:'VALUE',cell:[3,3],value:0}]};
+const irrelevantStep={id:'D1',signature:'BALANCE_RELATION|irrelevant',rule:'BALANCE_RELATION',premises:[],focusCells:[[0,0],[0,1]],conclusions:[{type:'RELATION',a:[0,0],b:[0,1],parity:1}]};
+const contradiction={
+  id:'contradiction',signature:'ASSUMPTION_CONTRADICTION|1,4=0',rule:'ASSUMPTION_CONTRADICTION',rank:3,techniqueLevel:3,
+  premises:[{kind:'ASSUMPTION',cell:target,value:1,hypothesis:true}],focusCells:[target,[2,3],[3,3],[4,3]],focusUnits:[{family:'column',id:3}],
+  conclusions:[{type:'VALUE',cell:target,value}],
+  explanationData:{assumption:{cell:target,value:1},witness:{kind:'TRIPLE_OVERFLOW',family:'column',id:3,cells:[[2,3],[3,3],[4,3]]},trace:[irrelevantStep,neededStep],causalTrace:[neededStep]}
+};
+const advancedPlan={status:'move',target,value,deduction:contradiction,proofChain:[lineSupport,intermediate,contradiction]};
+const advancedOriginal=JSON.parse(JSON.stringify(advancedPlan));
+const advanced=Runtime.selectDisplayProof({directDeductions:()=>[]},advancedPlan);
+assert.strictEqual(advanced.displayDeductions.length,1,'alternative top-level engine proofs must not be listed beside an advanced proof');
+assert.strictEqual(advanced.deduction.rule,'ASSUMPTION_CONTRADICTION');
+assert.deepStrictEqual(advanced.deduction.explanationData.trace,[neededStep],'display clone must replace broad trace with causalTrace');
+assert.deepStrictEqual(advanced.deduction.explanationData.causalTrace,[neededStep]);
+assert(!JSON.stringify(advanced.deduction).includes('irrelevant'),'irrelevant exploration step must not leak into displayed proof');
+assert.deepStrictEqual(advancedPlan,advancedOriginal,'advanced display minimization must not mutate engine evidence');
 
 console.log('v319-r3ui-tango-same-move-proof-minimization.test.js: PASS');
