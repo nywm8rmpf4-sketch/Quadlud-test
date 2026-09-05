@@ -45,10 +45,11 @@ const css=fs.readFileSync(path.join(RUNTIME,'tutor-action-first-navigation.css')
 assert(css.includes('.walkthrough-unit-context'));assert(css.includes('.hint-unit-context'));assert(css.includes('.walkthrough-reasoning-context'));assert(css.includes('.walkthrough-current-focus'));assert(css.includes('.walkthrough-current-action'));
 assert(/walkthrough-unit-context[\s\S]*?outline:none/.test(css));assert(/walkthrough-reasoning-context[\s\S]*?outline:2px dashed/.test(css));assert(/walkthrough-current-focus[^\{]*\{[\s\S]*?outline:3px solid/.test(css));assert(/walkthrough-current-action[^\{]*\{[\s\S]*?outline:5px double/.test(css));assert(css.includes('@media(forced-colors:active)'));assert(css.includes('.ng-focus-target{outline-style:double'));
 
-const unitToken='3.1.9-r3ui-causal-focus-r1',navigationToken='3.1.9-r3ui-unit-context-r1';
+const unitToken='3.1.9-r3ui-causal-focus-r1',navigationToken='3.1.9-r3ui-unit-context-r1',playedToken='3.1.9-a13r5-proof-min';
 const index=fs.readFileSync(path.join(RUNTIME,'index.html'),'utf8'),sw=fs.readFileSync(path.join(RUNTIME,'sw.js'),'utf8');
 assert(index.includes(`tutor-action-first-navigation.css?v=${navigationToken}`));assert(sw.includes(`./tutor-action-first-navigation.css?v=${navigationToken}`));
 assert(index.includes(`tutor-action-first-navigation.js?v=${navigationToken}`));assert(sw.includes(`./tutor-action-first-navigation.js?v=${navigationToken}`));
 assert(index.includes(`tango-pedagogy-unit-focus.js?v=${unitToken}`));assert(sw.includes(`./tango-pedagogy-unit-focus.js?v=${unitToken}`));
-assert(sw.includes("const CACHE='quadlud-v3.1.9-r3ui-causal-focus-r1'"));
+assert(index.includes(`tango-played-move-runtime.js?v=${playedToken}`));assert(sw.includes(`./tango-played-move-runtime.js?v=${playedToken}`));
+assert(sw.includes("const CACHE='quadlud-v3.1.9-r3ui-proof-min-r1'"));
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
