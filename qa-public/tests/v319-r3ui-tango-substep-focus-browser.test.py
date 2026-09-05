@@ -39,7 +39,8 @@ with sync_playwright() as p:
         {move:{deduction:{rule:'ASSUMPTION_CONTRADICTION',focusCells:[],focusUnits:unit,conclusions:[{type:'VALUE',cell:[2,column],value:1}]},proofStage:{kind:'action',apply:true},presentation:{metadata:{showTutorMove:true}}}}
       ]};
       window.walkthroughCurrentGroup=()=>window.__r3uiGroup;
-      window.walkthroughSession={base:{game:'tango',n:6},navigation:{proofStepIndex:0},atStart:false};
+      walkthroughSession={base:{game:'tango',n:6},navigation:{proofStepIndex:0},atStart:false};
+      window.walkthroughSession=walkthroughSession;
     }""")
 
     expected=[
