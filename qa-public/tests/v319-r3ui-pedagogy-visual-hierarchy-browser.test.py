@@ -25,8 +25,15 @@ with sync_playwright() as p:
     page.on('console',lambda m:errors.append('console:'+m.text) if m.type=='error' else None)
     load(page)
 
+    # The late compatibility bridge must own the active Tango generator. This
+    # protects against falling back to one monolithic advanced explanation.
+    page.wait_for_function("()=>window.QuadludTangoProgressiveProofBridge && window.walkthroughGenerateTangoNext && window.walkthroughGenerateTangoNext.__quadludProgressiveProofBridge===true")
+
+    # Six-cell column context, but only strict causal cells are selected.
+    # B4 is deliberately unit-only and carries the legacy walkthrough-context
+    # class to verify that R3UI visually neutralizes its selected-cell frame.
     page.evaluate("""()=>{
-      const cell=(r,c)=>`<div class="cell walkthrough-cell ${c===3?'walkthrough-context':''}" data-r="${r}" data-c="${c}">${r},${c}</div>`;
+      const cell=(r,c)=>`<div class="cell walkthrough-cell ${c===3?'walkthrough-context':''} ${r===1&&c===2?'walkthrough-context legacy-accent-control':''}" data-r="${r}" data-c="${c}">${r},${c}</div>`;
       app.innerHTML=`<section class="panel walkthrough-panel"><div class="walkthrough-board-wrap"><div class="board walkthrough-board" style="grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(6,1fr)">${Array.from({length:36},(_,i)=>cell(Math.floor(i/6),i%6)).join('')}</div></div><div data-entity-kind="clue" data-entity-id="clue-a">3/3</div></section>`;
       const nav=i=>({schema:1,logicalMoveIndex:0,proofStepIndex:i});
       const presentation=(focus,showTutorMove=false)=>({focus,metadata:{showTutorMove}});
@@ -34,15 +41,15 @@ with sync_playwright() as p:
       const blank=()=>Array.from({length:6},()=>Array(6).fill(-1));
       walkthroughSession={base:{game:'tango',n:6},initial:{state:blank()},moves:[
         {target:[0,3],deduction:{focusCells:[[0,3],[5,3]],focusUnits:unit,conclusions:[]},presentation:presentation([{entity:{kind:'clue',id:'clue-a'},role:'premise'}]),proofStage:{kind:'where'},snapshot:{state:blank()}},
-        {target:[0,3],deduction:{focusCells:[[2,3],[3,3],[4,3]],focusUnits:unit,conclusions:[]},presentation:presentation([{entity:{kind:'clue',id:'clue-a'},role:'premise'}]),proofStage:{kind:'consequence'},snapshot:{state:blank()}},
-        {target:[0,3],deduction:{focusCells:[[0,3]],focusUnits:unit,conclusions:[{type:'VALUE',cell:[0,3],value:1}]},presentation:presentation([{entity:{kind:'cell',id:'r0c3'},role:'target'}],true),proofStage:{kind:'action',apply:true},snapshot:{state:Array.from({length:6},(_,r)=>Array.from({length:6},(_,c)=>r===0&&c===3?1:-1))}}
+        {target:[0,3],deduction:{focusCells:[[2,3],[3,3],[4,3]],focusRelations:[],focusUnits:unit,conclusions:[]},presentation:presentation([{entity:{kind:'clue',id:'clue-a'},role:'premise'}]),proofStage:{kind:'consequence'},snapshot:{state:blank()}},
+        {target:[0,3],deduction:{focusCells:[],focusUnits:unit,conclusions:[{type:'VALUE',cell:[0,3],value:1}]},presentation:presentation([{entity:{kind:'cell',id:'r0c3'},role:'target'}],true),proofStage:{kind:'action',apply:true},snapshot:{state:Array.from({length:6},(_,r)=>Array.from({length:6},(_,c)=>r===0&&c===3?1:-1))}}
       ],pedagogyNavigationByMove:[nav(0),nav(1),nav(2)],navigation:nav(1),atStart:false,index:2,done:false,stalled:false};
       QuadludTutorActionFirstNavigation.decorateCurrentAction();
     }""")
 
     result=page.evaluate("""()=>{
       const q=(r,c)=>document.querySelector(`.walkthrough-board [data-r="${r}"][data-c="${c}"]`),style=el=>({outlineStyle:getComputedStyle(el).outlineStyle,outlineWidth:getComputedStyle(el).outlineWidth,boxShadow:getComputedStyle(el).boxShadow,classes:[...el.classList]});
-      return {hierarchy:document.querySelector('.walkthrough-board').dataset.pedagogyHierarchy,unitOnly:style(q(1,3)),prior:style(q(5,3)),current:style(q(2,3)),action:style(q(0,3)),outside:style(q(1,2)),clue:style(document.querySelector('[data-entity-kind="clue"]'))};
+      return {hierarchy:document.querySelector('.walkthrough-board').dataset.pedagogyHierarchy,unitOnly:style(q(1,3)),legacyAccent:style(q(1,2)),prior:style(q(5,3)),current:style(q(2,3)),action:style(q(0,3)),outside:style(q(1,1)),clue:style(document.querySelector('[data-entity-kind="clue"]')),proofControls:typeof walkthroughProofControls==='function'?walkthroughProofControls():''};
     }""")
     assert result['hierarchy']=='unit-context-premise-focus-action',result
     assert 'walkthrough-unit-context' in result['unitOnly']['classes'],result
@@ -50,16 +57,19 @@ with sync_playwright() as p:
     assert 'walkthrough-current-focus' not in result['unitOnly']['classes'],result
     assert result['unitOnly']['outlineStyle']=='none',result
     assert result['unitOnly']['boxShadow']!='none',result
+    assert result['unitOnly']['boxShadow']!=result['legacyAccent']['boxShadow'],result
     assert 'walkthrough-reasoning-context' in result['prior']['classes'],result
     assert result['prior']['outlineStyle']=='dashed',result
     assert 'walkthrough-current-focus' in result['current']['classes'],result
     assert result['current']['outlineStyle']=='solid',result
     assert 'walkthrough-current-action' in result['action']['classes'],result
     assert result['action']['outlineStyle']=='double',result
-    assert float(result['action']['outlineWidth'].replace('px',''))>=4,result
+    assert int(float(result['action']['outlineWidth'].replace('px',''))) >= 4,result
     assert 'walkthrough-unit-context' not in result['outside']['classes'],result
     assert 'walkthrough-reasoning-context' in result['clue']['classes'],result
+    assert 'walkthroughProofPrev' in result['proofControls'] and 'walkthroughProofNext' in result['proofControls'] and '2/3' in result['proofControls'],result
 
+    # Move proof cursor: cell focus moves; unit context remains stable; action stays strongest.
     page.evaluate("""()=>{walkthroughSession.navigation={schema:1,logicalMoveIndex:0,proofStepIndex:0};walkthroughSession.index=1;QuadludTutorActionFirstNavigation.decorateCurrentAction()}""")
     moved=page.evaluate("""()=>({first:[...document.querySelector('[data-r="5"][data-c="3"]').classList],later:[...document.querySelector('[data-r="2"][data-c="3"]').classList],unitOnly:[...document.querySelector('[data-r="1"][data-c="3"]').classList],action:[...document.querySelector('[data-r="0"][data-c="3"]').classList]})""")
     assert 'walkthrough-current-focus' in moved['first'],moved
@@ -72,4 +82,4 @@ with sync_playwright() as p:
     assert not errors,errors
     ctx.close();browser.close()
 
-print('v3.1.9-R3UI unit context + minimal cell hierarchy browser: PASS')
+print('v3.1.9-R3UI strict unit context + progressive proof navigation browser: PASS')
