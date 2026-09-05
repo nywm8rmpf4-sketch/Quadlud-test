@@ -4,8 +4,8 @@ const assert=require('assert');
 const fs=require('fs');
 const path=require('path');
 const ROOT=path.resolve(__dirname,'..');
-const Planner=require(path.join(ROOT,'tango-played-move-planner.js'));
-const PlayedMoveRuntime=require(path.join(ROOT,'tango-played-move-runtime.js'));
+const Planner=require(path.join(ROOT,'GitHub','tango-played-move-planner.js'));
+const PlayedMoveRuntime=require(path.join(ROOT,'GitHub','tango-played-move-runtime.js'));
 
 assert.strictEqual(Planner.VERSION,4);
 assert.strictEqual(Planner.COST_MODEL,'tango-tutor-ordinal-v2');
@@ -79,9 +79,9 @@ const serialized=JSON.stringify(human);
 for(const forbidden of ['solutionGrid','hiddenSolution','validationState','answerGrid','backtracking'])assert(!serialized.includes(forbidden),`human proof must not expose ${forbidden}`);
 
 // Same implementation path for Coach and Tutor.
-const index=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
-const sw=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8');
-const runtimeSource=fs.readFileSync(path.join(ROOT,'tango-played-move-runtime.js'),'utf8');
+const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8');
+const sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
+const runtimeSource=fs.readFileSync(path.join(ROOT,'GitHub','tango-played-move-runtime.js'),'utf8');
 assert(index.includes('tango-played-move-runtime.js?v=3.1.9-a13r4'));
 assert(sw.includes('tango-played-move-runtime.js?v=3.1.9-a13r4'));
 assert(runtimeSource.includes('plan=planHumanMove(engine,s.base.diff)'));
