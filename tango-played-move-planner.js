@@ -87,6 +87,22 @@ function firstPlacementFromApplied(before,after,trace,proofPrefix=[]){
     engineVisiblePlacements:copy(changes)
   };
 }
+function placementsFromApplied(before,after,trace,proofPrefix=[]){
+  const changes=stateDiff(before,after).filter(isVisiblePlacement).sort((a,b)=>a.cell[0]-b.cell[0]||a.cell[1]-b.cell[1]||a.to-b.to);
+  if(!changes.length)return [];
+  const fullTrace=[...(proofPrefix||[]),...(trace||[])];
+  return changes.map(target=>{
+    const causal=causalProofForTarget(fullTrace,target.cell,target.to);
+    return {
+      target:target.cell.slice(),
+      value:target.to,
+      deduction:causal.source||copy(trace?.[trace.length-1]||null),
+      proofChain:causal.proofChain,
+      engineVisiblePlacementCount:changes.length,
+      engineVisiblePlacements:copy(changes)
+    };
+  });
+}
 function allowedDirectDeductions(session,tierIndex){
   const policy=TD.TIER_POLICY?.[tierIndex],allowed=new Set(policy?.allowedRules||[]);
   if(!allowed.size||typeof session?.directDeductions!=='function')return [];
@@ -114,9 +130,13 @@ function planFromFirstDeduction(session,tierIndex,firstDeduction,{maxEngineSteps
     if(!deduction)return {status:'blocked',budgetHit:false,tierIndex,proofChain:copy(proof)};
     const before=copy(fork.state),applied=fork.applyDeduction(deduction);
     if(!applied?.deduction)return {status:'invalid',tierIndex,error:'Soleil/Lune deduction could not be applied',proofChain:copy(proof)};
-    const trace=traceEntries(applied),placement=firstPlacementFromApplied(before,fork.state,trace,proof);
+    const trace=traceEntries(applied),placements=placementsFromApplied(before,fork.state,trace,proof);
     proof.push(...copy(trace));
-    if(placement)return {status:'move',tierIndex,...placement,engineStepCount:step+1,advancedStart:!!advancedStart,startingDeduction:copy(firstDeduction)};
+    if(placements.length){
+      const branchPlans=placements.map(placement=>({status:'move',tierIndex,...placement,engineStepCount:step+1,advancedStart:!!advancedStart,startingDeduction:copy(firstDeduction)}));
+      const selected=selectPlans(branchPlans,{frontierComplete:true});
+      return selected.plan||branchPlans[0];
+    }
   }
   return {status:'budget-exhausted',budgetHit:true,tierIndex,proofChain:copy(proof)};
 }
@@ -214,6 +234,6 @@ return Object.freeze({
   nextPlayedMove,
   applyPlayedMoveToState,
   solveByPlayedMoves,
-  _test:Object.freeze({firstCausalVisiblePlacement,firstPlacementFromApplied,traceEntries,dependencyIds,causalProofForTarget,allowedDirectDeductions,advancedDeductionsDetailed,planFromFirstDeduction,planMetrics,planCostVector,buildSelectorCandidates,selectPlans,evaluateStartingDeductions})
+  _test:Object.freeze({firstCausalVisiblePlacement,firstPlacementFromApplied,placementsFromApplied,traceEntries,dependencyIds,causalProofForTarget,allowedDirectDeductions,advancedDeductionsDetailed,planFromFirstDeduction,planMetrics,planCostVector,buildSelectorCandidates,selectPlans,evaluateStartingDeductions})
 });
 });
