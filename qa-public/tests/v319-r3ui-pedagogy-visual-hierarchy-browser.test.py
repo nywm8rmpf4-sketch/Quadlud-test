@@ -3,7 +3,7 @@ import re
 from playwright.sync_api import sync_playwright
 from qa_runtime_loader import runtime_sources, runtime_styles
 
-ROOT=Path(__file__).resolve().parents[2]
+ROOT=Path(__file__).resolve().parents[1]/'GitHub'
 html=(ROOT/'index.html').read_text(encoding='utf-8')
 for pat in [r'<link rel="stylesheet"[^>]+>',r'<link rel="manifest"[^>]+>',r'<link rel="apple-touch-icon"[^>]+>',r'<script src="[^"]+"></script>']:
     html=re.sub(pat,'',html)
