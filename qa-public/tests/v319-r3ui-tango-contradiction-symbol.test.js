@@ -61,6 +61,10 @@ const index=fs.readFileSync(path.join(RUNTIME,'index.html'),'utf8');
 const sw=fs.readFileSync(path.join(RUNTIME,'sw.js'),'utf8');
 assert(index.includes(`tango-reasoning-presentation.js?v=${token}`),'presenter cache-bust missing from index');
 assert(sw.includes(`./tango-reasoning-presentation.js?v=${token}`),'presenter cache-bust missing from service worker');
-assert(sw.includes(`quadlud-v${token}`),'service-worker cache identity must advance for iPhone/PWA delivery');
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);
+assert(cacheMatch,'service-worker cache identity missing');
+assert(/^quadlud-v3\.1\.9-/.test(cacheMatch[1]),'service-worker cache must stay on the v3.1.9 candidate family');
+assert.notStrictEqual(cacheMatch[1],'quadlud-v3.1.8','service-worker cache must not regress to certified v3.1.8');
+assert.notStrictEqual(cacheMatch[1],`quadlud-v${token}`,'later UI delivery must be allowed to advance beyond the contradiction-only cache identity');
 
 console.log('v319-r3ui-tango-contradiction-symbol.test.js: PASS');
