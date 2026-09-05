@@ -10,12 +10,17 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
   'use strict';
 
+  const SEMANTIC_CLASSES=Object.freeze(['walkthrough-reasoning-context','walkthrough-current-focus','walkthrough-current-action']);
   let installed=false,proofNavigationActive=false;
   let previousBoardHtml=null,previousRender=null,previousProofNavigate=null;
 
   function session(){try{return typeof walkthroughSession!=='undefined'?walkthroughSession:null}catch(_){return null}}
   function groups(){try{return typeof walkthroughGroups==='function'?walkthroughGroups(session()):[]}catch(_){return []}}
   function currentGroup(){try{return typeof walkthroughCurrentGroup==='function'?walkthroughCurrentGroup():null}catch(_){return null}}
+  function currentEntry(group){
+    const entries=Array.isArray(group?.entries)?group.entries:[],nav=session()?.navigation,index=Number(nav?.proofStepIndex);
+    return entries[Math.max(0,Math.min(entries.length-1,Number.isInteger(index)?index:0))]||null
+  }
   function isActionMove(move){
     if(!move)return false;
     if(move.proofStage?.kind==='action'||move.proofStage?.apply===true)return true;
@@ -38,18 +43,44 @@
   }
 
   function keyCoord(r,c){return `${Number(r)},${Number(c)}`}
+  function parseEntityCell(value){
+    if(value?.kind!=='cell')return null;
+    const match=/^r(\d+)c(\d+)$/.exec(String(value.id||''));return match?[Number(match[1]),Number(match[2])]:null
+  }
   function collectCoords(value,out,depth=0){
-    if(value==null||depth>6)return;
+    if(value==null||depth>7)return;
     if(Array.isArray(value)){
       if(value.length>=2&&Number.isInteger(Number(value[0]))&&Number.isInteger(Number(value[1]))&&Number(value[0])>=0&&Number(value[1])>=0){out.add(keyCoord(value[0],value[1]));return}
       for(const item of value)collectCoords(item,out,depth+1);return
     }
     if(typeof value!=='object')return;
+    const entityCell=parseEntityCell(value);if(entityCell){out.add(keyCoord(...entityCell));return}
     if(Number.isInteger(Number(value.row))&&Number.isInteger(Number(value.column)))out.add(keyCoord(value.row,value.column));
     if(Number.isInteger(Number(value.r))&&Number.isInteger(Number(value.c)))out.add(keyCoord(value.r,value.c));
-    if(Array.isArray(value.cell))collectCoords(value.cell,out,depth+1);
-    for(const key of ['target','targets','cells','changes','conclusions','action','actions','focusCells'])if(value[key]!=null)collectCoords(value[key],out,depth+1)
+    if(Array.isArray(value.cell)||value.cell?.kind==='cell')collectCoords(value.cell,out,depth+1);
+    for(const key of ['a','b','target','targets','cells','changes','conclusions','action','actions','focusCells','focusRelations','walkthroughTemporaryCells','walkthroughHypothesisCell'])if(value[key]!=null)collectCoords(value[key],out,depth+1)
   }
+  function collectUnitCoords(ref,out,base=session()?.base){
+    if(!ref||!base)return;const n=Number(base.n)||Number(base.puzzle?.rows)||0,id=Number(ref.id);if(!n||!Number.isInteger(id)||id<0)return;
+    if(ref.family==='row')for(let c=0;c<n;c++)out.add(keyCoord(id,c));
+    else if(ref.family==='column')for(let r=0;r<n;r++)out.add(keyCoord(r,id));
+    else if(ref.family==='region'&&Array.isArray(base.reg))for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(Number(base.reg[r]?.[c])===id)out.add(keyCoord(r,c))
+  }
+  function collectDeductionCoords(d,out,base=session()?.base){
+    if(!d||typeof d!=='object')return out;
+    collectCoords(d.focusCells,out);collectCoords(d.focusRelations,out);collectCoords(d.conclusions,out);collectCoords(d.walkthroughTemporaryCells,out);collectCoords(d.walkthroughHypothesisCell,out);
+    for(const unit of d.focusUnits||[])collectUnitCoords(unit,out,base);
+    for(const premise of d.premises||[]){collectCoords(premise,out);if(premise?.unit)collectUnitCoords(premise.unit,out,base)}
+    if(d.explanationData?.assumption?.cell)collectCoords(d.explanationData.assumption.cell,out);
+    if(d.explanationData?.witness){collectCoords(d.explanationData.witness.cells,out);collectCoords(d.explanationData.witness.block,out);for(const unit of [...(d.explanationData.witness.sourceUnits||[]),...(d.explanationData.witness.targetUnits||[]),...(d.explanationData.witness.unit?[d.explanationData.witness.unit]:[])])collectUnitCoords(unit,out,base)}
+    return out
+  }
+  function reasoningDeduction(entry){const move=entry?.move||{};return move.deduction||move.presentation?.evidence?.primary||move.presentation?.proofDetails?.primary||null}
+  function entryReasoningCoords(entry){
+    const out=new Set(),move=entry?.move||{},d=reasoningDeduction(entry);collectDeductionCoords(d,out);collectCoords(move.target,out);
+    return out
+  }
+  function groupReasoningCoords(group){const out=new Set();for(const entry of group?.entries||[])for(const key of entryReasoningCoords(entry))out.add(key);return out}
   function actionCoords(entry){
     const out=new Set(),move=entry?.move||{};
     collectCoords(move.target,out);
@@ -58,6 +89,25 @@
     collectCoords(move.presentation?.action,out);
     return [...out].map(key=>key.split(',').map(Number))
   }
+  function focusItemsFrom(value,out=[]){
+    if(!value||typeof value!=='object')return out;
+    for(const list of [value.focus,value.move?.focus])if(Array.isArray(list))for(const item of list)if(item?.entity?.kind&&item?.entity?.id)out.push(item);
+    return out
+  }
+  function entryFocusItems(entry){
+    const move=entry?.move||{},out=[];focusItemsFrom(move.deduction,out);focusItemsFrom(move.presentation,out);focusItemsFrom(move.presentation?.evidence?.primary,out);focusItemsFrom(move.presentation?.action,out);return out
+  }
+  function itemKey(item){return `${item?.entity?.kind||''}:${item?.entity?.id||''}`}
+  function mergeFocusItems(entries){const map=new Map();for(const entry of entries||[])for(const item of entryFocusItems(entry)){const key=itemKey(item);if(key!==':')map.set(key,item)}return [...map.values()]}
+  function semanticRoles(group){
+    const context=[...groupReasoningCoords(group)].map(key=>key.split(',').map(Number)),focus=[...entryReasoningCoords(currentEntry(group))].map(key=>key.split(',').map(Number)),action=actionCoords(actionEntry(group));
+    return Object.freeze({context,focus,action,contextEntities:mergeFocusItems(group?.entries||[]),focusEntities:mergeFocusItems(currentEntry(group)?[currentEntry(group)]:[]),actionEntities:mergeFocusItems(actionEntry(group)?[actionEntry(group)]:[]).filter(item=>String(item.role||'').toLowerCase()==='target')})
+  }
+  function attributeEscape(value){return String(value??'').replace(/\\/g,'\\\\').replace(/"/g,'\\"')}
+  function entityElements(scope,item){const e=item?.entity;if(!scope||!e?.kind||!e?.id)return [];return [...scope.querySelectorAll(`[data-entity-kind="${attributeEscape(e.kind)}"][data-entity-id="${attributeEscape(e.id)}"]`)]}
+  function applyEntityClass(scope,items,cls){for(const item of items||[])for(const el of entityElements(scope,item))el.classList.add(cls)}
+  function applyCoordClass(board,coords,cls){for(const [r,c] of coords||[]){const el=board.querySelector(`[data-r="${Number(r)}"][data-c="${Number(c)}"]`);if(el)el.classList.add(cls)}}
+  function clearSemanticRoles(scope){if(!scope)return;for(const cls of SEMANTIC_CLASSES)scope.querySelectorAll(`.${cls}`).forEach(el=>el.classList.remove(cls))}
   function findActionElements(entry){
     const doc=root?.document,board=doc?.querySelector?.('.walkthrough-board');if(!board)return [];
     const coords=actionCoords(entry),elements=[];
@@ -70,8 +120,11 @@
   function decorateCurrentAction(){
     const group=currentGroup(),doc=root?.document;if(!group||!doc)return false;
     const chain=(group.entries?.length||0)>1,entry=actionEntry(group),board=doc.querySelector('.walkthrough-board');if(!board||!entry)return false;
-    board.classList.toggle('walkthrough-proof-chain-active',chain);
-    board.dataset.proofSteps=String(group.entries?.length||1);
+    const scope=doc.querySelector('.walkthrough-panel')||board.parentElement||board,roles=semanticRoles(group);clearSemanticRoles(scope);
+    applyCoordClass(board,roles.context,'walkthrough-reasoning-context');applyEntityClass(scope,roles.contextEntities,'walkthrough-reasoning-context');
+    applyCoordClass(board,roles.focus,'walkthrough-current-focus');applyEntityClass(scope,roles.focusEntities,'walkthrough-current-focus');
+    applyCoordClass(board,roles.action,'walkthrough-current-action');applyEntityClass(scope,roles.actionEntities,'walkthrough-current-action');
+    board.classList.toggle('walkthrough-proof-chain-active',chain);board.dataset.proofSteps=String(group.entries?.length||1);board.dataset.pedagogyHierarchy='context-focus-action';
     for(const el of findActionElements(entry)){
       el.classList.add('walkthrough-current-action');
       if(chain){
@@ -117,5 +170,5 @@
     installed=ok;if(ok)decorateCurrentAction();return ok
   }
 
-  return Object.freeze({install,actionEntry,actionCoords,decorateCurrentAction,_test:Object.freeze({isActionMove,collectCoords,projectedAction})})
+  return Object.freeze({install,actionEntry,actionCoords,decorateCurrentAction,_test:Object.freeze({isActionMove,collectCoords,collectDeductionCoords,currentEntry,entryReasoningCoords,groupReasoningCoords,semanticRoles,projectedAction})})
 });
