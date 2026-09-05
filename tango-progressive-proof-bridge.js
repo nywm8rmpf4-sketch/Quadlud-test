@@ -6,7 +6,7 @@
  */
 (function(root){
 'use strict';
-const VERSION=3;
+const VERSION=4;
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function sameCell(a,b){return Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1])}
 function session(){try{return typeof walkthroughSession!=='undefined'?walkthroughSession:null}catch(_){return null}}
@@ -42,11 +42,19 @@ function lineDomainText(d,p){
   return fr?`${countText} respectent encore l’équilibre, la règle des trois et les relations déjà établies. Dans ${count===1?'ce cas':'tous ces cas'}, ${conclusion}. Cette conclusion est donc forcée.`:`${countText} still satisfy balance, the no-three rule and the established relations. In ${count===1?'that case':'all of them'}, ${conclusion}. This conclusion is therefore forced.`
 }
 function lineDomainTitle(d){const ref=unitRef(d),fr=locale()==='fr';if(ref?.family==='column')return fr?'Contraintes combinées de la colonne':'Combined column constraints';if(ref?.family==='row')return fr?'Contraintes combinées de la ligne':'Combined row constraints';return fr?'Contraintes combinées':'Combined constraints'}
+function atomicConclusionFocus(conclusion){
+  const cells=[],relations=[],seen=new Set(),add=cell=>{if(!Array.isArray(cell)||cell.length<2)return;const next=[Number(cell[0]),Number(cell[1])],key=next.join(',');if(!seen.has(key)){seen.add(key);cells.push(next)}};
+  if(conclusion?.type==='VALUE'){add(conclusion.cell)}
+  else if(Array.isArray(conclusion?.a)&&Array.isArray(conclusion?.b)){
+    add(conclusion.a);add(conclusion.b);relations.push({a:copy(conclusion.a),b:copy(conclusion.b),parity:Number(conclusion.parity)||0})
+  }
+  return {cells,relations}
+}
 function atomicLineEntries(entry,p){
   const d=entryDeduction(entry),conclusions=Array.isArray(d?.conclusions)?d.conclusions:[];
   if(String(d?.rule||'')!=='LINE_DOMAIN_SUPPORT'||conclusions.length<=1)return [entry];
   return conclusions.map((conclusion,index)=>{
-    const atomic=copy(d);atomic.id=`${d.id||d.signature||d.rule}:presentation:${index+1}`;atomic.signature=`${d.signature||d.id||d.rule}|presentation:${index+1}`;atomic.conclusions=[copy(conclusion)];
+    const atomic=copy(d),focus=atomicConclusionFocus(conclusion);atomic.id=`${d.id||d.signature||d.rule}:presentation:${index+1}`;atomic.signature=`${d.signature||d.id||d.rule}|presentation:${index+1}`;atomic.conclusions=[copy(conclusion)];atomic.focusCells=focus.cells;atomic.focusRelations=focus.relations;
     let presentation=null;try{presentation=p?.presentation?.(atomic)||copy(entry.presentation)}catch(_){presentation=copy(entry.presentation)}
     presentation=copy(presentation)||{};presentation.explanation={...(presentation.explanation||{}),title:lineDomainTitle(atomic),where:locale()==='fr'?`Regarde ${unitName(atomic)}.`:`Look at ${unitName(atomic)}.`,why:lineDomainText(atomic,p),move:''};presentation.metadata={...(presentation.metadata||{}),showTutorMove:false};
     const reasoning=typeof p?.legacyReasoning==='function'?p.legacyReasoning(atomic):atomic,next={...copy(entry),deduction:reasoning,presentation,where:presentation.explanation.where,why:presentation.explanation.why,move:'',pedagogyStageKind:'reasoning'};
@@ -111,5 +119,5 @@ function install(){return installGenerator()}
 function scheduleInstall(){
   let tries=240,timer=null;const retry=()=>{const generatorOk=installGenerator(),renderOk=installRender();if(generatorOk&&renderOk){if(timer!=null)clearTimeout(timer);return true}if(tries--<=0)return false;timer=setTimeout(retry,10);return true};retry();if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true
 }
-const api=Object.freeze({VERSION,install,installGenerator,installRender,scheduleInstall,_test:Object.freeze({expandSingleAdvancedEntry,proofStages,sanitizeStageEntry,atomicLineEntries,clarifyDerivedRelation,postProcessGeneratedEntries,lineDomainText,lineDomainTitle,orderedRelationPath,relationPathText,currentTutorStageKind,scrubPrematureAction})});root.QuadludTangoProgressiveProofBridge=api;if(typeof document!=='undefined')scheduleInstall();if(typeof module!=='undefined'&&module.exports)module.exports=api;
+const api=Object.freeze({VERSION,install,installGenerator,installRender,scheduleInstall,_test:Object.freeze({expandSingleAdvancedEntry,proofStages,sanitizeStageEntry,atomicConclusionFocus,atomicLineEntries,clarifyDerivedRelation,postProcessGeneratedEntries,lineDomainText,lineDomainTitle,orderedRelationPath,relationPathText,currentTutorStageKind,scrubPrematureAction})});root.QuadludTangoProgressiveProofBridge=api;if(typeof document!=='undefined')scheduleInstall();if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
