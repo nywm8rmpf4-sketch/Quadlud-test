@@ -116,3 +116,5 @@ jobs:
             echo "OTHER PUBLIC QA PY: $test"
             python "$test"
           done < <(find tests -maxdepth 1 -type f -name '*.test.py' | sort)
+
+# QA-only restart marker: 2026-09-05. Runtime tree intentionally unchanged.
