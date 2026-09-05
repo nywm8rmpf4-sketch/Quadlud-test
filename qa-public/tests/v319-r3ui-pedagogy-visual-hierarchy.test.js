@@ -28,6 +28,11 @@ T.collectDeductionCoords({focusRelations:[{a:[1,0],b:[1,1]}],focusUnits:[{family
 for(const key of ['1,0','1,1','2,0','2,1','2,2','2,3','0,3','1,3','3,3','0,0','0,1','3,2'])assert(collected.has(key),`generic semantic resolver must contain ${key}`);
 const ng=new Set();T.collectCoords({kind:'cell',id:'r2c3'},ng);assert(ng.has('2,3'),'Mosaïque cell EntityRef must resolve to a grid coordinate');
 
+const rawNg=new Set();
+T.collectDeductionCoords({premises:{clues:[{index:0,entity:{kind:'clue',id:'row-0'}}],visible:[{index:1,cell:{kind:'cell',id:'r1c2'}}]},conclusions:[{cell:{kind:'cell',id:'r1c3'},state:1}]},rawNg,global.walkthroughSession.base);
+assert(rawNg.has('1,2'),'structured Mosaïque visible premise must resolve without iterable assumptions');
+assert(rawNg.has('1,3'),'structured Mosaïque conclusion must remain a visible target');
+
 const css=fs.readFileSync(path.join(RUNTIME,'tutor-action-first-navigation.css'),'utf8');
 assert(css.includes('.walkthrough-reasoning-context'),'context style missing');
 assert(css.includes('.walkthrough-current-focus'),'current-focus style missing');
@@ -38,12 +43,12 @@ assert(/walkthrough-current-action[^\{]*\{[\s\S]*?outline:5px double/.test(css),
 assert(css.includes('@media(forced-colors:active)'),'forced-colors hierarchy must be defined');
 assert(css.includes('.ng-focus-target{outline-style:double'),'Mosaïque target must share double-action grammar');
 
-const token='3.1.9-r3ui-focus-hierarchy';
+const cssToken='3.1.9-r3ui-focus-hierarchy',jsToken='3.1.9-r3ui-focus-hierarchy-r2';
 const index=fs.readFileSync(path.join(RUNTIME,'index.html'),'utf8');
 const sw=fs.readFileSync(path.join(RUNTIME,'sw.js'),'utf8');
-for(const asset of ['tutor-action-first-navigation.css','tutor-action-first-navigation.js']){
-  assert(index.includes(`${asset}?v=${token}`),`${asset} cache-bust missing from index`);
-  assert(sw.includes(`./${asset}?v=${token}`),`${asset} cache-bust missing from service worker`);
-}
-assert(sw.includes("const CACHE='quadlud-v3.1.9-r3ui-focus-hierarchy'"),'R3UI service-worker cache identity missing');
+assert(index.includes(`tutor-action-first-navigation.css?v=${cssToken}`),'R3UI CSS cache-bust missing from index');
+assert(sw.includes(`./tutor-action-first-navigation.css?v=${cssToken}`),'R3UI CSS cache-bust missing from service worker');
+assert(index.includes(`tutor-action-first-navigation.js?v=${jsToken}`),'R3UI JS cache-bust missing from index');
+assert(sw.includes(`./tutor-action-first-navigation.js?v=${jsToken}`),'R3UI JS cache-bust missing from service worker');
+assert(sw.includes("const CACHE='quadlud-v3.1.9-r3ui-focus-hierarchy-r2'"),'R3UI R2 service-worker cache identity missing');
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
