@@ -22,6 +22,51 @@
 }
 .walkthrough-panel[data-proof-stage-kind="action"] .walkthrough-move{display:block}
 
+/* Contradiction proofs are drawn directly on the board. Hypothetical values use
+   the real game symbols at 50% opacity, while their H / 1..n badges remain fully
+   legible. Relation markers keep their higher z-index and therefore stay visible. */
+.walkthrough-hypothetical-piece{
+  position:absolute;
+  inset:0;
+  z-index:3;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+}
+.walkthrough-hypothetical-symbol{
+  opacity:.5;
+  font-size:clamp(20px,5.5vw,38px)!important;
+}
+.walkthrough-hypothetical-badge{
+  position:absolute;
+  top:4px;
+  right:4px;
+  min-width:18px;
+  height:18px;
+  padding:0 4px;
+  border:1px solid color-mix(in srgb,var(--accent) 64%,var(--ink));
+  border-radius:999px;
+  background:color-mix(in srgb,var(--paper) 92%,var(--accent));
+  color:var(--ink);
+  font:800 clamp(9px,1.7vw,11px)/16px -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
+  text-align:center;
+  box-shadow:0 1px 3px color-mix(in srgb,var(--ink) 18%,transparent);
+}
+.walkthrough-hypothetical-piece.is-hypothesis .walkthrough-hypothetical-badge{
+  border-width:2px;
+  background:color-mix(in srgb,var(--paper) 78%,var(--accent));
+}
+.walkthrough-hypothetical-piece.is-current .walkthrough-hypothetical-badge{
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 34%,transparent),0 1px 3px color-mix(in srgb,var(--ink) 18%,transparent);
+}
+.walkthrough-board[data-contradiction-visual="contradiction"] .walkthrough-contradiction-cell{
+  z-index:2;
+  outline:4px solid var(--danger)!important;
+  outline-offset:-5px!important;
+  box-shadow:inset 0 0 0 3px color-mix(in srgb,var(--danger) 24%,transparent),0 0 15px color-mix(in srgb,var(--danger) 52%,transparent)!important;
+}
+
 /* Coach uses only the current causal slice while a progressive proof is being
    explained. The final advised/applied action keeps the strongest double edge. */
 .cell.hint-substep-focus:not(.hint-focus){
@@ -30,7 +75,13 @@
   box-shadow:inset 0 0 0 6px color-mix(in srgb,var(--accent) 12%,transparent)!important;
 }
 
+@media(max-width:520px){
+  .walkthrough-hypothetical-badge{top:2px;right:2px;min-width:16px;height:16px;padding:0 3px;line-height:14px}
+}
+
 @media(forced-colors:active){
   .walkthrough-past-proof:not(.walkthrough-current-focus):not(.walkthrough-current-action){outline:1px dashed CanvasText!important;box-shadow:none!important}
   .cell.hint-substep-focus:not(.hint-focus){outline:3px solid Highlight!important;box-shadow:none!important}
+  .walkthrough-hypothetical-badge{border:2px solid CanvasText;background:Canvas;color:CanvasText;box-shadow:none}
+  .walkthrough-board[data-contradiction-visual="contradiction"] .walkthrough-contradiction-cell{outline:4px double Highlight!important;box-shadow:none!important}
 }
