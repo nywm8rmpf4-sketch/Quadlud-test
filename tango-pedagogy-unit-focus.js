@@ -138,7 +138,8 @@ function actionDeduction(){
 function pruneWalkthrough(){
   const d=actionDeduction();if(!d)return false;
   const board=root.document?.querySelector?.('.walkthrough-board');if(!board)return false;
-  const base=(()=>{try{return typeof walkthroughSession!=='undefined'?walkthroughSession?.base:null}catch(_){return null}})(),n=Number(base?.n)||6,reg=base?.reg||null,normalized=normalizePresentationDeduction(d,0,reg),trace=causalTraces(normalized);
+  const base=(()=>{try{return typeof walkthroughSession!=='undefined'?walkthroughSession?.base:null}catch(_){return null}})();if(base?.game!=='tango')return false;
+  const n=Number(base?.n)||6,reg=base?.reg||null,normalized=normalizePresentationDeduction(d,0,reg),trace=causalTraces(normalized);
   const allowed=new Set((trace.length?causalEvidenceCells(normalized,reg):minimalStepCells(normalized,reg)).map(cellKey));
   const actions=new Set(conclusionCells(normalized).map(cellKey));
   const units=unitRefs(normalized);
