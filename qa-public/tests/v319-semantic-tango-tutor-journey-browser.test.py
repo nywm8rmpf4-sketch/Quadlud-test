@@ -88,19 +88,42 @@ def open_real_tango_expert(page) -> dict:
 def observable_snapshot(page) -> dict:
     return page.evaluate(
         """()=>{
+          const normalize=value=>String(value??'').trim().replace(/\s+/g,' ');
           const visible=el=>{
             if(!el)return false;
             const s=getComputedStyle(el),r=el.getBoundingClientRect();
-            return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;
+            return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity||1)!==0&&r.width>0&&r.height>0;
           };
           const text=sel=>{
             const el=document.querySelector(sel);
-            return el&&visible(el)?(el.innerText||el.textContent||'').trim().replace(/\s+/g,' '):null;
+            return el&&visible(el)?normalize(el.innerText||el.textContent||''):null;
+          };
+          const viewportText=sel=>{
+            const rootEl=document.querySelector(sel);
+            if(!rootEl||!visible(rootEl))return null;
+            const rootRect=rootEl.getBoundingClientRect();
+            const clip={
+              left:Math.max(0,rootRect.left),top:Math.max(0,rootRect.top),
+              right:Math.min(innerWidth,rootRect.right),bottom:Math.min(innerHeight,rootRect.bottom)
+            };
+            if(clip.right<=clip.left||clip.bottom<=clip.top)return '';
+            const walker=document.createTreeWalker(rootEl,NodeFilter.SHOW_TEXT);
+            const chunks=[];let node;
+            while((node=walker.nextNode())){
+              const value=normalize(node.nodeValue);if(!value)continue;
+              const parent=node.parentElement;if(!parent||!visible(parent))continue;
+              const range=document.createRange();range.selectNodeContents(node);
+              const rects=[...range.getClientRects()];
+              const intersects=rects.some(r=>r.width>0&&r.height>0&&r.right>clip.left&&r.left<clip.right&&r.bottom>clip.top&&r.top<clip.bottom);
+              range.detach?.();
+              if(intersects)chunks.push(value);
+            }
+            return normalize(chunks.join(' '));
           };
           const button=sel=>{
             const el=document.querySelector(sel);
             return el&&visible(el)?{
-              text:(el.innerText||el.textContent||'').trim().replace(/\s+/g,' '),
+              text:normalize(el.innerText||el.textContent||''),
               disabled:!!el.disabled,
               ariaLabel:el.getAttribute('aria-label')
             }:null;
@@ -108,7 +131,7 @@ def observable_snapshot(page) -> dict:
           const board=document.querySelector('.walkthrough-board');
           const cells=board?[...board.children].map((el,index)=>({
             index,
-            text:(el.innerText||el.textContent||'').trim().replace(/\s+/g,' '),
+            text:normalize(el.innerText||el.textContent||''),
             className:String(el.className||''),
             ariaLabel:el.getAttribute('aria-label'),
             row:el.dataset?.r??null,
@@ -118,12 +141,19 @@ def observable_snapshot(page) -> dict:
             .filter(visible)
             .map(el=>String(el.className||''))
             .filter(Boolean);
+          const scroll=document.querySelector('.walkthrough-scroll');
           return {
             documentLang:document.documentElement.lang,
             title:text('.walkthrough-head h1'),
             subtitle:text('.walkthrough-head p'),
             counter:text('#walkthroughRestart'),
-            visibleExplanation:text('.walkthrough-scroll'),
+            visibleExplanation:viewportText('.walkthrough-scroll'),
+            fullExplanation:text('.walkthrough-scroll'),
+            explanationScroll:scroll?{
+              scrollTop:Math.round(scroll.scrollTop),
+              clientHeight:Math.round(scroll.clientHeight),
+              scrollHeight:Math.round(scroll.scrollHeight)
+            }:null,
             stateComplete:text('.walkthrough-complete'),
             stateStalled:text('.walkthrough-stalled'),
             controls:{
@@ -150,8 +180,10 @@ def observable_snapshot(page) -> dict:
 def signature(snapshot: dict) -> str:
     compact = {
         "counter": snapshot.get("counter"),
-        "explanation": snapshot.get("visibleExplanation"),
-        "cells": [(c["text"], c["className"]) for c in snapshot["board"]["cells"]],
+        "explanation": snapshot.get("fullExplanation"),
+        "visibleExplanation": snapshot.get("visibleExplanation"),
+        "scroll": snapshot.get("explanationScroll"),
+        "cells": [(c["text"], c["className"], c.get("ariaLabel")) for c in snapshot["board"]["cells"]],
         "proofNext": snapshot["controls"].get("proofNext"),
         "next": snapshot["controls"].get("next"),
     }
@@ -166,7 +198,7 @@ def capture(page, evidence_dir: Path, ordinal: int, phase: str) -> tuple[dict, s
     snapshot["phase"] = phase
     stem = f"{ordinal:03d}-{phase}"
     (steps / f"{stem}.json").write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
-    page.screenshot(path=str(steps / f"{stem}.png"), full_page=True)
+    page.screenshot(path=str(steps / f"{stem}.png"), full_page=False)
     return snapshot, signature(snapshot)
 
 
@@ -236,7 +268,7 @@ def main() -> None:
         browser.close()
 
     manifest = {
-        "schema": 1,
+        "schema": 2,
         "policyId": "QUADLUD_SEMANTIC_VALIDATION_V1",
         "journeyId": "tango-expert-fr-mobile-v1",
         "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
@@ -254,6 +286,11 @@ def main() -> None:
         "captures": captures,
         "captureCount": len(captures),
         "consoleErrors": errors,
+        "evidenceSemantics": {
+            "screenshot": "mobile viewport only",
+            "visibleExplanation": "text nodes intersecting both Tutor scroll viewport and browser viewport",
+            "fullExplanation": "complete text in Tutor scroll container, including offscreen content",
+        },
         "automaticJourneyStatus": "SCRIPTED_PASS",
         "semanticStatus": "SEMANTIC_NOT_EXECUTED",
         "humanStatus": "HUMAN_PENDING",
@@ -264,7 +301,7 @@ def main() -> None:
     (evidence_dir / "review.md").write_text(
         "# Revue sémantique — EN ATTENTE\n\n"
         "Statut : `SEMANTIC_NOT_EXECUTED`\n\n"
-        "Le parcours réel et les captures ont été produits automatiquement. "
+        "Le parcours réel et les captures viewport ont été produits automatiquement. "
         "Ils doivent être examinés séquentiellement selon la politique privée QUADLUD. "
         "Un PASS de ce test ne constitue pas un `SEMANTIC_PASS`.\n",
         encoding="utf-8",
