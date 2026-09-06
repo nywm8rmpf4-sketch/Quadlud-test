@@ -3,7 +3,7 @@
 const assert=require('assert');
 const fs=require('fs');
 const path=require('path');
-const runtime=name=>path.join(__dirname,'..','..',name);
+const runtime=name=>path.join(__dirname,'..','GitHub',name);
 
 // Reproduce the human-test failure: the shared helper may still return English
 // labels/emoji while the Tutor document itself is French.
