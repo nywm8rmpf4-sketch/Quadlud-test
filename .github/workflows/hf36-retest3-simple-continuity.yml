@@ -34,9 +34,17 @@ jobs:
         run: |
           set -euo pipefail
           TMP="$RUNNER_TEMP/quadlud-hf36"
+          rm -rf "$TMP"
           mkdir -p "$TMP/GitHub" "$TMP/tests"
-          cp *.js "$TMP/GitHub/"
+          rsync -a ./ "$TMP/GitHub/" \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.gitignore' \
+            --exclude='qa-public/' \
+            --exclude='qa-release/' \
+            --exclude='LICENSE'
           cp -a qa-public/tests/. "$TMP/tests/"
+          test -f "$TMP/GitHub/index.html"
           cd "$TMP"
           while IFS= read -r test; do
             echo "TANGO JS: $test"
