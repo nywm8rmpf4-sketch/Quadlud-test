@@ -6,6 +6,7 @@ const Base=require('../GitHub/tango-played-move-runtime.js');
 const Bridge=require('../GitHub/tango-human-cost-bridge.js');
 
 Bridge.installRelationEvidence();
+const sameCell=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1]);
 
 // Human regression reported on iPhone/iPad:
 // A1 = A2 is visible, A3 is already a sun. The engine may internally derive
@@ -45,7 +46,11 @@ assert.deepStrictEqual(concrete.witness.cells,[[0,0],[0,1],[0,2]]);
 const forcedA2=(concrete.deduction.explanationData.causalTrace||[]).find(d=>(d.conclusions||[]).some(c=>c.type==='VALUE'&&c.cell[0]===0&&c.cell[1]===1&&c.value===1));
 assert(forcedA2,'causal trace must explicitly propagate A1=sun through A1=A2 to A2=sun');
 assert.strictEqual(forcedA2.rule,'RELATION_PROPAGATION');
-assert((forcedA2.premises||[]).some(p=>p.kind==='RELATION'&&p.explicit===true&&p.parity===0),'A2 propagation must use the visible equality A1=A2');
+const a1=[0,0],a2=[0,1];
+assert((forcedA2.premises||[]).some(p=>
+  p.kind==='RELATION'&&p.explicit===true&&String(p.relation||'').toUpperCase()==='SAME'&&
+  ((sameCell(p.a,a1)&&sameCell(p.b,a2))||(sameCell(p.a,a2)&&sameCell(p.b,a1)))
+),'A2 propagation must use the visible equality A1=A2');
 
 const rawProof={schema:3,kind:'engine-proof',deduction:relationProof,displayDeductions:[relationProof],replaced:false};
 const corrected=Bridge._test.correctedProof(Base,session,{status:'move',tierIndex:3,target:[0,0],value:0},rawProof);
