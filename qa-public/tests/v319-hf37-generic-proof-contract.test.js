@@ -4,6 +4,8 @@
 'use strict';
 const assert=require('assert');
 const path=require('path');
+global.lang=()=> 'fr';
+global.pieceName=(game,value)=>Number(value)===1?'soleil ☀':'lune ☾';
 const runtime=name=>path.join(__dirname,'..','GitHub',name);
 const mod=require(runtime('tango-proof-contract-hf37.js'));
 {
