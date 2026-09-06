@@ -6,7 +6,7 @@
  */
 (function(root){
 'use strict';
-const VERSION=3;
+const VERSION=4;
 const ABSTRACT_HUMAN_RULES=new Set(['LINE_DOMAIN_SUPPORT']);
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function sameCell(a,b){return Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1])}
@@ -45,11 +45,20 @@ function relationForDeduction(session,d){
   const source=d?.explanationData?.source,target=d?.explanationData?.target;if(!Array.isArray(source)||!Array.isArray(target))return null;
   return session.relationBetween(source,target)||null
 }
+function derivedPremiseSupportPenalty(d){
+  if(d?.rule!=='RELATION_PROPAGATION')return 0;
+  let total=0;for(const p of d?.premises||[]){
+    if(!(p?.kind==='RELATION'||(Array.isArray(p?.a)&&Array.isArray(p?.b)))||p.explicit===true)continue;
+    const path=Array.isArray(p.path)?p.path:[],derivedEdges=path.filter(edge=>edge?.explicit!==true).length;
+    total+=Math.max(1,derivedEdges)
+  }
+  return total
+}
 function relationDerivedSupportPenalty(session,d){
-  const rel=relationForDeduction(session,d);if(!rel)return 0;
+  const rel=relationForDeduction(session,d),premisePenalty=derivedPremiseSupportPenalty(d);if(!rel)return premisePenalty;
   const path=Array.isArray(rel.path)?rel.path:[];
-  if(!path.length)return rel.explicit===false?1:0;
-  return path.reduce((sum,edge)=>sum+(edge?.explicit===false?1:0),0)
+  const relationPenalty=!path.length?(rel.explicit===false?1:0):path.reduce((sum,edge)=>sum+(edge?.explicit===false?1:0),0);
+  return Math.max(premisePenalty,relationPenalty)
 }
 function baseHumanProofCost(source,session,d){
   const value=source?._test?.humanProofCost?source._test.humanProofCost(session,d?[d]:[]):[1,0,1,0,0,0];return Array.isArray(value)?value.slice():[1,0,1,0,0,0]
@@ -80,28 +89,51 @@ function advancedHumanProofCost(source,session,d){
 }
 function compareCosts(source,a,b){return typeof source?._test?.compareCostVector==='function'?source._test.compareCostVector(a,b):(()=>{for(let i=0;i<Math.max(a?.length||0,b?.length||0);i++){const x=Number(a?.[i])||0,y=Number(b?.[i])||0;if(x!==y)return x-y}return 0})()}
 function displayDeduction(source,d){return typeof source?._test?.minimalDisplayDeduction==='function'?source._test.minimalDisplayDeduction(d):copy(d)}
+function proofPreferenceTier(session,d){
+  const rule=String(d?.rule||'');
+  if(rule==='ASSUMPTION_CONTRADICTION')return 1;
+  if(rule==='RELATION_PROPAGATION'&&relationDerivedSupportPenalty(session,d)>0)return 2;
+  if(ABSTRACT_HUMAN_RULES.has(rule))return 3;
+  return 0
+}
+function compareProofCandidates(source,a,b){return (Number(a?.preference)||0)-(Number(b?.preference)||0)||compareCosts(source,a?.cost||[],b?.cost||[])||deductionKey(a?.deduction).localeCompare(deductionKey(b?.deduction))}
 function selfContainedDirectCandidates(source,session,target,value){
   if(!session||typeof session.directDeductions!=='function'||!Array.isArray(target)||(value!==0&&value!==1))return [];
-  const seen=new Set(),out=[];for(const raw of session.directDeductions()||[]){if(!raw||!concludesMove(raw,target,value))continue;const key=deductionKey(raw);if(seen.has(key))continue;seen.add(key);const deduction=displayDeduction(source,raw),cost=relationAwareHumanProofCost(source,session,deduction);out.push({deduction,cost})}
-  return out.sort((a,b)=>compareCosts(source,a.cost,b.cost)||deductionKey(a.deduction).localeCompare(deductionKey(b.deduction)))
+  const seen=new Set(),out=[];for(const raw of session.directDeductions()||[]){if(!raw||!concludesMove(raw,target,value))continue;const key=deductionKey(raw);if(seen.has(key))continue;seen.add(key);const deduction=displayDeduction(source,raw),cost=relationAwareHumanProofCost(source,session,deduction);out.push({kind:'direct',deduction,cost,preference:proofPreferenceTier(session,deduction)})}
+  return out.sort((a,b)=>compareProofCandidates(source,a,b))
+}
+function causalContradictionCandidate(source,session,target,value){
+  const find=source?._test?.concreteContradictionForMove;if(typeof find!=='function'||!Array.isArray(target)||(value!==0&&value!==1))return null;
+  let alternative=null;try{alternative=find(session,target,value)}catch(_){return null}
+  if(!alternative?.deduction||String(alternative.deduction.rule||'')!=='ASSUMPTION_CONTRADICTION'||!concludesMove(alternative.deduction,target,value))return null;
+  const deduction=displayDeduction(source,alternative.deduction),groups=advancedTraceGroups(deduction);if(!groups.length||!groups.flat().length)return null;
+  return {kind:'causal-contradiction',deduction,cost:advancedHumanProofCost(source,session,deduction),preference:proofPreferenceTier(session,deduction),witness:copy(alternative.witness||deduction?.explanationData?.witness||null)}
 }
 function correctedProof(source,session,plan,rawProof){
   const proof=copy(rawProof)||{};if(!proof?.deduction)return proof;
-  const currentCost=advancedTraceGroups(proof.deduction).length?advancedHumanProofCost(source,session,proof.deduction):relationAwareHumanProofCost(source,session,proof.deduction);
-  proof.costVector=currentCost;proof.humanRelationSupportCostCorrected=true;
+  const currentCost=advancedTraceGroups(proof.deduction).length?advancedHumanProofCost(source,session,proof.deduction):relationAwareHumanProofCost(source,session,proof.deduction),current={kind:'current',deduction:proof.deduction,cost:currentCost,preference:proofPreferenceTier(session,proof.deduction)};
+  proof.costVector=currentCost;proof.humanRelationSupportCostCorrected=true;proof.humanProofPreferenceTier=current.preference;
   if(plan?.status!=='move'||!Array.isArray(plan.target)||(plan.value!==0&&plan.value!==1))return proof;
-  const best=selfContainedDirectCandidates(source,session,plan.target,plan.value)[0]||null;if(!best||compareCosts(source,best.cost,currentCost)>=0||deductionKey(best.deduction)===deductionKey(proof.deduction))return proof;
-  return {...proof,kind:'simpler-self-contained-direct-proof',target:plan.target.slice(),value:plan.value,deduction:copy(best.deduction),displayDeductions:[copy(best.deduction)],replaced:true,replacedRule:String(proof.deduction?.rule||''),replacedCostVector:currentCost,costVector:best.cost,humanRelationSupportCostCorrected:true}
+  const candidates=[current,...selfContainedDirectCandidates(source,session,plan.target,plan.value)];
+  // On Expert, a concrete engine-demonstrated hypothesis -> forced consequence ->
+  // contradiction proof is pedagogically preferable to an internal shortcut that
+  // first materializes a derived relation and then propagates through it. The
+  // selected move is unchanged; only its visible proof is replaced.
+  if(Number(plan.tierIndex)>=3&&current.preference>=2){const contradiction=causalContradictionCandidate(source,session,plan.target,plan.value);if(contradiction)candidates.push(contradiction)}
+  candidates.sort((a,b)=>compareProofCandidates(source,a,b));const best=candidates[0];
+  if(!best||best.kind==='current'||deductionKey(best.deduction)===deductionKey(proof.deduction))return proof;
+  const replacementKind=best.kind==='causal-contradiction'?'simpler-causal-contradiction-proof':'simpler-self-contained-direct-proof';
+  return {...proof,kind:replacementKind,target:plan.target.slice(),value:plan.value,deduction:copy(best.deduction),displayDeductions:[copy(best.deduction)],replaced:true,replacedRule:String(proof.deduction?.rule||''),replacedCostVector:currentCost,costVector:best.cost,humanRelationSupportCostCorrected:true,humanProofPreferenceTier:best.preference,witness:copy(best.witness||proof.witness||null)}
 }
 function install(){
   const relationInstalled=installRelationEvidence(),source=root.QuadludTangoPlayedMoveRuntime;
   if(!source||typeof source.selectDisplayProof!=='function')return relationInstalled;
-  if(source.__quadludHumanCostCorrectionV3===true)return true;
+  if(source.__quadludHumanCostCorrectionV4===true)return true;
   const previous=source.selectDisplayProof;
-  const replacement={...source,selectDisplayProof(session,plan){return Object.freeze(correctedProof(source,session,plan,previous.call(source,session,plan)))},_test:Object.freeze({...source._test,advancedTraceGroups,advancedHumanProofCost,relationDerivedSupportPenalty,relationAwareHumanProofCost,selfContainedDirectCandidates,correctedProof,enrichedRelationPath,relationFactForEdge}),__quadludHumanCostCorrection:true,__quadludHumanCostCorrectionV3:true};
+  const replacement={...source,selectDisplayProof(session,plan){return Object.freeze(correctedProof(source,session,plan,previous.call(source,session,plan)))},_test:Object.freeze({...source._test,advancedTraceGroups,advancedHumanProofCost,derivedPremiseSupportPenalty,relationDerivedSupportPenalty,relationAwareHumanProofCost,proofPreferenceTier,compareProofCandidates,selfContainedDirectCandidates,causalContradictionCandidate,correctedProof,enrichedRelationPath,relationFactForEdge}),__quadludHumanCostCorrection:true,__quadludHumanCostCorrectionV3:true,__quadludHumanCostCorrectionV4:true};
   root.QuadludTangoPlayedMoveRuntime=Object.freeze(replacement);return true
 }
-const api=Object.freeze({VERSION,install,installRelationEvidence,_test:Object.freeze({advancedTraceGroups,advancedHumanProofCost,relationDerivedSupportPenalty,relationAwareHumanProofCost,selfContainedDirectCandidates,correctedProof,enrichedRelationPath,relationFactForEdge})});
+const api=Object.freeze({VERSION,install,installRelationEvidence,_test:Object.freeze({advancedTraceGroups,advancedHumanProofCost,derivedPremiseSupportPenalty,relationDerivedSupportPenalty,relationAwareHumanProofCost,proofPreferenceTier,compareProofCandidates,selfContainedDirectCandidates,causalContradictionCandidate,correctedProof,enrichedRelationPath,relationFactForEdge})});
 root.QuadludTangoHumanCostBridge=api;
 if(typeof document!=='undefined')install();
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
