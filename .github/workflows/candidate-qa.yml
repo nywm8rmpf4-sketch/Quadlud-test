@@ -1,15 +1,17 @@
-name: QUADLUD v3.1.9 R3UI candidate QA
+name: QUADLUD public candidate QA
 
 on:
   push:
     branches: [candidate/v3.1.9-r3ui-unit-context-r2]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: quadlud-v319-r3ui-candidate-r2
+  group: quadlud-public-candidate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -109,6 +111,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/quadlud-public-qa"
           export PYTHONPATH="$PWD/tests"
+          export QUADLUD_SEMANTIC_EVIDENCE_DIR="$RUNNER_TEMP/quadlud-semantic-evidence/tango-expert-fr-mobile-v1"
           while IFS= read -r test; do
             case "$test" in
               *v319-r3ui-pedagogy-visual-hierarchy-browser.test.py) continue ;;
@@ -116,3 +119,12 @@ jobs:
             echo "OTHER PUBLIC QA PY: $test"
             python "$test"
           done < <(find tests -maxdepth 1 -type f -name '*.test.py' | sort)
+
+      - name: Upload semantic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semantic-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/quadlud-semantic-evidence
+          if-no-files-found: warn
+          retention-days: 14
