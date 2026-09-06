@@ -1,4 +1,5 @@
-/* QUADLUD — HF3.7 / ADR-011 proof contract regression
+/*
+ * QUADLUD — HF3.7/HF3.8 / ADR-011 proof contract regression
  * Copyright © 2026 Serge Benoliel. All rights reserved.
  */
 'use strict';
@@ -8,6 +9,7 @@ global.lang=()=> 'fr';
 global.pieceName=(game,value)=>Number(value)===1?'soleil ☀':'lune ☾';
 const runtime=name=>path.join(__dirname,'..','GitHub',name);
 const mod=require(runtime('tango-proof-contract-hf37.js'));
+
 {
   const d={rule:'RELATION_BALANCE',premises:[
     {kind:'RELATION',a:[3,2],b:[4,2],parity:0,dependencies:['R1']},
@@ -22,6 +24,7 @@ const mod=require(runtime('tango-proof-contract-hf37.js'));
   assert.ok(!reduced.dependencies.includes('D6'));
   assert.strictEqual(reduced.proofReduction.contract,'ADR-011');
 }
+
 {
   const base={rule:'LINE_DOMAIN_SUPPORT',focusUnits:[{family:'column',id:4}],explanationData:{domainCount:2},premises:[],focusCells:[[0,4],[1,4],[2,4],[3,4],[4,4],[5,4]]};
   const conclusions=[
@@ -46,6 +49,32 @@ const mod=require(runtime('tango-proof-contract-hf37.js'));
   assert.match(e.presentation.explanation.why,/Donc A5 = lune/);
   assert.strictEqual(e.presentation.metadata.showTutorMove,true);
   assert.strictEqual(e.presentation.metadata.proofCompleteness,'complete-case-invariant-final-action');
-  assert.strictEqual(e.snapshot.state[0][4],0);
 }
-console.log('PASS HF3.7 ADR-011: causal witness premises and case proof finalAction.');
+
+{
+  const state=Array.from({length:6},()=>Array(6).fill(-1));state[0][1]=0;state[1][1]=1;state[5][1]=1;
+  const entry={target:[0,1],move:'A2 = lune',beforeSnapshot:{state},deduction:{rule:'RELATION_BALANCE',premises:[{kind:'RELATION',a:[2,1],b:[3,1],parity:1}],focusUnits:[{family:'column',id:1}],conclusions:[{type:'VALUE',cell:[0,1],value:0},{type:'VALUE',cell:[4,1],value:0}]},presentation:{action:{conclusions:[{type:'VALUE',cell:[0,1],value:0},{type:'VALUE',cell:[4,1],value:0}]},explanation:{title:'Relation et équilibre',where:'',why:'',move:''},metadata:{}}};
+  const reduced=mod._test.reduceAlreadyVisibleConclusions(entry);
+  assert.deepStrictEqual(reduced.deduction.conclusions,[{type:'VALUE',cell:[4,1],value:0}]);
+  assert.deepStrictEqual(reduced.target,[4,1]);
+  assert.match(reduced.move,/E2\s*=\s*lune/);
+}
+
+{
+  const state=Array.from({length:6},()=>Array(6).fill(-1));state[0][1]=0;state[1][1]=1;state[5][1]=1;
+  const entry={target:[4,1],move:'E2 = lune',beforeSnapshot:{state},deduction:{rule:'RELATION_BALANCE',premises:[{kind:'RELATION',a:[2,1],b:[3,1],parity:1}],focusUnits:[{family:'column',id:1}],conclusions:[{type:'VALUE',cell:[4,1],value:0}]},presentation:{action:{conclusions:[{type:'VALUE',cell:[4,1],value:0}]},explanation:{title:'old',where:'old',why:'old',move:'old'},metadata:{}}};
+  const data=mod._test.relationInvariantData(entry,entry.deduction);
+  assert.ok(data);
+  assert.strictEqual(data.sun,3);assert.strictEqual(data.moon,2);assert.strictEqual(data.required,3);
+  const explained=mod._test.explainRelationInvariant(entry);
+  assert.match(explained.why,/C2 × D2/);
+  assert.match(explained.why,/un Soleil et une Lune/);
+  assert.match(explained.why,/3 Soleils et 2 Lunes/);
+  assert.match(explained.why,/dernière case restante E2/);
+  assert.match(explained.why,/forcément lune/);
+  assert.ok(!/C2\s*=/.test(explained.why));
+  assert.ok(!/D2\s*=/.test(explained.why));
+  assert.strictEqual(explained.presentation.metadata.proofCompleteness,'relation-invariant-final-action');
+}
+
+console.log('PASS HF3.8 ADR-011: causal reduction, case finalAction, pending-known filtering and relation invariant.');
