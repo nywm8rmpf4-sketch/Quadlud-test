@@ -2,7 +2,7 @@
 'use strict';
 const assert=require('assert');
 const path=require('path');
-const runtime=name=>path.join(__dirname,'..','..',name);
+const runtime=name=>path.join(__dirname,'..','GitHub',name);
 const Model=require(runtime('tango-causal-proof-model.js'));
 globalThis.QuadludTangoCausalProofModel=Model;
 const Bridge=require(runtime('tango-progressive-proof-bridge.js'));
