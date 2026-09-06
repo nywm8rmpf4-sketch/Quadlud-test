@@ -6,7 +6,7 @@
  */
 (function(root){
 'use strict';
-const VERSION=4;
+const VERSION=5;
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function sameCell(a,b){return Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1])}
 function session(){try{return typeof walkthroughSession!=='undefined'?walkthroughSession:null}catch(_){return null}}
@@ -70,7 +70,7 @@ function orderedRelationPath(source,target,path){
   while(unused.length&&!sameCell(current,target)){
     const i=unused.findIndex(x=>sameCell(x.edge?.a,current)||sameCell(x.edge?.b,current));if(i<0)return [];
     const [{edge}]=unused.splice(i,1),next=sameCell(edge.a,current)?edge.b:edge.a;if(!Array.isArray(next))return [];
-    out.push({from:current.slice(),to:next.slice(),parity:Number(edge.parity)||0,explicit:!!edge.explicit});current=next.slice()
+    out.push({from:current.slice(),to:next.slice(),parity:Number(edge.parity)||0,explicit:edge.explicit===true});current=next.slice()
   }
   return sameCell(current,target)?out:[]
 }
@@ -81,11 +81,19 @@ function clarifyDerivedRelation(entry){
   const next=copy(entry),d=entryDeduction(next);if(String(d?.rule||'')!=='RELATION_PROPAGATION')return next;
   const rel=relationPremise(d);if(!rel||rel.explicit===true)return next;
   const x=d?.explanationData||{},source=x.source,target=x.target||(d?.conclusions||[]).find(c=>c?.type==='VALUE')?.cell,conclusion=(d?.conclusions||[]).find(c=>c?.type==='VALUE');if(!Array.isArray(source)||!Array.isArray(target)||!conclusion)return next;
-  const fr=locale()==='fr',sourceName=humanCell(source),targetName=humanCell(target),sourceValue=Number(x.sourceValue),targetValue=Number(conclusion.value),parity=Number(x.parity),hypothesis=!!valuePremise(d,source)?.hypothesis,relation=parity===0?(fr?'identiques':'the same'):(fr?'opposées':'opposite'),pathText=relationPathText(source,target,rel.path);
-  const where=pathText?(fr?`Regarde le chemin relationnel de ${sourceName} à ${targetName}.`:`Look at the relation path from ${sourceName} to ${targetName}.`):(fr?`Regarde ${sourceName} et ${targetName}. Utilise la relation déjà déduite entre ces deux cases.`:`Look at ${sourceName} and ${targetName}. Use the relation already deduced between these two cells.`);
-  const relationReason=pathText?(fr?`La relation n’est pas directe : ${pathText}. En les combinant, ${sourceName} et ${targetName} sont ${relation}.`:`The relation is not direct: ${pathText}. Combining these relations, ${sourceName} and ${targetName} are ${relation}.`):(fr?`${sourceName} et ${targetName} sont ${relation} d’après une relation déjà démontrée.`:`${sourceName} and ${targetName} are ${relation} from an already proved relation.`);
-  const why=fr?`${relationReason} ${hypothesis?'Sous l’hypothèse,':'Comme'} ${sourceName} = ${humanPiece(sourceValue)}, donc ${targetName} = ${humanPiece(targetValue)}.`:`${relationReason} ${hypothesis?'Under the assumption,':'Since'} ${sourceName} = ${humanPiece(sourceValue)}, therefore ${targetName} = ${humanPiece(targetValue)}.`;
-  if(next.presentation?.explanation){next.presentation.explanation.where=where;next.presentation.explanation.why=why;next.presentation.explanation.move=''}next.where=where;next.why=why;next.move='';return next
+  const fr=locale()==='fr',sourceName=humanCell(source),targetName=humanCell(target),sourceValue=Number(x.sourceValue),targetValue=Number(conclusion.value),parity=Number(x.parity),hypothesis=!!valuePremise(d,source)?.hypothesis,relation=parity===0?(fr?'identiques':'the same'):(fr?'opposées':'opposite'),ordered=orderedRelationPath(source,target,rel.path),explicitPath=ordered.length>=2&&ordered.every(edge=>edge.explicit===true),pathText=explicitPath?relationPathText(source,target,rel.path):'';
+  let where,why,proofCompleteness;
+  if(explicitPath){
+    where=fr?`Regarde les indices qui relient ${sourceName} à ${targetName}.`:`Look at the clues linking ${sourceName} to ${targetName}.`;
+    const relationReason=fr?`La relation n’est pas directe : ${pathText}. Ces indices visibles montrent que ${sourceName} et ${targetName} sont ${relation}.`:`The relation is not direct: ${pathText}. These visible clues show that ${sourceName} and ${targetName} are ${relation}.`;
+    why=fr?`${relationReason} ${hypothesis?'Sous l’hypothèse,':'Comme'} ${sourceName} = ${humanPiece(sourceValue)}, donc ${targetName} = ${humanPiece(targetValue)}.`:`${relationReason} ${hypothesis?'Under the assumption,':'Since'} ${sourceName} = ${humanPiece(sourceValue)}, therefore ${targetName} = ${humanPiece(targetValue)}.`;
+    proofCompleteness='complete-explicit-relation-path'
+  }else{
+    where=fr?`Regarde ${sourceName} et ${targetName}.`:`Look at ${sourceName} and ${targetName}.`;
+    why=fr?`La relation utilisée entre ${sourceName} et ${targetName} est dérivée, mais sa chaîne de preuve complète n’est pas disponible dans cette sous-étape. Le Tuteur ne peut donc pas justifier cette propagation ici.`:`The relation used between ${sourceName} and ${targetName} is derived, but its complete proof chain is not available in this sub-step. The Tutor therefore cannot justify this propagation here.`;
+    proofCompleteness='missing-relation-provenance'
+  }
+  if(next.presentation){next.presentation.metadata={...(next.presentation.metadata||{}),showTutorMove:false,proofCompleteness};if(next.presentation.explanation){next.presentation.explanation.where=where;next.presentation.explanation.why=why;next.presentation.explanation.move=''}}next.where=where;next.why=why;next.move='';next.proofCompleteness=proofCompleteness;return next
 }
 function postProcessGeneratedEntries(s,start){
   if(!s||!Array.isArray(s.moves)||start<0||start>=s.moves.length)return false;const p=presenter(),raw=s.moves.splice(start),out=[];
