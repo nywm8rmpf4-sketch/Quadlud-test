@@ -1,7 +1,7 @@
 /* QUADLUD HF3.6-A — Tutor cycle guard regression */
 'use strict';
 const path=require('path');
-const pedagogy=require(path.join(__dirname,'..','..','tango-pedagogy.js'));
+const pedagogy=require(path.join(__dirname,'..','GitHub','tango-pedagogy.js'));
 
 const work={n:6,state:Array.from({length:6},()=>Array(6).fill(-1)),tangoDerivedRelations:[]};
 const session={work,moves:[],done:false,stalled:false};
