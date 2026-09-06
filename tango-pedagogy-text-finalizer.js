@@ -12,7 +12,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 const VERSION=2;
-const PIECE_TOKEN_RE=/\b(sun|moon|soleil|lune)\b(?:\s*[☀☾🌞🌙🌛🌜🌚🌝])?/gi;
+const PIECE_TOKEN_RE=/\b(sun|moon|soleil|lune)\b(?:\s*[☀☾🌞🌙🌛🌜🌚🌝])?/giu;
 const INTERMEDIATE_RE=/(?:\s|^)(?:Conclusion intermédiaire|Intermediate conclusion)\s*:\s*[^.!?<]*(?:[.!?](?=\s|$)|$)/gi;
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
 function locale(){try{return String(typeof lang==='function'?lang():root.document?.documentElement?.lang||'en').toLowerCase().split('-')[0]}catch(_){return'en'}}
@@ -20,7 +20,7 @@ function piece(value){
   const isSun=Number(value)===1,glyph=isSun?'☀':'☾',loc=locale();
   if(loc==='fr')return `${isSun?'soleil':'lune'} ${glyph}`;
   if(loc==='en')return `${isSun?'sun':'moon'} ${glyph}`;
-  try{if(typeof pieceName==='function'){const label=pieceName('tango',Number(value));if(label!=null&&String(label).trim()){const clean=String(label).replace(/[☀☾🌞🌙🌛🌜🌚🌝]/g,'').trim();if(clean&&!/^(?:sun|moon)$/i.test(clean))return `${clean} ${glyph}`}}}catch(_){ }
+  try{if(typeof pieceName==='function'){const label=pieceName('tango',Number(value));if(label!=null&&String(label).trim()){const clean=String(label).replace(/[☀☾🌞🌙🌛🌜🌚🌝]/gu,'').trim();if(clean&&!/^(?:sun|moon)$/i.test(clean))return `${clean} ${glyph}`}}}catch(_){ }
   return `${isSun?'sun':'moon'} ${glyph}`
 }
 function replaceRawPieces(text){
@@ -31,7 +31,7 @@ function replaceRawPieces(text){
     return t==='sun'||t==='soleil'?piece(1):piece(0)
   })
 }
-function propositionKey(text){const m=String(text??'').match(/\b([A-Z]\d+)\s*=\s*([^.,;:<>]+)/i);if(!m)return null;let value=replaceRawPieces(m[2]).toLowerCase().replace(/[☀☾🌞🌙🌛🌜🌚🌝\s]/g,'');return `${m[1].toUpperCase()}=${value}`}
+function propositionKey(text){const m=String(text??'').match(/\b([A-Z]\d+)\s*=\s*([^.,;:<>]+)/i);if(!m)return null;let value=replaceRawPieces(m[2]).toLowerCase().replace(/[☀☾🌞🌙🌛🌜🌚🌝\s]/gu,'');return `${m[1].toUpperCase()}=${value}`}
 function stripIntermediate(text){return String(text??'').replace(INTERMEDIATE_RE,' ').replace(/\s{2,}/g,' ').trim()}
 function dedupSemanticSentences(text){
   const source=String(text??''),parts=source.split(/(?<=[.!?])\s+/),out=[],seen=new Set();
