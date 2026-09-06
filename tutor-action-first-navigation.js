@@ -102,8 +102,9 @@
   function entryUnits(entry){return [...collectDeductionUnits(reasoningDeduction(entry)).values()]}
   function groupUnits(group){const out=new Map();for(const entry of group?.entries||[])for(const unit of entryUnits(entry))out.set(unit.key,unit);return [...out.values()]}
   function actionCoords(entry){
-    const out=new Set(),move=entry?.move||{};
-    collectCoords(move.target,out);collectCoords(move.deduction?.conclusions,out);collectCoords(move.presentation?.action?.target,out);collectCoords(move.presentation?.action,out);
+    const out=new Set(),move=entry?.move||{},hasExplicitTarget=move.target!=null;
+    if(hasExplicitTarget){collectCoords(move.target,out);collectCoords(move.presentation?.action?.target,out)}
+    if(!hasExplicitTarget||!out.size){collectCoords(move.deduction?.conclusions,out);collectCoords(move.presentation?.action?.target,out);collectCoords(move.presentation?.action,out)}
     return [...out].map(key=>key.split(',').map(Number))
   }
   function focusItemsFrom(value,out=[]){

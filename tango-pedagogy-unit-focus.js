@@ -12,7 +12,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=6;
+const VERSION=7;
 const UNIT_CLASS='hint-unit-context';
 const SUBSTEP_CLASS='hint-substep-focus';
 const TRACE_KEYS=['causalTrace','moonCausalTrace','sunCausalTrace'];
@@ -22,15 +22,20 @@ function sameCell(a,b){return Array.isArray(a)&&Array.isArray(b)&&a.length>=2&&b
 function cellKey(cell){return Array.isArray(cell)?`${Number(cell[0])},${Number(cell[1])}`:''}
 function addCell(out,cell){if(Array.isArray(cell)&&cell.length>=2&&Number.isInteger(Number(cell[0]))&&Number.isInteger(Number(cell[1])))out.set(cellKey(cell),[Number(cell[0]),Number(cell[1])])}
 function validUnitRef(ref){const family=String(ref?.family||''),id=Number(ref?.id);return ['row','column','region'].includes(family)&&Number.isInteger(id)&&id>=0?{family,id}:null}
+function sameUnitRef(a,b){const x=validUnitRef(a),y=validUnitRef(b);return !!x&&!!y&&x.family===y.family&&x.id===y.id}
+function localRejectedTriple(d){const r=d?.explanationData?.rejected;return r?.kind==='TRIPLE_OVERFLOW'&&Array.isArray(r.cells)&&r.cells.length>=3?r:null}
 function unitRefs(d){
-  const map=new Map(),add=ref=>{const unit=validUnitRef(ref);if(unit)map.set(`${unit.family}:${unit.id}`,unit)};
-  for(const ref of d?.focusUnits||[])add(ref);
-  const x=d?.explanationData||{},witness=x.witness,rejected=x.rejected;
-  for(const w of [witness,rejected]){
-    if(w?.family!=null&&w?.id!=null)add({family:w.family,id:w.id});
-    for(const key of ['unit','sourceUnits','targetUnits']){const value=w?.[key],list=Array.isArray(value)?value:(value?[value]:[]);for(const ref of list)add(ref)}
+  const map=new Map(),add=ref=>{const unit=validUnitRef(ref);if(unit)map.set(`${unit.family}:${unit.id}`,unit)},x=d?.explanationData||{},witness=x.witness,rejected=x.rejected,localTriple=localRejectedTriple(d),suppressed=validUnitRef(localTriple);
+  for(const ref of d?.focusUnits||[])if(!(suppressed&&sameUnitRef(ref,suppressed)))add(ref);
+  if(witness){
+    if(witness?.family!=null&&witness?.id!=null)add({family:witness.family,id:witness.id});
+    for(const key of ['unit','sourceUnits','targetUnits']){const value=witness?.[key],list=Array.isArray(value)?value:(value?[value]:[]);for(const ref of list)add(ref)}
   }
-  if(x.family!=null&&x.id!=null)add({family:x.family,id:x.id});
+  if(rejected&&!localTriple){
+    if(rejected?.family!=null&&rejected?.id!=null)add({family:rejected.family,id:rejected.id});
+    for(const key of ['unit','sourceUnits','targetUnits']){const value=rejected?.[key],list=Array.isArray(value)?value:(value?[value]:[]);for(const ref of list)add(ref)}
+  }
+  if(x.family!=null&&x.id!=null&&!(suppressed&&sameUnitRef({family:x.family,id:x.id},suppressed)))add({family:x.family,id:x.id});
   return [...map.values()]
 }
 function unitCells(ref,n,reg){
@@ -60,10 +65,17 @@ function causalTraces(d){
   for(const key of TRACE_KEYS)if(Array.isArray(x[key])&&x[key].length)out.push(...x[key]);
   return out
 }
-function minimalStepCells(step,reg=null){
+function premiseStepCells(step,reg=null){
   const out=new Map(),rejectedUnit=validUnitRef(step?.explanationData?.rejected),restrict=RELATION_BALANCE_RULES.has(String(step?.rule||''))?rejectedUnit:null;
   for(const premise of step?.premises||[])addPremiseCells(out,premise,{restrictValueUnit:restrict,reg});
   for(const rel of step?.focusRelations||[]){addCell(out,rel?.a);addCell(out,rel?.b)}
+  const localTriple=localRejectedTriple(step);for(const cell of localTriple?.cells||[])addCell(out,cell);
+  for(const cell of step?.explanationData?.witness?.cells||[])addCell(out,cell);
+  for(const cell of step?.explanationData?.witness?.block||[])addCell(out,cell);
+  return [...out.values()]
+}
+function minimalStepCells(step,reg=null){
+  const out=new Map();for(const cell of premiseStepCells(step,reg))addCell(out,cell);
   for(const conclusion of step?.conclusions||[]){if(conclusion?.type==='VALUE')addCell(out,conclusion.cell);else{addCell(out,conclusion?.a);addCell(out,conclusion?.b)}}
   if(!out.size)for(const cell of step?.focusCells||[])addCell(out,cell);
   return [...out.values()]
@@ -71,7 +83,7 @@ function minimalStepCells(step,reg=null){
 function legacyEvidenceCells(d){
   const out=new Map();for(const cell of d?.focusCells||[])addCell(out,cell);for(const rel of d?.focusRelations||[]){addCell(out,rel?.a);addCell(out,rel?.b)}
   addCell(out,d?.walkthroughHypothesisCell);for(const cell of d?.walkthroughTemporaryCells||[])addCell(out,cell);
-  addCell(out,d?.explanationData?.assumption?.cell);for(const cell of d?.explanationData?.witness?.cells||[])addCell(out,cell);
+  addCell(out,d?.explanationData?.assumption?.cell);for(const cell of d?.explanationData?.witness?.cells||[])addCell(out,cell);for(const cell of d?.explanationData?.rejected?.cells||[])addCell(out,cell);
   return [...out.values()]
 }
 function causalEvidenceCells(d,reg=null){
@@ -80,6 +92,7 @@ function causalEvidenceCells(d,reg=null){
   addCell(out,x.assumption?.cell);
   for(const cell of x.witness?.cells||[])addCell(out,cell);
   for(const cell of x.witness?.block||[])addCell(out,cell);
+  for(const cell of x.rejected?.cells||[])addCell(out,cell);
   for(const step of trace)for(const cell of minimalStepCells(step,reg))addCell(out,cell);
   return out.size?[...out.values()]:legacyEvidenceCells(d)
 }
@@ -91,14 +104,21 @@ function normalizePresentationDeduction(d,depth=0,reg=null){
   if(!d||typeof d!=='object'||depth>6)return d;
   const out=copy(d),x=out.explanationData||{};
   if(RELATION_BALANCE_RULES.has(String(out.rule||''))){
-    const rejected=validUnitRef(x.rejected),hasUnit=(out.focusUnits||[]).some(validUnitRef);
-    if(rejected&&!hasUnit)out.focusUnits=[...(out.focusUnits||[]),rejected];
-    if(rejected&&!validUnitRef({family:x.family,id:x.id})){x.family=rejected.family;x.id=rejected.id;out.explanationData=x}
+    const rejected=validUnitRef(x.rejected),localTriple=localRejectedTriple(out);
+    if(localTriple&&rejected){
+      out.focusUnits=(out.focusUnits||[]).filter(ref=>!sameUnitRef(ref,rejected));
+      if(sameUnitRef({family:x.family,id:x.id},rejected)){delete x.family;delete x.id;out.explanationData=x}
+    }else{
+      const hasUnit=(out.focusUnits||[]).some(validUnitRef);
+      if(rejected&&!hasUnit)out.focusUnits=[...(out.focusUnits||[]),rejected];
+      if(rejected&&!validUnitRef({family:x.family,id:x.id})){x.family=rejected.family;x.id=rejected.id;out.explanationData=x}
+    }
   }
   if(out.explanationData){for(const key of ['causalTrace','trace','moonCausalTrace','sunCausalTrace','moonTrace','sunTrace'])if(Array.isArray(out.explanationData[key]))out.explanationData[key]=out.explanationData[key].map(step=>normalizePresentationDeduction(step,depth+1,reg))}
   // Engine focusCells may intentionally contain an entire unit for search/audit.
   // Presentation must instead expose only the concrete premises/relations and
-  // conclusions needed by this sub-step; focusUnits carries the unit context.
+  // conclusions needed by this sub-step; focusUnits carries only genuinely
+  // whole-unit context. A local triple witness stays three concrete cells.
   const minimal=minimalStepCells(out,reg),original=Array.isArray(out.focusCells)?out.focusCells:[];
   if(minimal.length&&(!original.length||minimal.length<=original.length))out.focusCells=minimal;
   return out
@@ -146,11 +166,12 @@ function currentFocusCells(entry,reg=null){
   addCell(out,normalized?.explanationData?.assumption?.cell);
   for(const cell of normalized?.explanationData?.witness?.cells||[])addCell(out,cell);
   for(const cell of normalized?.explanationData?.witness?.block||[])addCell(out,cell);
+  for(const cell of normalized?.explanationData?.rejected?.cells||[])addCell(out,cell);
   if(!out.size)for(const cell of conclusionCells(normalized))addCell(out,cell);
   return [...out.values()]
 }
 function proofContextCells(group,reg=null){
-  const out=new Map();for(const entry of group?.entries||[]){if(walkthroughStageKind(entry)==='action')continue;const d=walkthroughEntryDeduction(entry);if(!d)continue;const normalized=normalizePresentationDeduction(d,0,reg),trace=causalTraces(normalized),cells=trace.length?causalEvidenceCells(normalized,reg):minimalStepCells(normalized,reg);for(const cell of cells)addCell(out,cell)}return [...out.values()]
+  const out=new Map();for(const entry of group?.entries||[]){const d=walkthroughEntryDeduction(entry);if(!d)continue;const normalized=normalizePresentationDeduction(d,0,reg),trace=causalTraces(normalized),kind=walkthroughStageKind(entry),cells=kind==='action'?premiseStepCells(normalized,reg):(trace.length?causalEvidenceCells(normalized,reg):minimalStepCells(normalized,reg));for(const cell of cells)addCell(out,cell)}return [...out.values()]
 }
 function proofUnits(group){
   const out=new Map();for(const entry of group?.entries||[]){const d=walkthroughEntryDeduction(entry);for(const unit of unitRefs(d)){const ref=validUnitRef(unit);if(ref)out.set(`${ref.family}:${ref.id}`,ref)}}return [...out.values()]
@@ -159,14 +180,14 @@ function pruneWalkthrough(){
   const group=walkthroughGroup(),entry=currentWalkthroughEntry(group);if(!group||!entry)return false;
   const board=root.document?.querySelector?.('.walkthrough-board');if(!board)return false;
   const base=(()=>{try{return typeof walkthroughSession!=='undefined'?walkthroughSession?.base:null}catch(_){return null}})();if(base?.game!=='tango')return false;
-  const n=Number(base?.n)||6,reg=base?.reg||null,contextAllowed=new Set(proofContextCells(group,reg).map(cellKey)),focusAllowed=new Set(currentFocusCells(entry,reg).map(cellKey)),kind=walkthroughStageKind(entry);
+  const n=Number(base?.n)||6,reg=base?.reg||null,contextAllowed=new Set(proofContextCells(group,reg).map(cellKey)),focusAllowed=new Set(currentFocusCells(entry,reg).map(cellKey));
   for(const unit of proofUnits(group))for(const cell of unitCells(unit,n,reg)){
     const key=cellKey(cell),el=boardCell(board,n,cell);if(!el)continue;el.classList.add('walkthrough-unit-context',`walkthrough-unit-context-${unit.family}`);
     if(!contextAllowed.has(key)&&!el.classList.contains('walkthrough-current-action'))el.classList.remove('walkthrough-context','walkthrough-reasoning-context')
   }
   board.querySelectorAll('.walkthrough-reasoning-context').forEach(el=>{const key=`${Number(el.dataset.r)},${Number(el.dataset.c)}`;if(!contextAllowed.has(key)&&!el.classList.contains('walkthrough-current-action'))el.classList.remove('walkthrough-reasoning-context')});
   board.querySelectorAll('.walkthrough-current-focus').forEach(el=>el.classList.remove('walkthrough-current-focus'));
-  if(kind!=='action')for(const key of focusAllowed){const [r,c]=key.split(',').map(Number),el=boardCell(board,n,[r,c]);if(el&&!el.classList.contains('walkthrough-current-action'))el.classList.add('walkthrough-current-focus')}
+  for(const key of focusAllowed){const [r,c]=key.split(',').map(Number),el=boardCell(board,n,[r,c]);if(el&&!el.classList.contains('walkthrough-current-action'))el.classList.add('walkthrough-current-focus')}
   board.dataset.pedagogyCausalProjection='minimal-current-substep';return true
 }
 function installWalkthroughBridge(){
@@ -180,5 +201,5 @@ function scheduleInstall(){
   retry();if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true
 }
 
-return Object.freeze({VERSION,install,installPresenterBridge,installWalkthroughBridge,scheduleInstall,applyFocus,pruneWalkthrough,_test:Object.freeze({unitRefs,unitCells,evidenceCells,legacyEvidenceCells,causalTraces,minimalStepCells,causalEvidenceCells,conclusionCells,normalizePresentationDeduction,sameCell,cellInUnit,walkthroughEntryDeduction,walkthroughStageKind,currentWalkthroughEntry,currentFocusCells,proofContextCells,proofUnits})});
+return Object.freeze({VERSION,install,installPresenterBridge,installWalkthroughBridge,scheduleInstall,applyFocus,pruneWalkthrough,_test:Object.freeze({unitRefs,unitCells,evidenceCells,legacyEvidenceCells,causalTraces,premiseStepCells,minimalStepCells,causalEvidenceCells,conclusionCells,normalizePresentationDeduction,sameCell,sameUnitRef,localRejectedTriple,cellInUnit,walkthroughEntryDeduction,walkthroughStageKind,currentWalkthroughEntry,currentFocusCells,proofContextCells,proofUnits})});
 });
