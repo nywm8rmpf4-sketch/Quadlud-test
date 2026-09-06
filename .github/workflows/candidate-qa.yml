@@ -1,15 +1,15 @@
-name: QUADLUD v3.1.9 R3UI candidate QA
+name: QUADLUD v3.1.9 HF3.9 candidate QA
 
 on:
   push:
-    branches: [candidate/v3.1.9-r3ui-unit-context-r2]
+    branches: [candidate/v3.1.9-r3ui-unit-context-r2, candidate/v3.1.9-hf3.9-semantic-r1]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: quadlud-v319-r3ui-candidate-r2
+  group: quadlud-v319-hf39-candidate
   cancel-in-progress: true
 
 jobs:
