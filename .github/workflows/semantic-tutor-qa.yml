@@ -2,7 +2,7 @@ name: QUADLUD Tutor semantic evidence
 
 on:
   push:
-    branches: [qa/semantic-validation-v1]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
