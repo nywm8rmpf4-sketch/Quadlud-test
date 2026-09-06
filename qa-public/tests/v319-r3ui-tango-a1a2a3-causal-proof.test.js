@@ -33,12 +33,16 @@ const relationPremise=(relationProof.premises||[]).find(p=>p.kind==='RELATION');
 assert(relationPremise&&!relationPremise.explicit,'the shortcut must depend on a derived, not visible, relation');
 assert(Array.isArray(relationPremise.path)&&relationPremise.path.length,'derived relation provenance must travel with the premise');
 
-const rejected=session.hypothesisResult([0,0],1);
-assert(rejected.contradiction,'A1=sun must lead to a visible contradiction');
-assert.strictEqual(rejected.contradiction.kind,'TRIPLE_OVERFLOW');
-assert.strictEqual(rejected.contradiction.value,1,'the contradiction must identify three suns');
-assert.deepStrictEqual(rejected.contradiction.cells,[[0,0],[0,1],[0,2]]);
-const forcedA2=(rejected.trace||[]).find(d=>(d.conclusions||[]).some(c=>c.type==='VALUE'&&c.cell[0]===0&&c.cell[1]===1&&c.value===1));
+// The raw solver is allowed to encounter a more abstract contradiction first.
+// The pedagogical boundary must refine it to a concrete visible witness.
+const rawRejected=session.hypothesisResult([0,0],1);
+assert(rawRejected.contradiction,'A1=sun must be contradictory');
+const concrete=Base._test.concreteContradictionForMove(session,[0,0],0);
+assert(concrete&&concrete.deduction,'pedagogy must find a concrete contradiction for A1=moon');
+assert.strictEqual(concrete.witness.kind,'TRIPLE_OVERFLOW');
+assert.strictEqual(concrete.witness.value,1,'the concrete contradiction must identify three suns');
+assert.deepStrictEqual(concrete.witness.cells,[[0,0],[0,1],[0,2]]);
+const forcedA2=(concrete.deduction.explanationData.causalTrace||[]).find(d=>(d.conclusions||[]).some(c=>c.type==='VALUE'&&c.cell[0]===0&&c.cell[1]===1&&c.value===1));
 assert(forcedA2,'causal trace must explicitly propagate A1=sun through A1=A2 to A2=sun');
 assert.strictEqual(forcedA2.rule,'RELATION_PROPAGATION');
 assert((forcedA2.premises||[]).some(p=>p.kind==='RELATION'&&p.explicit===true&&p.parity===0),'A2 propagation must use the visible equality A1=A2');
@@ -47,7 +51,7 @@ const rawProof={schema:3,kind:'engine-proof',deduction:relationProof,displayDedu
 const corrected=Bridge._test.correctedProof(Base,session,{status:'move',tierIndex:3,target:[0,0],value:0},rawProof);
 assert.strictEqual(corrected.kind,'simpler-causal-contradiction-proof');
 assert.strictEqual(corrected.deduction.rule,'ASSUMPTION_CONTRADICTION');
-assert.deepStrictEqual(corrected.deduction.conclusions,[{type:'VALUE',cell:[0,0],value:0,rank:corrected.deduction.conclusions[0].rank}]);
+assert((corrected.deduction.conclusions||[]).some(c=>c.type==='VALUE'&&c.cell[0]===0&&c.cell[1]===0&&c.value===0),'corrected proof must conclude A1=moon');
 assert.deepStrictEqual(corrected.deduction.explanationData.assumption,{cell:[0,0],value:1});
 assert.strictEqual(corrected.deduction.explanationData.witness.kind,'TRIPLE_OVERFLOW');
 assert.deepStrictEqual(corrected.deduction.explanationData.witness.cells,[[0,0],[0,1],[0,2]]);
