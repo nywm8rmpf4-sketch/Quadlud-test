@@ -4,7 +4,7 @@
 'use strict';
 const fs=require('fs');
 const path=require('path');
-const source=fs.readFileSync(path.join(__dirname,'..','..','coach-presentation-bridge.js'),'utf8');
+const source=fs.readFileSync(path.join(__dirname,'..','GitHub','coach-presentation-bridge.js'),'utf8');
 const fn=source.match(/function tangoCoachPlan\(\)\{([\s\S]*?)\n  \}\n  function tangoApplyCoachPlan/);
 if(!fn)throw new Error('tangoCoachPlan not found');
 const body=fn[1];
