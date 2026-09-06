@@ -82,6 +82,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/quadlud-public-qa"
           export PYTHONPATH="$PWD/tests"
+          export QUADLUD_SEMANTIC_EVIDENCE_DIR="$RUNNER_TEMP/quadlud-semantic-evidence/tango-expert-fr-mobile-v1"
           while IFS= read -r test; do
             echo "PUBLIC QA JS: $test"
             node "$test"
@@ -90,6 +91,15 @@ jobs:
             echo "PUBLIC QA PY: $test"
             python "$test"
           done < <(find tests -maxdepth 1 -type f -name '*.test.py' | sort)
+
+      - name: Upload semantic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semantic-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/quadlud-semantic-evidence
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Build Pages payload from runtime only
         run: |
@@ -189,7 +199,7 @@ jobs:
               `- status: **${status}**`,
               `- run: ${runUrl}`,
               status === 'success'
-                ? '- next: pre-production deployed and launch-smoked; continue with required human/remaining release gates.'
+                ? '- next: pre-production deployed and launch-smoked; continue with required semantic review and human/release gates.'
                 : '- next: inspect this public QA run, resume from the latest private checkpoint, correct only the proven failure, export a new public candidate, and rerun.'
             ].join('\n');
             await github.rest.issues.createComment({
