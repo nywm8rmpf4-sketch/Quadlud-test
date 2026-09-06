@@ -1,0 +1,79 @@
+name: QUADLUD Tutor semantic evidence
+
+on:
+  push:
+    branches: [qa/semantic-validation-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quadlud-semantic-tutor-v1
+  cancel-in-progress: true
+
+jobs:
+  tango-expert-tutor-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+
+      - name: Enforce public/private boundary
+        run: python3 qa-public/tests/public_runtime_guard.py
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Chromium QA environment
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+          CHROMIUM_PATH="$(python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              print(p.chromium.executable_path)
+          PY
+          )"
+          test -x "$CHROMIUM_PATH"
+          sudo ln -sf "$CHROMIUM_PATH" /usr/bin/chromium
+          /usr/bin/chromium --version
+
+      - name: Materialize canonical QA layout
+        run: |
+          set -euo pipefail
+          QA_ROOT="$RUNNER_TEMP/quadlud-public-qa"
+          rm -rf "$QA_ROOT"
+          mkdir -p "$QA_ROOT/GitHub" "$QA_ROOT/tests"
+          rsync -a ./ "$QA_ROOT/GitHub/" \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.gitignore' \
+            --exclude='qa-public/' \
+            --exclude='qa-release/' \
+            --exclude='LICENSE'
+          cp -a qa-public/tests/. "$QA_ROOT/tests/"
+          test -f "$QA_ROOT/GitHub/index.html"
+
+      - name: Execute real Soleil-Lune Expert Tutor journey
+        env:
+          QUADLUD_SEMANTIC_EVIDENCE_DIR: ${{ runner.temp }}/semantic-evidence/tango-expert-fr-mobile-v1
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python3 tests/v319-semantic-tango-tutor-journey-browser.test.py
+
+      - name: Upload semantic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tango-expert-tutor-semantic-evidence
+          path: ${{ runner.temp }}/semantic-evidence/tango-expert-fr-mobile-v1
+          if-no-files-found: warn
+          retention-days: 14
