@@ -5,29 +5,42 @@
  */
 (function(root,factory){const api=factory(root);if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root)root.QuadludTangoPedagogy=api})(typeof globalThis!=='undefined'?globalThis:this,function(root){'use strict';
 const RUNTIME_DEPENDENCIES=Object.freeze(["findTangoLogicalHint","findTangoRank1Hint","findTangoRank2Hint","hintT","proofResult","tangoCandidate","tangoErrorFromAction","tangoLogicSession","tangoReasoningPresenter","tangoVisibleErrors","trainingBuildTangoDirect","trainingSetTangoBase","walkthroughGenerateTangoNext"]);
+const TUTOR_SYNC_BUDGET_MS=250;
 function dependencyNames(){return RUNTIME_DEPENDENCIES}
 const TRAINING_FIXTURES=Object.freeze({"T_CONTRADICTION_R1":{"game":"tango","diff":"medium","n":6,"sol":[[0,1,1,0,0,1],[0,1,1,0,1,0],[1,0,0,1,0,1],[1,0,1,1,0,0],[0,1,0,0,1,1],[1,0,0,1,1,0]],"givens":[3,4,7,8,21,22,31],"edges":[[2,1,"d","="],[1,1,"r","="],[4,0,"r","×"],[4,1,"r","×"],[1,0,"d","×"]],"state":[[-1,-1,-1,0,0,-1],[-1,1,1,-1,-1,-1],[-1,-1,-1,-1,-1,-1],[-1,-1,-1,1,0,-1],[-1,-1,-1,-1,-1,-1],[-1,0,-1,-1,-1,-1]],"generated":true,"unique":true,"completed":false,"tangoPendingCell":null},"T_CONTRADICTION_R2":{"game":"tango","diff":"hard","n":6,"sol":[[0,1,0,1,1,0],[0,1,1,0,0,1],[1,0,1,1,0,0],[0,1,0,0,1,1],[1,0,0,1,0,1],[1,0,1,0,1,0]],"givens":[1,4,5,6,7,8,9,10,13,16,17,18,19,22,29,30,31,32,33,35],"edges":[[3,2,"r","="],[2,0,"d","×"],[0,1,"d","="],[1,3,"r","="],[3,3,"r","×"],[4,1,"r","="],[1,1,"r","="]],"state":[[-1,1,-1,-1,1,0],[0,1,1,0,0,-1],[-1,0,-1,-1,0,0],[0,1,-1,-1,1,-1],[-1,-1,-1,-1,-1,1],[1,0,1,0,-1,0]],"generated":true,"unique":true,"completed":false,"tangoPendingCell":null}});
 function trainingFixture(id){const value=TRAINING_FIXTURES[String(id||'')];return value==null?null:JSON.parse(JSON.stringify(value))}
 function createAdapter(d={}){const common=d.common||{},runtime=d.runtime||{},services=Object.freeze({...common,...runtime,gameUi:d.gameUi}),need=n=>{let fn=services[n];if(typeof fn!=='function')throw new TypeError(`Tango pedagogy dependency missing: ${n}`);return fn},clone=x=>need('cloneGrid')(x),copy=x=>JSON.parse(JSON.stringify(x)),walkthroughSnapshot=c=>({state:clone(c.state),tangoDerivedRelations:copy(c.tangoDerivedRelations||[])});
  const tutorStateDiff=(a,b)=>{let changed=0;if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return Number.POSITIVE_INFINITY;for(let r=0;r<a.length;r++){if(!Array.isArray(a[r])||!Array.isArray(b[r])||a[r].length!==b[r].length)return Number.POSITIVE_INFINITY;for(let c=0;c<a[r].length;c++)if(a[r][c]!==b[r][c])changed++}return changed};
+ const tutorNow=()=>typeof performance!=='undefined'&&typeof performance.now==='function'?performance.now():Date.now();
+ const tutorLogicalFingerprint=work=>{const rels=(work?.tangoDerivedRelations||[]).map(x=>JSON.stringify([x?.a||x?.cells?.[0]||null,x?.b||x?.cells?.[1]||null,x?.parity??x?.relation??x?.kind??null])).sort();return JSON.stringify([work?.state||null,rels])};
+ const tutorRollback=(s,startMoves,snapshot,status,diagnostics)=>{s.work.state=clone(snapshot.state);s.work.tangoDerivedRelations=copy(snapshot.tangoDerivedRelations||[]);if(Array.isArray(s.moves)&&s.moves.length>startMoves)s.moves.splice(startMoves);s.tangoLogic=need('tangoLogicSession')(s.work,s.work.state,s.work.tangoDerivedRelations||[]);s.stalled=true;s.tangoTutorStatus=status;s.tangoTutorDiagnostics={...(diagnostics||{}),status};return false};
  const annotatePlayedMoveGroup=(s,startMoves)=>{let added=(s.moves||[]).slice(startMoves),last=added.length-1;if(last<0)return added;let action=added[last],finalSnapshot=copy(action.snapshot),finalTarget=Array.isArray(action.target)?[...action.target]:null,finalMove=String(action.move||action.presentation?.explanation?.move||'');added.forEach((move,i)=>{move.proofSnapshot=copy(move.snapshot);move.snapshot=copy(finalSnapshot);if(finalTarget)move.target=[...finalTarget];if(finalMove)move.move=finalMove;move.proofStage={kind:i===last?'action':'reasoning',temporary:false,apply:i===last};if(move.presentation){let p=copy(move.presentation);p.metadata={...(p.metadata||{}),showTutorMove:true,logicalMoveDisplayStable:true};move.presentation=p}});return added};
  const walkthroughGeneratePlayedMove=s=>{
    if(!s?.work?.state)return false;
-   const startMoves=Array.isArray(s.moves)?s.moves.length:0,before=clone(s.work.state),guardMax=Math.max(24,Number(s.work.n||6)*Number(s.work.n||6)*2);
-   for(let guard=0;guard<guardMax;guard++){
-     if(!s.tangoLogic)s.tangoLogic=need('tangoLogicSession')(s.work,s.work.state,s.work.tangoDerivedRelations||[]);
-     const engine=s.tangoLogic,originalApply=engine.applyDeduction;
-     if(typeof originalApply!=='function')throw new TypeError('Tango Tutor inference session cannot apply deductions');
-     engine.applyDeduction=function(deduction,options={}){return originalApply.call(this,deduction,{...options,close:false})};
-     let ok=false;
-     try{ok=need('walkthroughGenerateTangoNext')()}finally{engine.applyDeduction=originalApply}
-     if(!ok){if(Array.isArray(s.moves)&&s.moves.length>startMoves)s.moves.splice(startMoves);return false}
-     const changed=tutorStateDiff(before,s.work.state);
-     if(changed===0){s.done=false;continue}
-     if(changed===1){annotatePlayedMoveGroup(s,startMoves);s.tangoTutorStatus='played-move';return true}
-     s.stalled=true;s.tangoTutorStatus='multiple-visible-actions';if(Array.isArray(s.moves)&&s.moves.length>startMoves)s.moves.splice(startMoves);return false
-   }
-   s.stalled=true;s.tangoTutorStatus='proof-chain-without-played-move';if(Array.isArray(s.moves)&&s.moves.length>startMoves)s.moves.splice(startMoves);return false
+   if(s.tangoTutorGenerating){s.stalled=true;s.tangoTutorStatus='reentrant-generation';s.tangoTutorDiagnostics={status:'reentrant-generation',iterations:0,elapsedMs:0};return false}
+   s.tangoTutorGenerating=true;
+   const startMoves=Array.isArray(s.moves)?s.moves.length:0,beforeSnapshot=walkthroughSnapshot(s.work),before=clone(beforeSnapshot.state),guardMax=Math.max(24,Number(s.work.n||6)*Number(s.work.n||6)*2),started=tutorNow(),visited=new Set([tutorLogicalFingerprint(s.work)]);
+   try{
+     for(let guard=0;guard<guardMax;guard++){
+       if(!s.tangoLogic)s.tangoLogic=need('tangoLogicSession')(s.work,s.work.state,s.work.tangoDerivedRelations||[]);
+       const engine=s.tangoLogic,originalApply=engine.applyDeduction;
+       if(typeof originalApply!=='function')throw new TypeError('Tango Tutor inference session cannot apply deductions');
+       engine.applyDeduction=function(deduction,options={}){return originalApply.call(this,deduction,{...options,close:false})};
+       let ok=false;
+       try{ok=need('walkthroughGenerateTangoNext')()}finally{engine.applyDeduction=originalApply}
+       const elapsedMs=Math.max(0,tutorNow()-started),changed=tutorStateDiff(before,s.work.state),fingerprint=tutorLogicalFingerprint(s.work),diagnostics={iterations:guard+1,elapsedMs,visibleChanges:changed,visitedStates:visited.size+1};
+       if(!ok)return tutorRollback(s,startMoves,beforeSnapshot,'generation-failed',diagnostics);
+       if(changed===0){
+         if(visited.has(fingerprint))return tutorRollback(s,startMoves,beforeSnapshot,'proof-cycle',diagnostics);
+         visited.add(fingerprint);s.done=false;
+         if(elapsedMs>=TUTOR_SYNC_BUDGET_MS)return tutorRollback(s,startMoves,beforeSnapshot,'proof-budget-exceeded',{...diagnostics,visitedStates:visited.size,budgetMs:TUTOR_SYNC_BUDGET_MS});
+         continue
+       }
+       if(changed===1){annotatePlayedMoveGroup(s,startMoves);s.tangoTutorStatus='played-move';s.tangoTutorDiagnostics={...diagnostics,status:'played-move',visitedStates:visited.size};s.stalled=false;return true}
+       return tutorRollback(s,startMoves,beforeSnapshot,'multiple-visible-actions',diagnostics)
+     }
+     return tutorRollback(s,startMoves,beforeSnapshot,'proof-chain-without-played-move',{iterations:guardMax,elapsedMs:Math.max(0,tutorNow()-started),visibleChanges:0,visitedStates:visited.size})
+   }finally{s.tangoTutorGenerating=false}
  };
  return Object.freeze({
  visibleErrors:()=>need('tangoVisibleErrors')(),errorFromAction:a=>need('tangoErrorFromAction')(a),errorRuleTitle:e=>need('tr')('errorRule'),errorDetailedMessage:e=>{if(!e)return '';let L=need('lang')();if(L==='fr'){if(e.rule==='T_BALANCE_ROW')return `Cette ligne contient maintenant plus de trois symboles identiques, alors qu’elle doit contenir exactement 3 soleils et 3 lunes.`;if(e.rule==='T_BALANCE_COLUMN')return `Cette colonne contient maintenant plus de trois symboles identiques, alors qu’elle doit contenir exactement 3 soleils et 3 lunes.`;if(e.rule==='T_NO_THREE')return `Ce coup crée trois symboles identiques consécutifs, ce qui est interdit.`;if(e.rule==='T_RELATION_EQUAL')return `Les deux cases reliées par « = » doivent contenir le même symbole.`;if(e.rule==='T_RELATION_OPPOSITE')return `Les deux cases reliées par « × » doivent contenir des symboles différents.`}if(L==='en'){if(e.rule==='T_BALANCE_ROW')return `This row now contains more than three identical symbols; it must contain exactly 3 suns and 3 moons.`;if(e.rule==='T_BALANCE_COLUMN')return `This column now contains more than three identical symbols; it must contain exactly 3 suns and 3 moons.`;if(e.rule==='T_NO_THREE')return `This move creates three identical consecutive symbols, which is forbidden.`;if(e.rule==='T_RELATION_EQUAL')return `The two cells linked by “=” must contain the same symbol.`;if(e.rule==='T_RELATION_OPPOSITE')return `The two cells linked by “×” must contain different symbols.`}return need('tr')('errorConflict')},masteryActionEligible:()=>true,auditActionEligible:()=>true,auditAllowsNoPrimaryChange:()=>false,historyActionText:()=>'',genericHintFallbackAllowed:()=>true,auditNeutralValue:()=>-1,auditConstructiveValue:v=>v===0||v===1,
