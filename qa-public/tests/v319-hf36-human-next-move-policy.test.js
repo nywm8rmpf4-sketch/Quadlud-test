@@ -1,5 +1,7 @@
 const assert=require('assert');
-const Policy=require('../../pedagogy-next-move-policy.js');
+const path=require('path');
+const ROOT=path.resolve(__dirname,'..');
+const Policy=require(path.join(ROOT,'GitHub','pedagogy-next-move-policy.js'));
 
 function candidate(id,{baseCost=[0,0,1,2,3,1,1],premiseCells=[],focusCells=[],target=[0,0],stableKey=id}={}){
   return {id,stableKey,baseCost,premiseCells,focusCells,target,payload:{id}};
