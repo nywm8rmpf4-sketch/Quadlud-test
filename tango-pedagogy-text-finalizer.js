@@ -22,7 +22,7 @@ function propositionKey(text){const m=String(text??'').match(/\b([A-Z]\d+)\s*=\s
 function stripIntermediate(text){return String(text??'').replace(INTERMEDIATE_RE,' ').replace(/\s{2,}/g,' ').trim()}
 function dedupSemanticSentences(text){
   const source=String(text??''),parts=source.split(/(?<=[.!?])\s+/),out=[],seen=new Set();
-  for(const part of parts){const key=propositionKey(part),isIntermediate=/\b(?:Conclusion intermédiaire|Intermediate conclusion)\b/i.test(part);if(isIntermediate)continue;if(key&&seen.has(key)&&/^\s*(?:Donc|Therefore|Conclusion|Coup conseillé|Suggested move)\b/i.test(part))continue;if(key)seen.add(key);out.push(part)}
+  for(const part of parts){const key=propositionKey(part),isIntermediate=/\b(?:Conclusion intermédiaire|Intermediate conclusion)\b/i.test(part),isRepeatedConclusion=/^\s*(?:Donc|Therefore|Conclusion|Coup conseillé|Suggested move)(?:\s*:|\s|$)/i.test(part);if(isIntermediate)continue;if(key&&seen.has(key)&&isRepeatedConclusion)continue;if(key)seen.add(key);out.push(part)}
   return out.join(' ')
 }
 function finalizeText(text){return dedupSemanticSentences(stripIntermediate(replaceRawPieces(text)))}
