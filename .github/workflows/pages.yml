@@ -123,6 +123,55 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
+      - name: Verify deployed candidate and launch smoke
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          test -n "$PAGE_URL"
+          python - <<'PY'
+          import json, os, time, urllib.request
+          from playwright.sync_api import sync_playwright
+
+          base = os.environ['PAGE_URL']
+          if not base.endswith('/'):
+              base += '/'
+          expected = json.load(open('build-info.json', encoding='utf-8'))
+          last_error = None
+          for _ in range(20):
+              try:
+                  req = urllib.request.Request(base + 'build-info.json', headers={'Cache-Control':'no-cache'})
+                  with urllib.request.urlopen(req, timeout=15) as r:
+                      remote = json.loads(r.read().decode('utf-8'))
+                      last_modified = r.headers.get('Last-Modified')
+                  assert remote.get('version') == expected.get('version'), (remote, expected)
+                  assert remote.get('candidate') == expected.get('candidate'), (remote, expected)
+                  assert remote.get('channel') == 'Quadlud-test', remote
+                  break
+              except Exception as exc:
+                  last_error = exc
+                  time.sleep(3)
+          else:
+              raise AssertionError(f'deployed build-info not ready: {last_error}')
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page(viewport={'width':390,'height':844})
+              errors=[]
+              page.on('pageerror', lambda e: errors.append(str(e)))
+              response = page.goto(base, wait_until='networkidle', timeout=60000)
+              assert response and response.ok, response.status if response else None
+              page.wait_for_function("document.querySelector('#testBuildId') && document.querySelector('#testBuildId').textContent.includes('HF3.8-R1')", timeout=20000)
+              identity = page.locator('#testBuildId').inner_text()
+              assert expected['version'] in identity, identity
+              assert expected['candidate'] in identity, identity
+              assert 'publié' in identity, identity
+              assert page.locator('#homeBtn').count() == 1
+              assert not errors, errors
+              print('DEPLOYED_SMOKE_PASS', base, identity, 'last-modified=', last_modified)
+              browser.close()
+          PY
+
       - name: Publish QA handoff marker
         if: always()
         uses: actions/github-script@v7
@@ -140,7 +189,7 @@ jobs:
               `- status: **${status}**`,
               `- run: ${runUrl}`,
               status === 'success'
-                ? '- next: pre-production deployed; continue with required human/remaining release gates.'
+                ? '- next: pre-production deployed and launch-smoked; continue with required human/remaining release gates.'
                 : '- next: inspect this public QA run, resume from the latest private checkpoint, correct only the proven failure, export a new public candidate, and rerun.'
             ].join('\n');
             await github.rest.issues.createComment({
