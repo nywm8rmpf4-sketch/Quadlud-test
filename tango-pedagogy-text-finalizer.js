@@ -11,14 +11,27 @@
   if(typeof document!=='undefined')api.install();
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
-const VERSION=1;
-const RAW_PIECE_RE=/(\bsun\b\s*[☀🌞]?|\bmoon\b\s*[☾🌙]?)/gi;
+const VERSION=2;
+const PIECE_TOKEN_RE=/\b(sun|moon|soleil|lune)\b(?:\s*[☀☾🌞🌙🌛🌜🌚🌝])?/gi;
 const INTERMEDIATE_RE=/(?:\s|^)(?:Conclusion intermédiaire|Intermediate conclusion)\s*:\s*[^.!?<]*(?:[.!?](?=\s|$)|$)/gi;
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
 function locale(){try{return String(typeof lang==='function'?lang():root.document?.documentElement?.lang||'en').toLowerCase().split('-')[0]}catch(_){return'en'}}
-function piece(value){try{if(typeof pieceName==='function'){const label=pieceName('tango',Number(value));if(label!=null&&String(label).trim())return String(label)}}catch(_){ }return Number(value)===1?(locale()==='fr'?'soleil ☀':'sun ☀'):(locale()==='fr'?'lune ☾':'moon ☾')}
-function replaceRawPieces(text){return String(text??'').replace(RAW_PIECE_RE,match=>/^\s*sun\b/i.test(match)?piece(1):piece(0))}
-function propositionKey(text){const m=String(text??'').match(/\b([A-Z]\d+)\s*=\s*([^.,;:<>]+)/i);if(!m)return null;let value=replaceRawPieces(m[2]).toLowerCase().replace(/[☀☾🌞🌙\s]/g,'');return `${m[1].toUpperCase()}=${value}`}
+function piece(value){
+  const isSun=Number(value)===1,glyph=isSun?'☀':'☾',loc=locale();
+  if(loc==='fr')return `${isSun?'soleil':'lune'} ${glyph}`;
+  if(loc==='en')return `${isSun?'sun':'moon'} ${glyph}`;
+  try{if(typeof pieceName==='function'){const label=pieceName('tango',Number(value));if(label!=null&&String(label).trim()){const clean=String(label).replace(/[☀☾🌞🌙🌛🌜🌚🌝]/g,'').trim();if(clean&&!/^(?:sun|moon)$/i.test(clean))return `${clean} ${glyph}`}}}catch(_){ }
+  return `${isSun?'sun':'moon'} ${glyph}`
+}
+function replaceRawPieces(text){
+  const loc=locale();
+  return String(text??'').replace(PIECE_TOKEN_RE,(match,token)=>{
+    const t=String(token||'').toLowerCase();
+    if(loc!=='fr'&&(t==='soleil'||t==='lune'))return match;
+    return t==='sun'||t==='soleil'?piece(1):piece(0)
+  })
+}
+function propositionKey(text){const m=String(text??'').match(/\b([A-Z]\d+)\s*=\s*([^.,;:<>]+)/i);if(!m)return null;let value=replaceRawPieces(m[2]).toLowerCase().replace(/[☀☾🌞🌙🌛🌜🌚🌝\s]/g,'');return `${m[1].toUpperCase()}=${value}`}
 function stripIntermediate(text){return String(text??'').replace(INTERMEDIATE_RE,' ').replace(/\s{2,}/g,' ').trim()}
 function dedupSemanticSentences(text){
   const source=String(text??''),parts=source.split(/(?<=[.!?])\s+/),out=[],seen=new Set();
@@ -43,8 +56,17 @@ function finalizeTextNodes(scope){
   for(const n of nodes){const next=finalizeText(n.nodeValue);if(next!==n.nodeValue){n.nodeValue=next;changed=true}}
   scope.querySelectorAll?.('.reason-step.conclusion').forEach(el=>{if(/\b(?:Conclusion intermédiaire|Intermediate conclusion)\b/i.test(el.textContent||'')){el.remove();changed=true}});return changed
 }
+function refreshWalkthroughSemanticRoles(){
+  if(!walkthroughIsTango())return false;const board=root.document?.querySelector?.('.walkthrough-board');if(!board)return false;
+  const classes=['walkthrough-unit-context','walkthrough-reasoning-context','walkthrough-current-focus','walkthrough-current-action'];
+  for(const cls of classes)board.querySelectorAll(`.${cls}`).forEach(el=>el.classList.remove(cls));
+  for(const family of ['row','column','region'])board.querySelectorAll(`.walkthrough-unit-context-${family}`).forEach(el=>el.classList.remove(`walkthrough-unit-context-${family}`));
+  board.querySelectorAll('[data-pedagogy-unit]').forEach(el=>el.removeAttribute('data-pedagogy-unit'));
+  try{return root.QuadludTutorActionFirstNavigation?.decorateCurrentAction?.()===true}catch(_){return false}
+}
 function finalizeRenderedDom(){
-  let changed=false;if(walkthroughIsTango())changed=finalizeTextNodes(root.document?.querySelector?.('.walkthrough-explanation'))||changed;if(currentTango())changed=finalizeTextNodes(root.document?.querySelector?.('#hintNotice .hint-notice-text'))||changed;return changed
+  let changed=false;if(walkthroughIsTango())changed=finalizeTextNodes(root.document?.querySelector?.('.walkthrough-explanation'))||changed;if(currentTango())changed=finalizeTextNodes(root.document?.querySelector?.('#hintNotice .hint-notice-text'))||changed;
+  refreshWalkthroughSemanticRoles();return changed
 }
 let installed=false;
 function install(){
@@ -55,5 +77,5 @@ function install(){
   try{if(typeof renderWalkthrough==='function'&&!renderWalkthrough.__quadludTextFinalizer){const previous=renderWalkthrough,wrapped=function(...args){const result=previous(...args);finalizeRenderedDom();return result};wrapped.__quadludTextFinalizer=true;wrapped.__quadludPrevious=previous;renderWalkthrough=wrapped;ok=true}}catch(_){ }
   installed=ok;if(ok)finalizeRenderedDom();return ok
 }
-return Object.freeze({VERSION,install,finalizeText,finalizeHtml,sanitizePresentation,dedupSemanticSentences,propositionKey,_test:Object.freeze({replaceRawPieces,stripIntermediate,finalizeValue})});
+return Object.freeze({VERSION,install,finalizeText,finalizeHtml,sanitizePresentation,dedupSemanticSentences,propositionKey,refreshWalkthroughSemanticRoles,_test:Object.freeze({replaceRawPieces,stripIntermediate,finalizeValue})});
 });
