@@ -40,7 +40,7 @@
 <script>try{globalThis.QuadludPersistentDataServices=QuadludPersistenceServices.createServices({storage:QuadludWebStorage.getLocalStorageAdapter(),serialization:QuadludDataSerialization});let p=globalThis.QuadludPersistentDataServices.preferences.readRaw({throwOnError:true}),m=p.theme||'auto',d=m==='dark'||(m==='auto'&&matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.dataset.theme=d?'dark':'light'}catch(_){}</script>
 <header class="topbar">
   <button class="icon-btn" id="homeBtn" aria-label="Accueil">⌂</button>
-  <div class="brand"><span class="brand-dot"></span><b>QUADLUD</b></div>
+  <div class="brand"><span class="brand-dot"></span><b>QUADLUD</b><small id="testBuildId" aria-label="Version de test" style="display:block;font-size:.62rem;font-weight:600;line-height:1.15;opacity:.78;white-space:nowrap">TEST — identification…</small></div>
   <div class="top-actions"><div class="timer" id="timer" role="timer" aria-live="off" hidden>00:00</div><button class="theme-btn" id="themeBtn" aria-label="Changer le thème">☀︎</button></div>
 </header>
 <main id="app" tabindex="-1"></main>
@@ -132,5 +132,30 @@
 <script src="tango-contradiction-visuals.js?v=3.1.9-r3ui-contradiction-visual-r1"></script>
 <script src="tango-tutor-clarity.js?v=3.1.9-r3ui-local-proof-r1"></script>
 <script src="tango-pedagogy-text-finalizer.js?v=3.1.9-hf3.6-d1"></script>
+<script>
+(() => {
+  const target = document.getElementById('testBuildId');
+  if (!target) return;
+  const formatPublication = () => {
+    const value = document.lastModified;
+    const date = value ? new Date(value) : null;
+    if (!date || Number.isNaN(date.getTime())) return 'publication inconnue';
+    return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+  };
+  fetch(`build-info.json?ts=${Date.now()}`, { cache: 'no-store' })
+    .then((response) => {
+      if (!response.ok) throw new Error(`build-info ${response.status}`);
+      return response.json();
+    })
+    .then((info) => {
+      const version = info.version || 'version inconnue';
+      const candidate = info.candidate || 'candidate inconnue';
+      target.textContent = `TEST ${version} · ${candidate} · publié ${formatPublication()}`;
+    })
+    .catch(() => {
+      target.textContent = `TEST · identité indisponible · publié ${formatPublication()}`;
+    });
+})();
+</script>
 </body>
 </html>
