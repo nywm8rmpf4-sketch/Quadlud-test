@@ -97,6 +97,7 @@ function normalizeGeneratedMoves(session,start){
   });
   return true
 }
+function visible(el){if(!el)return false;const s=root.getComputedStyle?.(el),r=el.getBoundingClientRect?.();return !s||!r||(s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0)}
 function clearSemanticOverlays(board){
   board?.querySelectorAll?.('.hf39-hypothetical-piece').forEach(el=>el.remove());
   board?.querySelectorAll?.('.hf39-hypothesis-cell,.hf39-hypothetical-cell').forEach(el=>el.classList.remove('hf39-hypothesis-cell','hf39-hypothetical-cell'))
@@ -147,13 +148,14 @@ function decorate(){
   clearSemanticOverlays(board);if(kind!=='action')for(const marker of proofMarkers(g,index))addMarker(board,marker,marker.current===true);
   return true
 }
+let generationInstalled=false,renderInstalled=false;
 function installGeneration(){
   const previous=root.walkthroughGenerateNext;if(typeof previous!=='function')return false;if(previous.__quadludSemanticCoherenceHF39)return true;
-  const wrapped=function(){const s=currentSession(),start=Array.isArray(s?.moves)?s.moves.length:0,ok=previous();if(ok&&s?.base?.game==='tango')normalizeGeneratedMoves(s,start);return ok};wrapped.__quadludSemanticCoherenceHF39=true;wrapped.__quadludPrevious=previous;root.walkthroughGenerateNext=wrapped;return true
+  const wrapped=function(){const s=currentSession(),start=Array.isArray(s?.moves)?s.moves.length:0,ok=previous();if(ok&&s?.base?.game==='tango')normalizeGeneratedMoves(s,start);return ok};wrapped.__quadludSemanticCoherenceHF39=true;wrapped.__quadludPrevious=previous;root.walkthroughGenerateNext=wrapped;generationInstalled=true;return true
 }
 function installRender(){
   const previous=root.renderWalkthrough;if(typeof previous!=='function')return false;if(previous.__quadludSemanticCoherenceHF39)return true;
-  const wrapped=function(options={}){const result=previous(options);decorate();return result};wrapped.__quadludSemanticCoherenceHF39=true;wrapped.__quadludPrevious=previous;root.renderWalkthrough=wrapped;return true
+  const wrapped=function(options={}){const result=previous(options);decorate();return result};wrapped.__quadludSemanticCoherenceHF39=true;wrapped.__quadludPrevious=previous;root.renderWalkthrough=wrapped;renderInstalled=true;return true
 }
 function install(){return installGeneration()&&installRender()}
 function scheduleInstall(){let tries=320,timer=null;const retry=()=>{const ok=install();if(ok){if(timer!=null)clearTimeout(timer);return true}if(tries--<=0)return false;timer=setTimeout(retry,10);return true};retry();if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true}
