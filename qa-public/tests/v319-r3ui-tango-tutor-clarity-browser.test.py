@@ -29,51 +29,70 @@ with sync_playwright() as p:
       const cell=(r,c)=>`<div class="cell walkthrough-cell" data-r="${r}" data-c="${c}">${r},${c}</div>`;
       app.innerHTML=`<section class="panel walkthrough-panel">
         <div class="board walkthrough-board" style="grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(6,1fr)">${Array.from({length:36},(_,i)=>cell(Math.floor(i/6),i%6)).join('')}</div>
-        <div class="walkthrough-explanation"><div class="walkthrough-tech"><b>Propagation relationnelle</b><span>R2</span></div><p><b>Où regarder :</b> ancien</p><p><b>Pourquoi ce coup ?</b><br>ancien</p></div>
+        <div class="walkthrough-explanation"><div class="walkthrough-tech"><b>Propagation relationnelle</b><span>R1</span></div><p><b>Où regarder :</b> ancien</p><p><b>Pourquoi ce coup ?</b><br>ancien</p></div>
       </section>`;
+      const support={
+        id:'D7',rule:'TRIPLE_CONSTRAINT',
+        premises:[{kind:'RELATION',a:[0,5],b:[1,5],parity:0,explicit:true,path:[{a:[0,5],b:[1,5],parity:0,explicit:true}]}],
+        conclusions:[{type:'RELATION',a:[2,5],b:[0,5],parity:1}],
+        explanationData:{family:'column',id:5,window:[[0,5],[1,5],[2,5]],pair:[[0,5],[1,5]],target:[2,5],mode:'RELATION'}
+      };
       const deduction={
         rule:'RELATION_PROPAGATION',
         premises:[
-          {kind:'VALUE',cell:[2,2],value:1},
-          {kind:'RELATION',a:[2,2],b:[3,3],parity:0,explicit:false,path:[
-            {a:[2,2],b:[3,2],parity:1},
-            {a:[3,2],b:[3,3],parity:1}
-          ]}
+          {kind:'VALUE',cell:[0,5],value:0},
+          {kind:'RELATION',a:[0,5],b:[2,5],parity:1,explicit:false,path:[{a:[0,5],b:[2,5],parity:1,explicit:false,deductionId:'D7',support}]}
         ],
-        focusCells:[[2,2],[3,3]],
-        focusRelations:[{a:[2,2],b:[3,3],parity:0}],
-        conclusions:[{type:'VALUE',cell:[3,3],value:1}],
-        explanationData:{source:[2,2],target:[3,3],sourceValue:1,parity:0}
+        focusCells:[[0,5],[2,5]],
+        focusRelations:[{a:[0,5],b:[2,5],parity:1}],
+        conclusions:[{type:'VALUE',cell:[2,5],value:1}],
+        explanationData:{source:[0,5],target:[2,5],sourceValue:0,parity:1}
       };
+      window.__clarityDeduction=deduction;
       window.__clarityGroup={logicalMoveIndex:0,entries:[{move:{deduction,pedagogyStageKind:'reasoning',proofStage:{kind:'reasoning'}}}]};
       window.walkthroughCurrentGroup=()=>window.__clarityGroup;
       walkthroughSession={base:{game:'tango',n:6},navigation:{proofStepIndex:0},atStart:false};
       window.walkthroughSession=walkthroughSession;
       const board=document.querySelector('.walkthrough-board');
-      board.querySelector('[data-r="2"][data-c="2"]').classList.add('walkthrough-current-focus');
-      board.querySelector('[data-r="3"][data-c="3"]').classList.add('walkthrough-current-focus');
+      board.querySelector('[data-r="0"][data-c="5"]').classList.add('walkthrough-current-focus');
+      board.querySelector('[data-r="2"][data-c="5"]').classList.add('walkthrough-current-focus');
       QuadludTangoTutorClarity.decorate();
     }""")
 
     focus=set(page.evaluate("""()=>[...document.querySelectorAll('.walkthrough-current-focus')].map(el=>`${el.dataset.r},${el.dataset.c}`)"""))
-    assert focus=={'2,2','3,2'},focus
-    conclusion=page.evaluate("""()=>{const el=document.querySelector('[data-r="3"][data-c="3"]');return {classes:[...el.classList],badge:el.querySelector('.walkthrough-substep-conclusion-badge')?.textContent||''}}""")
+    assert focus=={'0,5'},focus
+    conclusion=page.evaluate("""()=>{const el=document.querySelector('[data-r="2"][data-c="5"]');return {classes:[...el.classList],badge:el.querySelector('.walkthrough-substep-conclusion-badge')?.textContent||''}}""")
     assert 'walkthrough-substep-conclusion' in conclusion['classes'],conclusion
     assert 'walkthrough-current-focus' not in conclusion['classes'],conclusion
     assert 'walkthrough-current-action' not in conclusion['classes'],conclusion
     assert conclusion['badge']=='⇒',conclusion
 
     explanation=page.evaluate("""()=>document.querySelector('.walkthrough-explanation').innerText""")
+    lower=explanation.lower()
     assert 'Raisonnement :' in explanation,explanation
     assert 'Pourquoi ce coup ?' not in explanation,explanation
-    assert 'Suis le chemin C3 → D3 → D4.' in explanation,explanation
-    assert 'C3 × D3 : C3 et D3 sont opposées.' in explanation,explanation
-    assert 'D3 × D4 : D3 et D4 sont opposées.' in explanation,explanation
-    assert "Deux oppositions successives s’annulent" in explanation,explanation
-    assert 'Conclusion intermédiaire : D4 est donc un soleil' in explanation,explanation
-    assert 'sun' not in explanation.lower(),explanation
+    assert 'Vérifie A6 → C6.' in explanation,explanation
+    assert 'L’indice visible A6 = B6' in explanation,explanation
+    assert 'A6–B6–C6' in explanation,explanation
+    assert 'règle des trois' in lower,explanation
+    assert 'A6 = lune' in explanation,explanation
+    assert 'C6 = soleil' in explanation,explanation
+    for banned in ['déjà démontr','déjà déduit','comme vu précédemment','résultat précédent']:
+        assert banned not in lower,explanation
+
+    # Same locally self-contained explanation must also reach the shared presenter
+    # used by Logic Coach, not only the Tutor DOM decoration.
+    coach=page.evaluate("""()=>{const p=tangoReasoningPresenter().presentation(window.__clarityDeduction);return {where:p.explanation.where,why:p.explanation.why,meta:p.metadata}}""")
+    coach_text=(coach['where']+' '+coach['why']).lower()
+    assert 'a6 = b6' in coach_text,coach
+    assert 'règle des trois' in coach_text,coach
+    assert 'a6 = lune' in coach_text,coach
+    assert 'c6 = soleil' in coach_text,coach
+    assert coach['meta'].get('localSelfContained') is True,coach
+    for banned in ['déjà démontr','déjà déduit','comme vu précédemment','résultat précédent']:
+        assert banned not in coach_text,coach
 
     assert not errors,errors
     ctx.close();browser.close()
 
-print('v3.1.9-R3UI Tango Tutor clarity browser regression: PASS')
+print('v3.1.9-R3UI Tango Tutor/Coach local self-contained relation regression: PASS')
