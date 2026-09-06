@@ -1,3 +1,4 @@
+# HF3.9 semantic candidate gate
 name: QUADLUD v3.1.9 HF3.9 candidate QA
 
 on:
@@ -24,12 +25,12 @@ jobs:
         run: python3 qa-public/tests/public_runtime_guard.py
 
       - name: Set up Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.13'
 
