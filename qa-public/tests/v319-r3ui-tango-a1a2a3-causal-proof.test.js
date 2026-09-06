@@ -10,9 +10,10 @@ const sameCell=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(
 
 // Human regression reported on iPhone/iPad:
 // A1 = A2 is visible, A3 is already a sun. The engine may internally derive
-// A1 × A3 and then propagate from A3, but the pedagogical proof must prefer the
-// concrete causal contradiction:
-// assume A1=sun -> A2=sun -> A1/A2/A3 are three suns -> therefore A1=moon.
+// A1 × A3 and then propagate from A3. Human-first pedagogy must instead select
+// the shortest self-contained visible proof for A1=moon. In this fixture that
+// proof is RELATION_BALANCE: A1 and A2 are identical; choosing both as suns
+// would create the forbidden triple A1/A2/A3, so A1 and A2 are moons.
 const state=Array.from({length:6},()=>Array(6).fill(-1));
 state[0][2]=1;
 const board={n:6,state,edges:[[0,0,'r','=']]};
@@ -34,33 +35,33 @@ const relationPremise=(relationProof.premises||[]).find(p=>p.kind==='RELATION');
 assert(relationPremise&&!relationPremise.explicit,'the shortcut must depend on a derived, not visible, relation');
 assert(Array.isArray(relationPremise.path)&&relationPremise.path.length,'derived relation provenance must travel with the premise');
 
-// The raw solver is allowed to encounter a more abstract contradiction first.
-// The pedagogical boundary must refine it to a concrete visible witness.
-const rawRejected=session.hypothesisResult([0,0],1);
-assert(rawRejected.contradiction,'A1=sun must be contradictory');
+// A concrete contradiction proof also exists and remains auditable, but it is
+// longer than the direct visible RELATION_BALANCE deduction and must not win.
 const concrete=Base._test.concreteContradictionForMove(session,[0,0],0);
-assert(concrete&&concrete.deduction,'pedagogy must find a concrete contradiction for A1=moon');
+assert(concrete&&concrete.deduction,'pedagogy must still be able to construct the concrete contradiction alternative');
 assert.strictEqual(concrete.witness.kind,'TRIPLE_OVERFLOW');
-assert.strictEqual(concrete.witness.value,1,'the concrete contradiction must identify three suns');
 assert.deepStrictEqual(concrete.witness.cells,[[0,0],[0,1],[0,2]]);
-const forcedA2=(concrete.deduction.explanationData.causalTrace||[]).find(d=>(d.conclusions||[]).some(c=>c.type==='VALUE'&&c.cell[0]===0&&c.cell[1]===1&&c.value===1));
-assert(forcedA2,'causal trace must explicitly propagate A1=sun through A1=A2 to A2=sun');
-assert.strictEqual(forcedA2.rule,'RELATION_PROPAGATION');
+
+const directCandidates=Bridge._test.selfContainedDirectCandidates(Base,session,[0,0],0);
+assert(directCandidates.length,'a self-contained direct proof must exist');
+const direct=directCandidates[0].deduction;
+assert.strictEqual(direct.rule,'RELATION_BALANCE','minimal proof must be the visible relation-orientation deduction');
+const directRelation=(direct.premises||[]).find(p=>p.kind==='RELATION');
 const a1=[0,0],a2=[0,1];
-assert((forcedA2.premises||[]).some(p=>
-  p.kind==='RELATION'&&p.explicit===true&&String(p.relation||'').toUpperCase()==='SAME'&&
-  ((sameCell(p.a,a1)&&sameCell(p.b,a2))||(sameCell(p.a,a2)&&sameCell(p.b,a1)))
-),'A2 propagation must use the visible equality A1=A2');
+assert(directRelation&&directRelation.explicit===true&&String(directRelation.relation||'').toUpperCase()==='SAME','direct proof must use the visible SAME relation');
+assert(((sameCell(directRelation.a,a1)&&sameCell(directRelation.b,a2))||(sameCell(directRelation.a,a2)&&sameCell(directRelation.b,a1))),'direct proof relation must be exactly A1=A2');
+assert.strictEqual(direct.explanationData?.rejected?.kind,'TRIPLE_OVERFLOW','direct proof must retain the concrete rejected triple witness');
+assert.deepStrictEqual(direct.explanationData.rejected.cells,[[0,0],[0,1],[0,2]]);
+assert((direct.conclusions||[]).some(c=>c.type==='VALUE'&&sameCell(c.cell,a1)&&c.value===0),'direct proof must conclude A1=moon');
+assert((direct.conclusions||[]).some(c=>c.type==='VALUE'&&sameCell(c.cell,a2)&&c.value===0),'direct proof must also conclude A2=moon');
 
 const rawProof={schema:3,kind:'engine-proof',deduction:relationProof,displayDeductions:[relationProof],replaced:false};
 const corrected=Bridge._test.correctedProof(Base,session,{status:'move',tierIndex:3,target:[0,0],value:0},rawProof);
-assert.strictEqual(corrected.kind,'simpler-causal-contradiction-proof');
-assert.strictEqual(corrected.deduction.rule,'ASSUMPTION_CONTRADICTION');
-assert((corrected.deduction.conclusions||[]).some(c=>c.type==='VALUE'&&c.cell[0]===0&&c.cell[1]===0&&c.value===0),'corrected proof must conclude A1=moon');
-assert.deepStrictEqual(corrected.deduction.explanationData.assumption,{cell:[0,0],value:1});
-assert.strictEqual(corrected.deduction.explanationData.witness.kind,'TRIPLE_OVERFLOW');
-assert.deepStrictEqual(corrected.deduction.explanationData.witness.cells,[[0,0],[0,1],[0,2]]);
-assert((corrected.deduction.explanationData.causalTrace||[]).some(d=>(d.conclusions||[]).some(c=>c.type==='VALUE'&&c.cell[0]===0&&c.cell[1]===1&&c.value===1)),'display proof must retain the indispensable A2 consequence');
-assert(Bridge._test.proofPreferenceTier(session,corrected.deduction)<Bridge._test.proofPreferenceTier(session,relationProof),'concrete causal proof must outrank the abstract derived-relation shortcut');
+assert.strictEqual(corrected.kind,'simpler-self-contained-direct-proof');
+assert.strictEqual(corrected.deduction.rule,'RELATION_BALANCE');
+assert.strictEqual(corrected.deduction.explanationData?.rejected?.kind,'TRIPLE_OVERFLOW');
+assert.deepStrictEqual(corrected.deduction.explanationData.rejected.cells,[[0,0],[0,1],[0,2]]);
+assert((corrected.deduction.conclusions||[]).some(c=>c.type==='VALUE'&&sameCell(c.cell,a1)&&c.value===0),'corrected proof must conclude A1=moon');
+assert(Bridge._test.proofPreferenceTier(session,corrected.deduction)<Bridge._test.proofPreferenceTier(session,relationProof),'direct self-contained proof must outrank the derived-relation shortcut');
 
 console.log('v319-r3ui-tango-a1a2a3-causal-proof.test.js: PASS');
