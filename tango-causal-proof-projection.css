@@ -3,40 +3,49 @@
  * Copyright © 2026 Serge Benoliel. All rights reserved.
  */
 /* Priority required by ADR-009: conclusion > hypothesis > current focus > context. */
-.walkthrough-causal-context:not(.walkthrough-causal-focus):not(.walkthrough-causal-hypothesis):not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion){
+.walkthrough-causal-context:not(.walkthrough-causal-focus):not(.walkthrough-causal-hypothesis):not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion),
+.hint-causal-context:not(.hint-causal-focus):not(.hint-causal-hypothesis):not(.hint-causal-contradiction):not(.hint-causal-conclusion){
   position:relative;z-index:2;outline:2px dashed color-mix(in srgb,var(--accent) 55%,var(--ink));outline-offset:-3px;
 }
-.walkthrough-causal-focus:not(.walkthrough-causal-hypothesis):not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion){
+.walkthrough-causal-focus:not(.walkthrough-causal-hypothesis):not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion),
+.hint-causal-focus:not(.hint-causal-hypothesis):not(.hint-causal-contradiction):not(.hint-causal-conclusion){
   position:relative;z-index:5;outline:3px solid var(--accent);outline-offset:-4px;box-shadow:inset 0 0 0 5px color-mix(in srgb,var(--accent) 10%,transparent)!important;
 }
 .walkthrough-causal-hypothesis:not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion),
-.walkthrough-causal-hypothetical-move:not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion){
+.walkthrough-causal-hypothetical-move:not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion),
+.hint-causal-hypothesis:not(.hint-causal-contradiction):not(.hint-causal-conclusion),
+.hint-causal-hypothetical-move:not(.hint-causal-contradiction):not(.hint-causal-conclusion){
   position:relative;z-index:7;outline:3px dotted #7b4bb2!important;outline-offset:-4px!important;box-shadow:inset 0 0 0 6px color-mix(in srgb,#7b4bb2 13%,transparent)!important;
 }
-.walkthrough-causal-contradiction:not(.walkthrough-causal-conclusion){
+.walkthrough-causal-contradiction:not(.walkthrough-causal-conclusion),
+.hint-causal-contradiction:not(.hint-causal-conclusion){
   position:relative;z-index:8;outline:4px dashed #a53c3c!important;outline-offset:-4px!important;box-shadow:inset 0 0 0 6px color-mix(in srgb,#a53c3c 12%,transparent)!important;
 }
-.walkthrough-causal-conclusion{
+.walkthrough-causal-conclusion,.hint-causal-conclusion{
   position:relative;z-index:10!important;outline:5px double #b77a2f!important;outline-offset:-5px!important;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--paper) 88%,transparent)!important;
 }
-.walkthrough-hypothetical-badge{
+.walkthrough-hypothetical-badge,.hint-hypothetical-badge{
   position:absolute;inset-inline-start:3px;top:3px;display:grid;place-items:center;min-width:19px;height:19px;padding:0 4px;border-radius:999px;
   border:1px solid #7b4bb2;background:color-mix(in srgb,var(--paper) 92%,#7b4bb2);color:#5d328f;font-size:12px;font-weight:900;line-height:1;pointer-events:none;z-index:14;
 }
 .walkthrough-board[data-causal-proof-kind="rollback"] .walkthrough-causal-hypothesis,
 .walkthrough-board[data-causal-proof-kind="rollback"] .walkthrough-causal-hypothetical-move{opacity:.35}
 @media(max-width:520px){
-  .walkthrough-causal-context:not(.walkthrough-causal-focus):not(.walkthrough-causal-hypothesis):not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion){outline-width:2px}
+  .walkthrough-causal-context:not(.walkthrough-causal-focus):not(.walkthrough-causal-hypothesis):not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion),
+  .hint-causal-context:not(.hint-causal-focus):not(.hint-causal-hypothesis):not(.hint-causal-contradiction):not(.hint-causal-conclusion){outline-width:2px}
   .walkthrough-causal-focus:not(.walkthrough-causal-hypothesis):not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion),
   .walkthrough-causal-hypothesis:not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion),
-  .walkthrough-causal-hypothetical-move:not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion){outline-width:3px!important}
-  .walkthrough-causal-conclusion{outline-width:4px!important;outline-offset:-4px!important}
-  .walkthrough-hypothetical-badge{min-width:17px;height:17px;font-size:11px;top:2px;inset-inline-start:2px}
+  .walkthrough-causal-hypothetical-move:not(.walkthrough-causal-contradiction):not(.walkthrough-causal-conclusion),
+  .hint-causal-focus:not(.hint-causal-hypothesis):not(.hint-causal-contradiction):not(.hint-causal-conclusion),
+  .hint-causal-hypothesis:not(.hint-causal-contradiction):not(.hint-causal-conclusion),
+  .hint-causal-hypothetical-move:not(.hint-causal-contradiction):not(.hint-causal-conclusion){outline-width:3px!important}
+  .walkthrough-causal-conclusion,.hint-causal-conclusion{outline-width:4px!important;outline-offset:-4px!important}
+  .walkthrough-hypothetical-badge,.hint-hypothetical-badge{min-width:17px;height:17px;font-size:11px;top:2px;inset-inline-start:2px}
 }
 @media(forced-colors:active){
-  .walkthrough-causal-context{outline:2px dashed CanvasText!important}
-  .walkthrough-causal-focus{outline:3px solid Highlight!important}
-  .walkthrough-causal-hypothesis,.walkthrough-causal-hypothetical-move{outline:3px dotted Highlight!important}
-  .walkthrough-causal-contradiction{outline:4px dashed Mark!important}
-  .walkthrough-causal-conclusion{outline:5px double Highlight!important}
+  .walkthrough-causal-context,.hint-causal-context{outline:2px dashed CanvasText!important}
+  .walkthrough-causal-focus,.hint-causal-focus{outline:3px solid Highlight!important}
+  .walkthrough-causal-hypothesis,.walkthrough-causal-hypothetical-move,.hint-causal-hypothesis,.hint-causal-hypothetical-move{outline:3px dotted Highlight!important}
+  .walkthrough-causal-contradiction,.hint-causal-contradiction{outline:4px dashed Mark!important}
+  .walkthrough-causal-conclusion,.hint-causal-conclusion{outline:5px double Highlight!important}
 }
