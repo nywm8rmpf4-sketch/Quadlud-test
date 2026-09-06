@@ -6,7 +6,7 @@
  */
 (function(root){
 'use strict';
-const VERSION=5;
+const VERSION=6;
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function sameCell(a,b){return Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1])}
 function session(){try{return typeof walkthroughSession!=='undefined'?walkthroughSession:null}catch(_){return null}}
@@ -19,6 +19,13 @@ function proofStages(d,p){
   const fn=root.QuadludTangoHumanPedagogyR4?._test?.proofStagesForDeduction;
   if(typeof fn!=='function'||!d||!p)return [];
   try{return fn(d,p)||[]}catch(_){return []}
+}
+function causalModel(){return root.QuadludTangoCausalProofModel||null}
+function attachCausalProof(entries){
+  if(!Array.isArray(entries)||!entries.length)return entries||[];
+  const model=causalModel();if(typeof model?.fromEntries!=='function')return entries;
+  let proof;try{proof=model.fromEntries(entries)}catch(_){return entries}
+  return entries.map((entry,index)=>({...entry,causalProof:copy(proof),causalStepId:proof?.entryStepIds?.[index]||null}))
 }
 function stageKind(entry){return String(entry?.pedagogyStageKind||entry?.proofStage?.kind||'reasoning')}
 function sanitizeStageEntry(entry){
@@ -98,7 +105,7 @@ function clarifyDerivedRelation(entry){
 function postProcessGeneratedEntries(s,start){
   if(!s||!Array.isArray(s.moves)||start<0||start>=s.moves.length)return false;const p=presenter(),raw=s.moves.splice(start),out=[];
   for(const entry of raw){const sanitized=sanitizeStageEntry(entry);for(const atomic of atomicLineEntries(sanitized,p))out.push(clarifyDerivedRelation(atomic))}
-  s.moves.push(...out);if(s.done)s.total=s.moves.length;return true
+  const causal=attachCausalProof(out);s.moves.push(...causal);if(s.done)s.total=s.moves.length;return true
 }
 function expandSingleAdvancedEntry(s,start){
   if(!s||!Array.isArray(s.moves)||s.moves.length-start!==1)return false;
@@ -127,5 +134,5 @@ function install(){return installGenerator()}
 function scheduleInstall(){
   let tries=240,timer=null;const retry=()=>{const generatorOk=installGenerator(),renderOk=installRender();if(generatorOk&&renderOk){if(timer!=null)clearTimeout(timer);return true}if(tries--<=0)return false;timer=setTimeout(retry,10);return true};retry();if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true
 }
-const api=Object.freeze({VERSION,install,installGenerator,installRender,scheduleInstall,_test:Object.freeze({expandSingleAdvancedEntry,proofStages,sanitizeStageEntry,atomicConclusionFocus,atomicLineEntries,clarifyDerivedRelation,postProcessGeneratedEntries,lineDomainText,lineDomainTitle,orderedRelationPath,relationPathText,currentTutorStageKind,scrubPrematureAction})});root.QuadludTangoProgressiveProofBridge=api;if(typeof document!=='undefined')scheduleInstall();if(typeof module!=='undefined'&&module.exports)module.exports=api;
+const api=Object.freeze({VERSION,install,installGenerator,installRender,scheduleInstall,_test:Object.freeze({expandSingleAdvancedEntry,proofStages,causalModel,attachCausalProof,sanitizeStageEntry,atomicConclusionFocus,atomicLineEntries,clarifyDerivedRelation,postProcessGeneratedEntries,lineDomainText,lineDomainTitle,orderedRelationPath,relationPathText,currentTutorStageKind,scrubPrematureAction})});root.QuadludTangoProgressiveProofBridge=api;if(typeof document!=='undefined')scheduleInstall();if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
