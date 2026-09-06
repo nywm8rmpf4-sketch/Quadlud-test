@@ -12,7 +12,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=7;
+const VERSION=8;
 const UNIT_CLASS='hint-unit-context';
 const SUBSTEP_CLASS='hint-substep-focus';
 const TRACE_KEYS=['causalTrace','moonCausalTrace','sunCausalTrace'];
@@ -118,9 +118,10 @@ function normalizePresentationDeduction(d,depth=0,reg=null){
   // Engine focusCells may intentionally contain an entire unit for search/audit.
   // Presentation must instead expose only the concrete premises/relations and
   // conclusions needed by this sub-step; focusUnits carries only genuinely
-  // whole-unit context. A local triple witness stays three concrete cells.
-  const minimal=minimalStepCells(out,reg),original=Array.isArray(out.focusCells)?out.focusCells:[];
-  if(minimal.length&&(!original.length||minimal.length<=original.length))out.focusCells=minimal;
+  // whole-unit context. An explicit local triple witness is authoritative even
+  // when its three demonstrated cells are more numerous than engine focusCells.
+  const minimal=minimalStepCells(out,reg),original=Array.isArray(out.focusCells)?out.focusCells:[],localTriple=localRejectedTriple(out);
+  if(minimal.length&&(localTriple||!original.length||minimal.length<=original.length))out.focusCells=minimal;
   return out
 }
 function boardCell(board,n,cell){
