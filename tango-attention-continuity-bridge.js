@@ -8,7 +8,9 @@
 const VERSION=1;
 const Planner=root.QuadludTangoPlayedMovePlanner;
 const Policy=root.QuadludPedagogyNextMovePolicy;
-if(!Planner||!Planner._test||typeof Planner.nextPlayedMove!=='function'||!Policy||typeof Policy.rank!=='function')throw new Error('Soleil/Lune attention-continuity dependencies unavailable');
+// The pilot is an optional Tango overlay. Partial game/runtime loaders used by
+// another game must remain valid when Tango planning dependencies are absent.
+if(!Planner||!Planner._test||typeof Planner.nextPlayedMove!=='function'||!Policy||typeof Policy.rank!=='function')return;
 const originalNextPlayedMove=Planner.nextPlayedMove.bind(Planner);
 const DIFF_TO_TIER=Object.freeze({easy:0,medium:1,hard:2,expert:3,facile:0,moyen:1,difficile:2});
 
