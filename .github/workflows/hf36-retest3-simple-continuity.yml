@@ -1,0 +1,44 @@
+name: QUADLUD HF3.6 RETEST3 simple causal continuity
+
+on:
+  push:
+    branches: [qa/v3.1.9-hf3.6-retest3-simple-continuity]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quadlud-hf36-retest3-simple-continuity
+  cancel-in-progress: true
+
+jobs:
+  focused-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Public/private boundary
+        run: python3 qa-public/tests/public_runtime_guard.py
+      - name: Syntax gate
+        run: |
+          node --check pedagogy-next-move-policy.js
+          node --check tango-attention-continuity-bridge.js
+          node --check tango-played-move-planner.js
+      - name: Simple causal continuity regression
+        run: node qa-public/tests/v319-r3ui-tango-simple-causal-continuity.test.js
+      - name: Existing Soleil-Lune v3.1.9 focused regressions
+        run: |
+          set -euo pipefail
+          TMP="$RUNNER_TEMP/quadlud-hf36"
+          mkdir -p "$TMP/GitHub" "$TMP/tests"
+          cp *.js "$TMP/GitHub/"
+          cp -a qa-public/tests/. "$TMP/tests/"
+          cd "$TMP"
+          while IFS= read -r test; do
+            echo "TANGO JS: $test"
+            node "$test"
+          done < <(find tests -maxdepth 1 -type f \( -name 'v319-a13*.test.js' -o -name 'v319-r3ui-tango-*.test.js' \) | sort)
