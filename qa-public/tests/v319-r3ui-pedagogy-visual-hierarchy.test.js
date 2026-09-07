@@ -41,9 +41,6 @@ assert.strictEqual(TangoUnitFocus._test.unitCells({family:'column',id:3},6,null)
 assert.strictEqual(TangoUnitFocus._test.evidenceCells(tangoDeduction).length,4);
 assert.deepStrictEqual(TangoUnitFocus._test.conclusionCells(tangoDeduction),[[0,3]]);
 
-// Human screenshot regression: engine/audit may expose the whole column in
-// focusCells, while presentation must keep the column as UnitRef and select
-// only concrete premise/conclusion cells.
 const broadColumn={rule:'RELATION_BALANCE',focusCells:[[0,4],[1,4],[2,4],[3,4],[4,4],[5,4]],focusRelations:[{a:[1,4],b:[2,4]},{a:[1,4],b:[3,4]}],focusUnits:[{family:'column',id:4}],premises:[{kind:'RELATION',a:[1,4],b:[2,4],parity:1},{kind:'VALUE',cell:[5,4],value:0}],conclusions:[{type:'RELATION',a:[1,4],b:[3,4],parity:1}],explanationData:{family:'column',id:4}};
 const minimized=TangoUnitFocus._test.normalizePresentationDeduction(broadColumn);
 assert.deepStrictEqual(minimized.focusUnits,[{family:'column',id:4}]);
@@ -51,8 +48,6 @@ assert(minimized.focusCells.length<6,'whole logical unit must not survive as six
 for(const key of ['1,4','2,4','3,4','5,4'])assert(keys(minimized.focusCells).has(key),`strict causal cell ${key} must remain visible`);
 assert(!keys(minimized.focusCells).has('0,4')&&!keys(minimized.focusCells).has('4,4'),'unit-only cells must be removed from focusCells');
 
-// Progressive bridge regression: if an advanced proof arrives as one legacy
-// entry, expand it into real proof entries so native proof navigation appears.
 global.tangoReasoningPresenter=()=>({legacyReasoning:d=>JSON.parse(JSON.stringify(d)),presentation:d=>({explanation:{where:'',why:'',move:''}})});
 global.QuadludTangoHumanPedagogyR4={_test:{proofStagesForDeduction:(d,p)=>[
   {kind:'hypothesis',deduction:{...d,id:'h'},presentation:{explanation:{where:'h',why:'h',move:''}}},
@@ -76,5 +71,5 @@ assert(index.includes(`tutor-action-first-navigation.js?v=${navigationToken}`));
 assert(index.includes(`tango-pedagogy-unit-focus.js?v=${unitToken}`));assert(sw.includes(`./tango-pedagogy-unit-focus.js?v=${unitToken}`));
 assert(index.includes(`tango-progressive-proof-bridge.js?v=${bridgeToken}`));assert(sw.includes(`./tango-progressive-proof-bridge.js?v=${bridgeToken}`));
 assert(index.includes(`tango-played-move-runtime.js?v=${playedToken}`));assert(sw.includes(`./tango-played-move-runtime.js?v=${playedToken}`));
-const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-hf39r5b-v11');
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-hf39r5b-v12');
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
