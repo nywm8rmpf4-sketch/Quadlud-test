@@ -109,7 +109,7 @@ function nextPlayedMove(session,diff,options={}){
   const context=tutorRecentContext();if(!context.recentCells.length&&!context.pendingConclusions.length)return originalNextPlayedMove(session,diff,options);
   try{
     const exact=contextualDirectPlan(session,diff,options,context);if(exact)return exact;
-    const local=expandContextAlongAxis(context,session?.work?.state,LOCAL_AXIS_RADIUS);
+    const local=expandContextAlongAxis(context,session?.state,LOCAL_AXIS_RADIUS);
     if(local.localExpansionApplied){
       const contextual=contextualDirectPlan(session,diff,options,local);
       if(contextual)return {...contextual,localAttentionContinuation:true,localAttentionAxis:copy(local.localAxis),localAttentionRadius:LOCAL_AXIS_RADIUS,humanRecentCellsOriginal:copy(context.recentCells)}
