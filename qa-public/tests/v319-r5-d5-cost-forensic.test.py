@@ -95,7 +95,7 @@ def main():
         print('R5_D5_SINGLE_PLANNER_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
         assert profile['attentionVersion'] == 11, profile
         assert profile['prunerVersion'] == 1, profile
-        assert profile['singlePlannerVersion'] == 1, profile
+        assert profile['singlePlannerVersion'] == 2, profile
         assert profile['plannerCalls'] == 1, profile
         assert profile['status'] == 'move', profile
         assert profile['target'] == [0, 0] and profile['value'] == 1, profile
