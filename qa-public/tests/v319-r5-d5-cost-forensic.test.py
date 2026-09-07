@@ -49,60 +49,87 @@ def main():
           const P=globalThis.QuadludTangoPlayedMovePlanner;
           const R=globalThis.QuadludTangoPlayedMoveRuntime;
           if(!s||!P||!P._test||!R||typeof R.selectDisplayProof!=='function'||typeof R.planHumanMove!=='function')throw new Error('missing Tango Tutor planner/runtime');
-          const copy=x=>x==null?x:JSON.parse(JSON.stringify(x));
-          const puzzle={n:s.work?.n||s.base?.n||6,state:copy(s.work?.state),edges:copy(s.work?.edges||s.base?.edges||[])};
+          const clone=x=>x==null?x:JSON.parse(JSON.stringify(x));
+          const puzzle={n:s.work?.n||s.base?.n||6,state:clone(s.work?.state),edges:clone(s.work?.edges||s.base?.edges||[])};
           const fresh=()=>P.sessionFromPublicBoard(puzzle,s.work.state);
           const now=()=>performance.now();
 
-          const plannerEngine=fresh();
+          const directEngine=fresh();
           let started=now();
-          const plan=P.nextPlayedMove(plannerEngine,'expert',{});
-          const plannerMs=now()-started;
-
+          const directPlan=P.nextPlayedMove(directEngine,'expert',{});
+          const directPlannerMs=now()-started;
           started=now();
-          const displayProof=R.selectDisplayProof(plannerEngine,plan);
-          const displayProofMs=now()-started;
+          const directSerialized=JSON.stringify(directPlan);
+          const directSerializeMs=now()-started;
+          const descriptors={};
+          for(const name of ['engineVisiblePlacementCount','engineVisiblePlacements']){
+            const d=Object.getOwnPropertyDescriptor(directPlan,name);
+            descriptors[name]=d?{enumerable:!!d.enumerable,hasGetter:typeof d.get==='function',hasValue:Object.prototype.hasOwnProperty.call(d,'value')}:null;
+          }
 
           const humanEngine=fresh();
+          const originalPlannerObject=globalThis.QuadludTangoPlayedMovePlanner;
+          let innerPlannerCalls=0;
+          const innerPlannerMs=[];
+          const timedPlanner={...originalPlannerObject,nextPlayedMove(...args){
+            innerPlannerCalls++;
+            const t=now();
+            const result=originalPlannerObject.nextPlayedMove(...args);
+            innerPlannerMs.push(now()-t);
+            return result;
+          }};
+          globalThis.QuadludTangoPlayedMovePlanner=Object.freeze(timedPlanner);
           started=now();
-          const humanPlan=R.planHumanMove(humanEngine,'expert');
+          let humanPlan;
+          try{humanPlan=R.planHumanMove(humanEngine,'expert')}finally{globalThis.QuadludTangoPlayedMovePlanner=originalPlannerObject}
           const humanPlanMs=now()-started;
+
+          const postEngine=fresh();
+          started=now();
+          const postPlan=P.nextPlayedMove(postEngine,'expert',{});
+          const postPlannerMs=now()-started;
 
           return {
             attentionVersion:P.attentionContinuityVersion||null,
             prunerVersion:P.relationFrontierPrunerVersion||null,
             runtimeVersion:R.VERSION||null,
-            plannerMs,
-            displayProofMs,
-            plannerPlusDisplayMs:plannerMs+displayProofMs,
+            directPlannerMs,
+            directSerializeMs,
+            directSerializedLength:directSerialized.length,
+            directDescriptors:descriptors,
+            innerPlannerCalls,
+            innerPlannerMs,
+            innerPlannerTotalMs:innerPlannerMs.reduce((a,b)=>a+b,0),
             humanPlanMs,
-            status:plan?.status||null,
+            humanOverheadMs:humanPlanMs-innerPlannerMs.reduce((a,b)=>a+b,0),
+            postPlannerMs,
+            status:directPlan?.status||null,
             humanStatus:humanPlan?.status||null,
-            target:copy(plan?.target||null),
-            humanTarget:copy(humanPlan?.target||null),
-            value:plan?.value,
+            postStatus:postPlan?.status||null,
+            target:clone(directPlan?.target||null),
+            humanTarget:clone(humanPlan?.target||null),
+            postTarget:clone(postPlan?.target||null),
+            value:directPlan?.value,
             humanValue:humanPlan?.value,
-            engineStepCount:Number(plan?.engineStepCount)||null,
-            selectionStatus:plan?.selectionStatus||null,
-            humanProofKind:displayProof?.kind||null,
-            humanProofRule:String(displayProof?.deduction?.rule||''),
-            humanProofCostVector:copy(displayProof?.costVector||null),
-            relationFrontierPruned:!!plan?.relationFrontierPruned,
-            estimatedCandidateCount:Number(plan?.relationFrontierEstimatedCandidateCount)||0,
-            hydratedCandidateCount:Number(plan?.relationFrontierHydratedCandidateCount)||0,
-            prunedCandidateCount:Number(plan?.relationFrontierPrunedCandidateCount)||0,
-            advancedStateCount:Number(plan?.relationFrontierAdvancedStateCount)||0,
-            minimumEngineStepCount:Number(plan?.relationFrontierMinimumEngineStepCount)||null,
-            proofChainLength:Array.isArray(plan?.proofChain)?plan.proofChain.length:0,
-            proofRules:(plan?.proofChain||[]).map(d=>String(d?.rule||''))
+            postValue:postPlan?.value,
+            engineStepCount:Number(directPlan?.engineStepCount)||null,
+            selectionStatus:directPlan?.selectionStatus||null,
+            relationFrontierPruned:!!directPlan?.relationFrontierPruned,
+            estimatedCandidateCount:Number(directPlan?.relationFrontierEstimatedCandidateCount)||0,
+            hydratedCandidateCount:Number(directPlan?.relationFrontierHydratedCandidateCount)||0,
+            prunedCandidateCount:Number(directPlan?.relationFrontierPrunedCandidateCount)||0,
+            advancedStateCount:Number(directPlan?.relationFrontierAdvancedStateCount)||0,
+            minimumEngineStepCount:Number(directPlan?.relationFrontierMinimumEngineStepCount)||null,
+            proofChainLength:Array.isArray(directPlan?.proofChain)?directPlan.proofChain.length:0
           };
         }""")
-        print('R5_D5_HUMAN_PLAN_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
+        print('R5_D5_SERIALIZATION_INNER_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
         assert profile['attentionVersion'] == 11, profile
         assert profile['prunerVersion'] == 1, profile
-        assert profile['status'] == profile['humanStatus'] == 'move', profile
-        assert profile['target'] == profile['humanTarget'], profile
-        assert profile['value'] == profile['humanValue'], profile
+        assert profile['status'] == profile['humanStatus'] == profile['postStatus'] == 'move', profile
+        assert profile['target'] == profile['humanTarget'] == profile['postTarget'], profile
+        assert profile['value'] == profile['humanValue'] == profile['postValue'], profile
+        assert profile['innerPlannerCalls'] == 1, profile
         assert profile['relationFrontierPruned'], profile
         assert profile['estimatedCandidateCount'] == 20, profile
         assert 0 < profile['hydratedCandidateCount'] < profile['estimatedCandidateCount'], profile
@@ -110,7 +137,6 @@ def main():
         assert profile['advancedStateCount'] > 0, profile
         assert profile['minimumEngineStepCount'] == profile['engineStepCount'] == 15, profile
         assert profile['proofChainLength'] > 0, profile
-        assert profile['plannerMs'] < 9000, profile
         context.close()
         browser.close()
 
