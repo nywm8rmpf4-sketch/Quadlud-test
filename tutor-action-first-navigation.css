@@ -95,12 +95,15 @@
   .walkthrough-chain-badge{min-width:18px;height:18px;font-size:12px;top:2px;inset-inline-end:2px}
 }
 
-/* v3.1.9-R5.3 — phone portrait proof chains keep the whole current
-   explanation visible. The solution-help notice is already presented when
-   entering Tutor and on every ordinary logical step; repeating it inside each
-   proof sub-step consumed the exact vertical space needed by the reasoning. */
+/* v3.1.9-R5.3 — phone portrait message fit policy.
+   Ordinary/frequent deductions should fit without scrolling. Deep proof chains
+   may scroll when their logical depth genuinely requires it. No font or board
+   size is reduced to force a fit. */
 @media(max-width:520px) and (orientation:portrait){
   body.tutor-active:has(.walkthrough-proof-chain-active) .walkthrough-help-note{display:none}
+  .walkthrough-proof-chain-active .walkthrough-proof-navigation{padding-block:3px}
+  body.tutor-active:not(:has(.walkthrough-proof-chain-active)) .walkthrough-help-note{margin:2px 0 4px;padding:4px 8px}
+  body.tutor-active:not(:has(.walkthrough-proof-chain-active)) .walkthrough-explanation{margin-top:5px;padding:8px 10px}
 }
 
 @media(prefers-reduced-motion:reduce){.cell.hint-focus{animation:none!important}}
