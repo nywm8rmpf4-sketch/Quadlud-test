@@ -11,8 +11,8 @@
   if(typeof document!=='undefined')api.install();
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
-const VERSION=2;
-const PIECE_TOKEN_RE=/\b(sun|moon|soleil|lune)\b(?:\s*[☀☾🌞🌙🌛🌜🌚🌝])?/giu;
+const VERSION=3;
+const PIECE_TOKEN_RE=/\b(suns?|moons?|soleils?|lunes?)\b(?:\s*[☀☾🌞🌙🌛🌜🌚🌝])?/giu;
 const INTERMEDIATE_RE=/(?:\s|^)(?:Conclusion intermédiaire|Intermediate conclusion)\s*:\s*[^.!?<]*(?:[.!?](?=\s|$)|$)/gi;
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
 function locale(){try{return String(typeof lang==='function'?lang():root.document?.documentElement?.lang||'en').toLowerCase().split('-')[0]}catch(_){return'en'}}
@@ -23,13 +23,25 @@ function piece(value){
   try{if(typeof pieceName==='function'){const label=pieceName('tango',Number(value));if(label!=null&&String(label).trim()){const clean=String(label).replace(/[☀☾🌞🌙🌛🌜🌚🌝]/gu,'').trim();if(clean&&!/^(?:sun|moon)$/i.test(clean))return `${clean} ${glyph}`}}}catch(_){ }
   return `${isSun?'sun':'moon'} ${glyph}`
 }
+function pluralizePiece(rendered){return String(rendered??'').replace(/^([^\s]+)(\s+[☀☾])$/u,'$1s$2')}
 function replaceRawPieces(text){
   const loc=locale();
   return String(text??'').replace(PIECE_TOKEN_RE,(match,token)=>{
-    const t=String(token||'').toLowerCase();
-    if(loc!=='fr'&&(t==='soleil'||t==='lune'))return match;
-    return t==='sun'||t==='soleil'?piece(1):piece(0)
+    const t=String(token||'').toLowerCase(),plural=t.endsWith('s'),sun=t.startsWith('sun')||t.startsWith('soleil'),frenchToken=t.startsWith('soleil')||t.startsWith('lune');
+    if(loc!=='fr'&&frenchToken)return match;
+    const rendered=piece(sun?1:0);return plural?pluralizePiece(rendered):rendered
   })
+}
+function normalizeFrenchGrammar(text){
+  let source=String(text??'');if(locale()!=='fr')return source;
+  source=source.replace(/\b(ligne|colonne)\s+([A-Z]|\d+)\b/giu,(match,noun,id,offset,whole)=>{
+    const before=whole.slice(Math.max(0,offset-18),offset);
+    if(/(?:\b(?:la|une|cette|chaque)\s+|\bde\s+la\s+)$/iu.test(before))return match;
+    return `la ${String(noun).toLowerCase()} ${id}`
+  });
+  source=source.replace(/\bUn\s+troisième\s+(lune\b)/giu,'Une troisième $1');
+  source=source.replace(/\b(Où regarder|Raisonnement|Coup conseillé)\s*:\s*/gu,'$1 : ');
+  return source
 }
 function propositionKey(text){const m=String(text??'').match(/\b([A-Z]\d+)\s*=\s*([^.,;:<>]+)/i);if(!m)return null;let value=replaceRawPieces(m[2]).toLowerCase().replace(/[☀☾🌞🌙🌛🌜🌚🌝\s]/gu,'');return `${m[1].toUpperCase()}=${value}`}
 function stripIntermediate(text){return String(text??'').replace(INTERMEDIATE_RE,' ').replace(/\s{2,}/g,' ').trim()}
@@ -38,11 +50,15 @@ function dedupSemanticSentences(text){
   for(const part of parts){const key=propositionKey(part),isIntermediate=/\b(?:Conclusion intermédiaire|Intermediate conclusion)\b/i.test(part),isRepeatedConclusion=/^\s*(?:Donc|Therefore|Conclusion|Coup conseillé|Suggested move)(?:\s*:|\s|$)/i.test(part);if(isIntermediate)continue;if(key&&seen.has(key)&&isRepeatedConclusion)continue;if(key)seen.add(key);out.push(part)}
   return out.join(' ')
 }
-function finalizeText(text){return dedupSemanticSentences(stripIntermediate(replaceRawPieces(text)))}
+function finalizeText(text){return dedupSemanticSentences(stripIntermediate(normalizeFrenchGrammar(replaceRawPieces(text))))}
+function finalizeInlineText(text){
+  const source=String(text??''),leading=source.match(/^\s+/u)?.[0]||'',trailing=source.match(/\s+$/u)?.[0]||'',core=finalizeText(source);
+  return core?`${leading}${core}${trailing}`:''
+}
 function finalizeHtml(html){
   let source=String(html??'');source=source.replace(/<span\b[^>]*class=["'][^"']*\bconclusion\b[^"']*["'][^>]*>\s*(?:<b>)?\s*(?:Conclusion intermédiaire|Intermediate conclusion)[\s\S]*?<\/span>/gi,'');
   source=source.replace(/<p\b[^>]*>[\s\S]*?(?:Conclusion intermédiaire|Intermediate conclusion)[\s\S]*?<\/p>/gi,block=>{const plain=block.replace(/<[^>]+>/g,' ');return /(?:Conclusion intermédiaire|Intermediate conclusion)/i.test(plain)&&!/(?:Pourquoi|Why|Raisonnement|Reasoning)/i.test(plain)?'':block});
-  return source.split(/(<[^>]+>)/g).map(part=>part.startsWith('<')?part:finalizeText(part)).join('')
+  return source.split(/(<[^>]+>)/g).map(part=>part.startsWith('<')?part:finalizeInlineText(part)).join('')
 }
 function finalizeValue(value,depth=0){
   if(depth>8||value==null)return value;if(typeof value==='string')return finalizeText(value);if(Array.isArray(value))return value.map(v=>finalizeValue(v,depth+1));if(typeof value!=='object')return value;
@@ -53,7 +69,7 @@ function currentTango(){try{return typeof current!=='undefined'&&current?.game==
 function walkthroughIsTango(){try{return typeof walkthroughSession!=='undefined'&&walkthroughSession?.base?.game==='tango'}catch(_){return false}}
 function finalizeTextNodes(scope){
   if(!scope||!root.document?.createTreeWalker)return false;const walker=root.document.createTreeWalker(scope,root.NodeFilter?.SHOW_TEXT||4),nodes=[];let node;while((node=walker.nextNode()))nodes.push(node);let changed=false;
-  for(const n of nodes){const next=finalizeText(n.nodeValue);if(next!==n.nodeValue){n.nodeValue=next;changed=true}}
+  for(const n of nodes){const next=finalizeInlineText(n.nodeValue);if(next!==n.nodeValue){n.nodeValue=next;changed=true}}
   scope.querySelectorAll?.('.reason-step.conclusion').forEach(el=>{if(/\b(?:Conclusion intermédiaire|Intermediate conclusion)\b/i.test(el.textContent||'')){el.remove();changed=true}});return changed
 }
 function refreshWalkthroughSemanticRoles(){
@@ -77,5 +93,5 @@ function install(){
   try{if(typeof renderWalkthrough==='function'&&!renderWalkthrough.__quadludTextFinalizer){const previous=renderWalkthrough,wrapped=function(...args){const result=previous(...args);finalizeRenderedDom();return result};wrapped.__quadludTextFinalizer=true;wrapped.__quadludPrevious=previous;renderWalkthrough=wrapped;ok=true}}catch(_){ }
   installed=ok;if(ok)finalizeRenderedDom();return ok
 }
-return Object.freeze({VERSION,install,finalizeText,finalizeHtml,sanitizePresentation,dedupSemanticSentences,propositionKey,refreshWalkthroughSemanticRoles,_test:Object.freeze({replaceRawPieces,stripIntermediate,finalizeValue})});
+return Object.freeze({VERSION,install,finalizeText,finalizeHtml,sanitizePresentation,dedupSemanticSentences,propositionKey,refreshWalkthroughSemanticRoles,_test:Object.freeze({replaceRawPieces,normalizeFrenchGrammar,finalizeInlineText,stripIntermediate,finalizeValue})});
 });
