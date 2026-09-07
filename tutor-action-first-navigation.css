@@ -94,6 +94,15 @@
   .walkthrough-current-action,.cell.hint-focus{outline-width:4px!important;outline-offset:-4px!important}
   .walkthrough-chain-badge{min-width:18px;height:18px;font-size:12px;top:2px;inset-inline-end:2px}
 }
+
+/* v3.1.9-R5.3 — phone portrait proof chains keep the whole current
+   explanation visible. The solution-help notice is already presented when
+   entering Tutor and on every ordinary logical step; repeating it inside each
+   proof sub-step consumed the exact vertical space needed by the reasoning. */
+@media(max-width:520px) and (orientation:portrait){
+  body.tutor-active:has(.walkthrough-proof-chain-active) .walkthrough-help-note{display:none}
+}
+
 @media(prefers-reduced-motion:reduce){.cell.hint-focus{animation:none!important}}
 @media(forced-colors:active){
   .walkthrough-unit-context:not(.walkthrough-reasoning-context):not(.walkthrough-current-focus):not(.walkthrough-current-action),
