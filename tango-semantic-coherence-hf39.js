@@ -12,9 +12,10 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=2;
-const TOKEN='3.1.9-hf3.9-r2';
-const STYLE_ID='quadlud-tango-semantic-hf39-r2-style';
+const VERSION=3;
+const TOKEN='3.1.9-hf3.9-r3';
+const OWNS_HYPOTHETICAL_MARKERS=true;
+const STYLE_ID='quadlud-tango-semantic-hf39-r3-style';
 const STYLE_TEXT=`
 .hf39-marker-badge{position:absolute;left:2px;bottom:2px;z-index:30;display:grid!important;place-items:center;min-width:16px;height:16px;padding:0 3px;border:1px solid color-mix(in srgb,var(--accent) 68%,var(--ink));border-radius:999px;background:color-mix(in srgb,var(--paper) 94%,var(--accent));color:var(--ink);font:800 10px/14px -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;box-shadow:0 1px 3px color-mix(in srgb,var(--ink) 18%,transparent);pointer-events:none}
 .hf39-hypothesis-cell>.hf39-marker-badge{border-width:2px}
@@ -67,14 +68,14 @@ function inferUnit(d){
   const cells=cellsOfDeduction(d);if(cells.length<2)return null;
   const row=cells[0][0],column=cells[0][1];if(cells.every(c=>c[0]===row))return {family:'row',id:row};if(cells.every(c=>c[1]===column))return {family:'column',id:column};return null
 }
-function unitName(unit,loc=locale()){if(!unit)return'';if(unit.family==='row')return loc==='fr'?`ligne ${String.fromCharCode(65+unit.id)}`:`row ${String.fromCharCode(65+unit.id)}`;return loc==='fr'?`colonne ${unit.id+1}`:`column ${unit.id+1}`}
+function unitName(unit,loc=locale()){if(!unit)return'';if(unit.family==='row')return loc==='fr'?`la ligne ${String.fromCharCode(65+unit.id)}`:`row ${String.fromCharCode(65+unit.id)}`;return loc==='fr'?`la colonne ${unit.id+1}`:`column ${unit.id+1}`}
 function repairInvalidUnitText(text,d,loc=locale()){
   let source=normalizeTutorText(text);if(!/\b(?:colonne|column|ligne|row)\s+NaN\b/i.test(source))return source;
   const name=unitName(inferUnit(d),loc);if(!name)return source.replace(/\b(?:colonne|column|ligne|row)\s+NaN\b/gi,loc==='fr'?'la ligne ou la colonne concernée':'the relevant row or column');
   return source.replace(/\b(?:colonne|column|ligne|row)\s+NaN\b/gi,name)
 }
 function normalizePresentation(move,{isFinal=false,bridgeConclusion=false}={}){
-  const next=move,d=entryDeduction(next),loc=locale();if(!next.presentation)next.presentation={metadata:{},explanation:{}};
+  const next=move,d=entryDeduction(next),loc=locale(),contradictionRule=String(d?.rule||'')==='ASSUMPTION_CONTRADICTION';if(!next.presentation)next.presentation={metadata:{},explanation:{}};
   next.presentation.metadata={...(next.presentation.metadata||{}),showTutorMove:!!isFinal,logicalMoveDisplayStable:true};
   next.presentation.explanation={...(next.presentation.explanation||{})};
   next.presentation.explanation.where=repairInvalidUnitText(next.presentation.explanation.where,d,loc);
@@ -83,16 +84,21 @@ function normalizePresentation(move,{isFinal=false,bridgeConclusion=false}={}){
   next.why=repairInvalidUnitText(next.why||next.presentation.explanation.why,d,loc);
   if(!isFinal){
     next.move='';next.presentation.explanation.move='';
-    const contradictionConclusion=String(d?.rule||'')==='ASSUMPTION_CONTRADICTION'&&valueConclusions(d).length>0;
+    const contradictionConclusion=contradictionRule&&valueConclusions(d).length>0;
     if(bridgeConclusion||contradictionConclusion){
       next.pedagogyStageKind='reasoning';next.proofStage={...(next.proofStage||{}),kind:'reasoning',temporary:false,apply:false};
       next.where=loc==='fr'?`Reviens à l’hypothèse de départ.`:`Return to the starting assumption.`;
-      next.why=loc==='fr'?`L’hypothèse conduit à l’impasse constatée : elle est donc impossible.`:`The assumption leads to the dead end just shown, so it is impossible.`;
+      next.why=loc==='fr'?`L’hypothèse conduit à une contradiction : elle est donc impossible.`:`The assumption leads to a contradiction, so it is impossible.`;
       next.presentation.explanation.where=next.where;next.presentation.explanation.why=next.why
     }
     return next
   }
   const action=atomicAction(next),text=atomicActionText(next,loc);if(text){next.move=text;next.presentation.explanation.move=text}
+  if(contradictionRule){
+    next.where=loc==='fr'?`Reviens à l’hypothèse de départ.`:`Return to the starting assumption.`;
+    next.why=loc==='fr'?`La contradiction élimine l’hypothèse précédente : l’autre symbole est donc nécessaire.`:`The contradiction eliminates the previous assumption, so the other symbol is required.`;
+    next.presentation.explanation.where=next.where;next.presentation.explanation.why=next.why
+  }
   if(action&&next.presentation.action){const conclusions=(next.presentation.action.conclusions||[]).filter(c=>c?.type==='VALUE'&&sameCell(c.cell,action.cell)&&Number(c.value)===action.value);next.presentation.action={...next.presentation.action,conclusions:conclusions.length?copy(conclusions):[{type:'VALUE',cell:copy(action.cell),value:action.value}]}}
   return next
 }
@@ -100,7 +106,7 @@ function normalizeGeneratedMoves(session,start){
   if(!session||session.base?.game!=='tango'||!Array.isArray(session.moves)||start<0||start>=session.moves.length)return false;
   const added=session.moves.slice(start),last=added.length-1;
   added.forEach((move,index)=>{
-    const originalKind=String(move?.pedagogyStageKind||move?.proofStage?.kind||(index===last?'action':'reasoning')),isFinal=index===last,bridge=!isFinal&&originalKind==='action';
+    const originalKind=String(move?.pedagogyStageKind||move?.proofStage?.kind||(index===last?'action':'reasoning')),isFinal=index===last,bridge=!isFinal&&['action','conclusion','rollback'].includes(originalKind);
     if(!isFinal&&move?.proofSnapshot)move.snapshot=copy(move.proofSnapshot);
     if(!isFinal&&!bridge)move.proofStage={...(move.proofStage||{}),kind:originalKind,temporary:false,apply:false};
     normalizePresentation(move,{isFinal,bridgeConclusion:bridge});
@@ -180,5 +186,5 @@ function installRender(){
 }
 function install(){installStyles();return installGeneration()&&installRender()}
 function scheduleInstall(){installStyles();let tries=320,timer=null;const retry=()=>{const ok=install();if(ok){if(timer!=null)clearTimeout(timer);return true}if(tries--<=0)return false;timer=setTimeout(retry,10);return true};retry();if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true}
-return Object.freeze({VERSION,TOKEN,install,installStyles,scheduleInstall,normalizeGeneratedMoves,decorate,_test:Object.freeze({sameCell,stageKind,causalStep,valueConclusions,relationPremise,valuePremise,assumptionOf,snapshotValue,atomicAction,atomicActionText,cellsOfDeduction,inferUnit,unitName,normalizeTutorText,repairInvalidUnitText,normalizePresentation,proofMarkers,relationDetail,relationFallback})});
+return Object.freeze({VERSION,TOKEN,OWNS_HYPOTHETICAL_MARKERS,install,installStyles,scheduleInstall,normalizeGeneratedMoves,decorate,_test:Object.freeze({sameCell,stageKind,causalStep,valueConclusions,relationPremise,valuePremise,assumptionOf,snapshotValue,atomicAction,atomicActionText,cellsOfDeduction,inferUnit,unitName,normalizeTutorText,repairInvalidUnitText,normalizePresentation,proofMarkers,relationDetail,relationFallback})});
 });
