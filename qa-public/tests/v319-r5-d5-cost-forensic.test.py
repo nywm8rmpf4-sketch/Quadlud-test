@@ -47,64 +47,99 @@ def main():
         profile = page.evaluate("""()=>{
           const s=typeof walkthroughSession!=='undefined'?walkthroughSession:null;
           const P=globalThis.QuadludTangoPlayedMovePlanner;
-          const A=P?._attentionTest;
-          if(!s||!P||!A)throw new Error('missing Tango Tutor forensic runtime');
+          const TD=globalThis.TangoDifficulty;
+          if(!s||!P||!P._test||!TD)throw new Error('missing Tango Tutor forensic runtime');
           const copy=x=>x==null?x:JSON.parse(JSON.stringify(x));
           const puzzle={n:s.work?.n||s.base?.n||6,state:copy(s.work?.state),edges:copy(s.work?.edges||s.base?.edges||[])};
           const engine=P.sessionFromPublicBoard(puzzle,s.work.state);
           const tier=3, options={}, now=()=>performance.now();
-
-          let t=now();
           const allowed=P._test.allowedDirectDeductions(engine,tier);
-          const allowedMs=now()-t;
-          const ruleCounts={};
-          for(const d of allowed){const rule=String(d?.rule||'UNKNOWN');ruleCounts[rule]=(ruleCounts[rule]||0)+1}
 
-          const plans=[],candidateTimings=[];
-          t=now();
-          for(const d of allowed){
-            const c0=now();
-            let plan=A.fastDirectPlan(engine,tier,d,options);
-            let fast=true;
-            if(!plan){fast=false;plan=P._test.planFromFirstDeduction(engine,tier,d,{...options,advancedStart:false})}
-            const ms=now()-c0;
-            const conclusionTypes=(d?.conclusions||[]).reduce((acc,c)=>{const k=String(c?.type||'UNKNOWN');acc[k]=(acc[k]||0)+1;return acc},{});
-            candidateTimings.push({
-              id:String(d?.id||d?.signature||''),rule:String(d?.rule||'UNKNOWN'),fast,ms,conclusionTypes,
-              status:plan?.status||null,target:copy(plan?.target||null),value:plan?.value,
-              engineStepCount:plan?.engineStepCount||null,visibleRule:String(plan?.deduction?.rule||''),
-              proofRules:(plan?.proofChain||[]).map(x=>String(x?.rule||'')),
-              proofDepth:(plan?.proofChain||[]).length,
-              costVector:plan?.status==='move'?P._test.planCostVector(plan):null
-            });
-            if(plan?.status==='move')plans.push(plan);
+          function visibleConclusion(session,deduction){
+            const values=[];
+            for(const c of deduction?.conclusions||[]){
+              if(c?.type!=='VALUE'||!Array.isArray(c.cell)||(Number(c.value)!==0&&Number(c.value)!==1))continue;
+              const r=Number(c.cell[0]),col=Number(c.cell[1]);
+              if(session?.state?.[r]?.[col]===-1)values.push({target:[r,col],value:Number(c.value)});
+            }
+            values.sort((a,b)=>a.target[0]-b.target[0]||a.target[1]-b.target[1]||a.value-b.value);
+            return values[0]||null;
           }
-          const candidatePlanMs=now()-t;
+          function relationOnly(deduction){
+            const cs=deduction?.conclusions||[];
+            return cs.length>0&&cs.every(c=>c?.type==='RELATION'&&Array.isArray(c.a)&&Array.isArray(c.b));
+          }
+          function lightApplyRelations(session,deduction){
+            if(!relationOnly(deduction))return false;
+            const applied=copy(deduction);applied.id='D'+(++session.dedSeq);
+            let changed=false;
+            for(const c of applied.conclusions){
+              const old=session.relationBetween(c.a,c.b);
+              if(old&&Number(old.parity)===Number(c.parity)&&Number(old.rank)<=Number(applied.rank||0))continue;
+              const fact=session.addBaseRelation(c.a,c.b,Number(c.parity),{rank:Number(applied.rank)||0,deductionId:applied.id,dependencies:[applied.id],source:'derived'});
+              if(fact)changed=true;
+            }
+            if(!changed)return false;
+            session.appliedDeductions.push(applied);
+            session.rebuildRelationClosure();
+            return true;
+          }
+          function relationSignature(session){
+            return [...session.relationClosure.values()].map(rel=>{
+              const a=rel.a||[],b=rel.b||[];
+              return `${a[0]}:${a[1]}|${b[0]}:${b[1]}=${Number(rel.parity)}@${Number(rel.rank)||0}`;
+            }).sort().join(';');
+          }
+          function lightPlan(first){
+            const fork=engine.clone(),rules=[],start=now();let advancedMs=0;
+            let deduction=copy(first);
+            for(let step=1;step<=48;step++){
+              const visible=visibleConclusion(fork,deduction);
+              rules.push(String(deduction?.rule||''));
+              if(visible)return {status:'move',...visible,engineStepCount:step,visibleRule:String(deduction?.rule||''),rules,ms:now()-start,advancedMs,preAdvancedSignature:null};
+              if(!lightApplyRelations(fork,deduction))return {status:'unsupported',engineStepCount:step,rules,ms:now()-start,advancedMs,preAdvancedSignature:null};
+              const direct=P._test.allowedDirectDeductions(fork,tier);
+              if(direct.length){deduction=copy(direct[0]);continue}
+              const signature=relationSignature(fork),t=now();
+              const next=TD.nextAllowedDeduction(fork,tier,false);advancedMs+=now()-t;
+              deduction=copy(next?.deduction||null);
+              if(!deduction)return {status:next?.budgetHit?'budget-exhausted':'blocked',engineStepCount:step,rules,ms:now()-start,advancedMs,preAdvancedSignature:signature};
+              const advancedVisible=visibleConclusion(fork,deduction);
+              if(advancedVisible){rules.push(String(deduction?.rule||''));return {status:'move',...advancedVisible,engineStepCount:step+1,visibleRule:String(deduction?.rule||''),rules,ms:now()-start,advancedMs,preAdvancedSignature:signature}}
+              return {status:'unsupported-advanced-relation',engineStepCount:step+1,rules:[...rules,String(deduction?.rule||'')],ms:now()-start,advancedMs,preAdvancedSignature:signature};
+            }
+            return {status:'budget-exhausted',engineStepCount:48,rules,ms:now()-start,advancedMs,preAdvancedSignature:null};
+          }
 
-          t=now();
-          const selectorCandidates=P._test.buildSelectorCandidates(plans);
-          const selectorMs=now()-t;
-          t=now();
-          const selected=P._test.selectPlans(plans,{frontierComplete:true});
-          const selectMs=now()-t;
-
-          const byRule={};
-          for(const item of candidateTimings){const x=byRule[item.rule]||(byRule[item.rule]={count:0,ms:0,maxMs:0});x.count++;x.ms+=item.ms;x.maxMs=Math.max(x.maxMs,item.ms)}
-          const slowest=candidateTimings.slice().sort((a,b)=>b.ms-a.ms).slice(0,6);
-          const summaries=candidateTimings.map(({id,rule,conclusionTypes,target,value,engineStepCount,visibleRule,proofRules,proofDepth,costVector,ms})=>({id,rule,conclusionTypes,target,value,engineStepCount,visibleRule,proofRules,proofDepth,costVector,ms}));
+          const rows=[];let fullMs=0,lightMs=0;
+          for(const d of allowed){
+            let t=now();const full=P._test.planFromFirstDeduction(engine,tier,d,{...options,advancedStart:false});fullMs+=now()-t;
+            t=now();const light=lightPlan(d);lightMs+=now()-t;
+            rows.push({
+              id:String(d?.id||d?.signature||''),startingRule:String(d?.rule||''),
+              full:{status:full?.status||null,target:copy(full?.target||null),value:full?.value,engineStepCount:full?.engineStepCount||null,visibleRule:String(full?.deduction?.rule||'')},
+              light:{status:light.status,target:copy(light.target||null),value:light.value,engineStepCount:light.engineStepCount||null,visibleRule:light.visibleRule||null,ms:light.ms,advancedMs:light.advancedMs,preAdvancedSignature:light.preAdvancedSignature,rules:light.rules}
+            });
+          }
+          const mismatches=rows.filter(row=>JSON.stringify([row.full.status,row.full.target,row.full.value,row.full.engineStepCount,row.full.visibleRule])!==JSON.stringify([row.light.status,row.light.target,row.light.value,row.light.engineStepCount,row.light.visibleRule]));
+          const sigs=[...new Set(rows.map(row=>row.light.preAdvancedSignature).filter(Boolean))];
+          const fullMin=Math.min(...rows.filter(r=>r.full.status==='move').map(r=>r.full.engineStepCount));
+          const lightMin=Math.min(...rows.filter(r=>r.light.status==='move').map(r=>r.light.engineStepCount));
           return {
             attentionVersion:P.attentionContinuityVersion||null,
-            allowedMs,allowedCount:allowed.length,ruleCounts,
-            candidatePlanMs,fastCandidateCount:candidateTimings.filter(x=>x.fast).length,
-            selectorMs,selectMs,directPlans:plans.length,
-            candidateTimingByRule:byRule,slowestCandidates:slowest,
-            selected: selected?.plan?{target:copy(selected.plan.target),value:selected.plan.value,engineStepCount:selected.plan.engineStepCount,startingRule:selected.plan.startingDeduction?.rule||null,visibleRule:selected.plan.deduction?.rule||null,costVector:P._test.planCostVector(selected.plan)}:null,
-            candidates:summaries
+            candidateCount:allowed.length,fullMs,lightMs,mismatchCount:mismatches.length,
+            fullMin,lightMin,fullMinIds:rows.filter(r=>r.full.engineStepCount===fullMin).map(r=>r.id),lightMinIds:rows.filter(r=>r.light.engineStepCount===lightMin).map(r=>r.id),
+            preAdvancedSignatureCount:sigs.length,
+            lightAdvancedMs:rows.reduce((sum,r)=>sum+Number(r.light.advancedMs||0),0),
+            mismatches,rows
           };
         }""")
-        print('R5_D5_SUCCESSOR_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
+        print('R5_D5_LIGHT_CHAIN_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
         assert profile['attentionVersion'] == 10, profile
-        assert profile['allowedCount'] == 20 and profile['directPlans'] == 20, profile
+        assert profile['candidateCount'] == 20, profile
+        assert profile['mismatchCount'] == 0, profile
+        assert profile['fullMin'] == profile['lightMin'] == 15, profile
+        assert profile['fullMinIds'] == profile['lightMinIds'], profile
         context.close()
         browser.close()
 
