@@ -4,7 +4,7 @@
 'use strict';
 const assert=require('assert');
 const path=require('path');
-const runtime=name=>path.join(__dirname,'..','..',name);
+const runtime=name=>path.join(__dirname,'..','GitHub',name);
 const Policy=require(runtime('pedagogy-next-move-policy.js'));
 
 global.QuadludPedagogyNextMovePolicy=Policy;
