@@ -69,11 +69,20 @@ jobs:
           export PYTHONPATH="$PWD/tests"
           python3 tests/v319-semantic-tango-tutor-journey-browser.test.py
 
+      - name: Execute deterministic human R5.4 regression journey
+        env:
+          QUADLUD_HUMAN_R54_EVIDENCE_DIR: ${{ runner.temp }}/semantic-evidence/tango-expert-human-r54
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python3 tests/v319-hf39-r54-human-regression-browser.test.py
+
       - name: Upload semantic evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: tango-expert-tutor-semantic-evidence
-          path: ${{ runner.temp }}/semantic-evidence/tango-expert-fr-mobile-v1
+          path: ${{ runner.temp }}/semantic-evidence
           if-no-files-found: warn
           retention-days: 14
