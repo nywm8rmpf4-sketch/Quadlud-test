@@ -12,7 +12,7 @@ global.QuadludTangoPlayedMovePlanner=Baseline;
 global.QuadludPedagogyNextMovePolicy=Policy;
 require(path.join(ROOT,'GitHub','tango-attention-continuity-bridge.js'));
 const Bridge=global.QuadludTangoPlayedMovePlanner;
-assert.strictEqual(Bridge.attentionContinuityVersion,9);
+assert.strictEqual(Bridge.attentionContinuityVersion,10);
 
 // Same public visible-state contract as A13R1: C5=sun is direct, while the
 // full engine closure additionally derives downstream B5=moon.
@@ -48,6 +48,18 @@ assert(hydrated.some(x=>x.cell?.[0]===2&&x.cell?.[1]===4&&x.to===1),'hydrated me
 assert(hydrated.some(x=>x.cell?.[0]===1&&x.cell?.[1]===4&&x.to===0),'hydrated metadata restores downstream B5=moon');
 assert.strictEqual(fast.engineVisiblePlacementCount,full.engineVisiblePlacementCount,'hydrated placement count must match certified baseline');
 
+// The cheap direct-ranking path must be constructible from the demonstrated
+// visible VALUE conclusion alone: no session clone/apply is allowed before a
+// candidate is selected and its deferred engine metadata is actually read.
+const cheapDeduction={id:'cheap-r0',signature:'cheap-r0',rule:'TRIPLE_CONSTRAINT',rank:0,techniqueLevel:0,premises:[{cell:[0,1]}],conclusions:[{type:'VALUE',cell:[0,0],value:1}]};
+const cheapSession={n:2,state:[[-1,0],[-1,-1]],clone(){throw new Error('fast ranking must not clone the engine session')}};
+const cheap=Bridge._attentionTest.fastDirectPlan(cheapSession,1,cheapDeduction,{maxEngineSteps:24});
+assert.strictEqual(cheap.status,'move');
+assert.deepStrictEqual(cheap.target,[0,0]);
+assert.strictEqual(cheap.value,1);
+assert.deepStrictEqual(cheap.proofChain,[cheapDeduction]);
+assert.strictEqual(typeof Object.getOwnPropertyDescriptor(cheap,'engineVisiblePlacements')?.get,'function');
+
 const fastFrontier=Bridge._attentionTest.directFrontierCandidates(session,1,{maxEngineSteps:24,maxCandidatePlans:128});
 const baselineEval=Baseline._test.evaluateStartingDeductions(session,1,direct,{maxEngineSteps:24,maxCandidatePlans:128},false);
 const baselineSelected=Baseline._test.selectPlans(baselineEval.plans,{frontierComplete:!baselineEval.truncated&&!baselineEval.branchBudgetHit});
@@ -55,11 +67,14 @@ const bridgeSelected=Bridge._attentionTest.baselineDirectPlan(fastFrontier);
 assert(baselineSelected.plan&&bridgeSelected);
 assert.deepStrictEqual(bridgeSelected.target,baselineSelected.plan.target,'fast frontier selection must match certified baseline');
 assert.strictEqual(bridgeSelected.value,baselineSelected.plan.value);
+assert.deepStrictEqual(Baseline._test.planCostVector(bridgeSelected),Baseline._test.planCostVector(baselineSelected.plan),'selected fast plan cost must match certified baseline');
 assert.deepStrictEqual(bridgeSelected.engineVisiblePlacements,baselineSelected.plan.engineVisiblePlacements,'selected fast plan must serialize with complete certified engine metadata');
 
 const source=fs.readFileSync(path.join(ROOT,'GitHub','tango-attention-continuity-bridge.js'),'utf8');
-assert(source.includes("applyDeduction(copy(deduction),{close:false})"),'Tutor bridge must use no-close simulation for direct candidate ranking');
+const fastBody=source.slice(source.indexOf('function fastDirectPlan('),source.indexOf('function evaluateDirectStartingDeductions('));
+assert(fastBody.includes('directVisiblePlacements'),'Tutor bridge must construct direct ranking candidates from demonstrated VALUE conclusions');
+assert(!fastBody.includes('applyDeduction('),'Tutor direct candidate ranking must not apply/close the engine before selection');
 assert(source.includes('deferEngineMetadata'),'Tutor bridge must defer full closure metadata');
 assert(source.includes('evaluateDirectStartingDeductions'),'Tutor bridge must own the direct fast frontier');
 
-console.log('v319-r3ui-tango-attention-fast-frontier.test.js: PASS — certified planner unchanged; Tutor ranks direct candidates without closure and hydrates only the selected plan');
+console.log('v319-r3ui-tango-attention-fast-frontier.test.js: PASS — certified planner unchanged; Tutor ranks direct VALUE candidates without engine simulation and hydrates only the selected plan');

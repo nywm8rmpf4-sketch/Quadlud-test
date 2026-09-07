@@ -5,7 +5,7 @@
 (function(root){
 'use strict';
 
-const VERSION=9;
+const VERSION=10;
 const Planner=root.QuadludTangoPlayedMovePlanner;
 const Policy=root.QuadludPedagogyNextMovePolicy;
 if(!Planner||!Planner._test||typeof Planner.nextPlayedMove!=='function'||!Policy||typeof Policy.rank!=='function')return;
@@ -116,6 +116,20 @@ function directlyPlacesVisibleValue(session,deduction){
   const state=session?.state;if(!Array.isArray(state))return false;
   return !!(deduction?.conclusions||[]).some(c=>c?.type==='VALUE'&&Array.isArray(c.cell)&&c.cell.length===2&&state?.[Number(c.cell[0])]?.[Number(c.cell[1])]===-1&&(Number(c.value)===0||Number(c.value)===1))
 }
+function directVisiblePlacements(session,deduction){
+  const state=session?.state;if(!Array.isArray(state))return [];
+  const changes=[];
+  for(const conclusion of deduction?.conclusions||[]){
+    if(conclusion?.type!=='VALUE'||!Array.isArray(conclusion.cell)||conclusion.cell.length!==2)continue;
+    const r=Number(conclusion.cell[0]),c=Number(conclusion.cell[1]),value=Number(conclusion.value);
+    if(!Number.isInteger(r)||!Number.isInteger(c)||(value!==0&&value!==1)||state?.[r]?.[c]!==-1)continue;
+    if(!changes.some(change=>change.cell[0]===r&&change.cell[1]===c&&change.to===value))changes.push({cell:[r,c],from:-1,to:value});
+  }
+  changes.sort((a,b)=>a.cell[0]-b.cell[0]||a.cell[1]-b.cell[1]||a.to-b.to);
+  if(!changes.length)return [];
+  const proof=copy(deduction),relationPathLength=typeof Planner._test.relationPathLengthForDeduction==='function'?Planner._test.relationPathLengthForDeduction(session,deduction):0;
+  return changes.map(change=>({target:change.cell.slice(),value:change.to,deduction:copy(proof),proofChain:[copy(proof)],humanRelationPathLength:relationPathLength,engineVisiblePlacementCount:changes.length,engineVisiblePlacements:copy(changes)}))
+}
 function candidateLimitFor(session,options){return Number.isInteger(options?.maxCandidatePlans)&&options.maxCandidatePlans>0?options.maxCandidatePlans:Math.max(24,Number(session?.n||6)*Number(session?.n||6)*2)}
 function deferEngineMetadata(plan,session,tier,deduction,options){
   if(!plan||plan.status!=='move')return plan;
@@ -137,9 +151,8 @@ function deferEngineMetadata(plan,session,tier,deduction,options){
   return plan
 }
 function fastDirectPlan(session,tier,deduction,options={}){
-  if(!directlyPlacesVisibleValue(session,deduction)||typeof session?.clone!=='function'||typeof Planner._test.frontierPlacementsFromApplied!=='function'||typeof Planner._test.traceEntries!=='function'||typeof Planner._test.selectPlans!=='function'||typeof Planner._test.planFromFirstDeduction!=='function')return null;
-  const fork=session.clone(),before=copy(fork.state),applied=fork.applyDeduction(copy(deduction),{close:false});if(!applied?.deduction)return null;
-  const trace=Planner._test.traceEntries(applied),placements=Planner._test.frontierPlacementsFromApplied(session,tier,deduction,before,fork.state,trace,[]);if(!placements.length)return null;
+  if(!directlyPlacesVisibleValue(session,deduction)||typeof Planner._test.selectPlans!=='function'||typeof Planner._test.planFromFirstDeduction!=='function')return null;
+  const placements=directVisiblePlacements(session,deduction);if(!placements.length)return null;
   const branchPlans=placements.map(placement=>deferEngineMetadata({status:'move',tierIndex:tier,...placement,engineStepCount:1,advancedStart:false,startingDeduction:copy(deduction)},session,tier,deduction,options));
   const selected=Planner._test.selectPlans(branchPlans,{frontierComplete:true});return selected.plan||branchPlans[0]||null
 }
@@ -209,5 +222,5 @@ function nextPlayedMove(session,diff,options={}){
   return originalNextPlayedMove(session,diff,options)
 }
 
-root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,recentPlayedTargets,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,dominantAxis,expandContextAlongAxis,LOCAL_AXIS_RADIUS,RECENT_ACTION_GROUPS,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,localDependencyContinuationCandidate,directlyPlacesVisibleValue,candidateLimitFor,deferEngineMetadata,fastDirectPlan,evaluateDirectStartingDeductions,directFrontierCandidates,baselineDirectPlan,baselineContinuationPlan,contextualDirectPlan,contextualDependencyPlan,NON_SIMPLE_CONTINUATION_RULES})});
+root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,recentPlayedTargets,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,dominantAxis,expandContextAlongAxis,LOCAL_AXIS_RADIUS,RECENT_ACTION_GROUPS,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,localDependencyContinuationCandidate,directlyPlacesVisibleValue,directVisiblePlacements,candidateLimitFor,deferEngineMetadata,fastDirectPlan,evaluateDirectStartingDeductions,directFrontierCandidates,baselineDirectPlan,baselineContinuationPlan,contextualDirectPlan,contextualDependencyPlan,NON_SIMPLE_CONTINUATION_RULES})});
 })(typeof globalThis!=='undefined'?globalThis:this);

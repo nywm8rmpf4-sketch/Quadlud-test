@@ -83,7 +83,10 @@ def main():
           };
         }""")
         print('R5_D5_COST_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
-        assert profile['attentionVersion'] == 8, profile
+        assert profile['attentionVersion'] == 10, profile
+        assert profile['directPlans'] == 20 and profile['directEvaluated'] == 20 and profile['directTotal'] == 20, profile
+        # The real click timeout is 10 s; project QA requires 10% timing margin.
+        assert profile['directMs'] < 9000, profile
         context.close()
         browser.close()
 
