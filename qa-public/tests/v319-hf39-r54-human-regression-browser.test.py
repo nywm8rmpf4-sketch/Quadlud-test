@@ -54,13 +54,16 @@ def install_human_fixture(page) -> dict:
           closeHintNotice();
           document.body.classList.remove('tutor-active');
           const fixture={
+            // Same structural puzzle as the human report, using its observed
+            // Soleil/Lune polarity. Global symbol complementation preserves all
+            // Tango constraints and relation topology.
             sol:[
-              [1,0,0,1,1,0],
-              [0,1,1,0,1,0],
-              [0,0,1,1,0,1],
-              [1,1,0,0,1,0],
+              [0,1,1,0,0,1],
               [1,0,0,1,0,1],
-              [0,1,1,0,0,1]
+              [1,1,0,0,1,0],
+              [0,0,1,1,0,1],
+              [0,1,1,0,1,0],
+              [1,0,0,1,1,0]
             ],
             givens:new Set([6,9,10,11,20,31]),
             edges:[[2,0,'d','×'],[2,2,'r','='],[2,1,'d','×'],[3,3,'d','×'],[0,0,'d','×'],[0,3,'r','=']],
