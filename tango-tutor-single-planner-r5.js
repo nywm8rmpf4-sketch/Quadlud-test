@@ -7,28 +7,49 @@
 (function(root){
 'use strict';
 
-const VERSION=1;
-const TOKEN='3.1.9-hf3.9-r5.1b-single-planner-v1';
+const VERSION=2;
+const TOKEN='3.1.9-hf3.9-r5.1b-single-planner-v2';
+const DIFF_TO_TIER=Object.freeze({easy:0,medium:1,hard:2,expert:3,facile:0,moyen:1,difficile:2});
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function planner(){const p=root.QuadludTangoPlayedMovePlanner;if(!p||typeof p.nextPlayedMove!=='function'||typeof p.sessionFromPublicBoard!=='function')throw new Error('Soleil/Lune played-move planner unavailable');return p}
 function runtime(){const r=root.QuadludTangoPlayedMoveRuntime;if(!r||typeof r.selectDisplayProof!=='function')throw new Error('Soleil/Lune played-move runtime unavailable');return r}
 function pedagogy(){const h=root.QuadludTangoHumanPedagogyR4;if(!h||typeof h?._test?.proofStagesForDeduction!=='function')throw new Error('Soleil/Lune human pedagogy unavailable');return h}
-function humanizeTutorPlan(session,diff,options={}){
-  const P=planner(),R=runtime(),H=pedagogy(),plan=P.nextPlayedMove(session,diff,options);
+function tierIndex(diff){if(Number.isInteger(diff)&&diff>=0&&diff<=3)return diff;return DIFF_TO_TIER[String(diff||'').trim().toLowerCase()]}
+function hasDirectVisibleDeduction(session,diff){
+  const P=planner(),T=P._test,A=P._attentionTest,tier=tierIndex(diff);
+  if(!Number.isInteger(tier)||typeof T?.allowedDirectDeductions!=='function'||typeof A?.directlyPlacesVisibleValue!=='function')return null;
+  try{return (T.allowedDirectDeductions(session,tier)||[]).some(d=>A.directlyPlacesVisibleValue(session,d))}catch(_){return null}
+}
+function attachHumanProof(session,plan,H,R,mode){
   if(plan?.status!=='move')return plan||{status:'error',reason:'empty-plan'};
-  let displayProof=null;
-  try{displayProof=H._test?.evaluatePlanHumanProof?.(session,plan)?.displayProof||null}catch(_){displayProof=null}
+  let displayProof=plan.displayProof||null;
+  if(!displayProof)try{displayProof=H._test?.evaluatePlanHumanProof?.(session,plan)?.displayProof||null}catch(_){displayProof=null}
   if(!displayProof)try{displayProof=R.selectDisplayProof(session,plan)}catch(_){displayProof=null}
-  const displayDeduction=displayProof?.deduction||R._test?.minimalDisplayDeduction?.(plan.deduction)||copy(plan.deduction);
+  const displayDeduction=plan.displayDeduction||displayProof?.deduction||R._test?.minimalDisplayDeduction?.(plan.deduction)||copy(plan.deduction);
   if(!displayDeduction)return {status:'error',reason:'missing-display-deduction'};
   return {
-    ...copy(plan),
-    displayProof:copy(displayProof),
-    displayDeduction:copy(displayDeduction),
-    humanGlobalSelection:false,
-    humanCandidateCount:Number(plan.candidateCount)||0,
+    ...copy(plan),displayProof:copy(displayProof),displayDeduction:copy(displayDeduction),
+    tutorPlannerMode:mode,
     humanSignature:`${plan.target?.join(',')||''}:${plan.value}|${plan.startingDeduction?.signature||plan.deduction?.signature||plan.deduction?.id||''}|${displayProof?.kind||'engine-proof'}|tutor-r5`
   }
+}
+function humanizeTutorPlan(session,diff,options={}){
+  const P=planner(),R=runtime(),H=pedagogy(),directVisible=hasDirectVisibleDeduction(session,diff);
+  // Preserve the validated human-global ordering while a directly playable
+  // visible deduction exists. This is the cheap frontier that yields the
+  // natural B4 -> C6 progression. If only invisible relation starts remain,
+  // avoid rebuilding the exhaustive human frontier and delegate exactly once
+  // to the R5 pruned planner (D5 class of states).
+  if(directVisible!==false&&typeof H.chooseGloballySimplestPlan==='function'){
+    let globalPlan=null;try{globalPlan=H.chooseGloballySimplestPlan(session,diff,options)}catch(_){globalPlan=null}
+    if(globalPlan)return attachHumanProof(session,globalPlan,H,R,'direct-human-global')
+  }
+  const plan=P.nextPlayedMove(session,diff,options),out=attachHumanProof(session,plan,H,R,'relation-pruned-single');
+  if(out?.status==='move'){
+    out.humanGlobalSelection=false;
+    out.humanCandidateCount=Number(out.candidateCount)||0;
+  }
+  return out
 }
 function walkthroughGenerateTutorPlannerNext(){
   let s=null;try{s=typeof walkthroughSession!=='undefined'?walkthroughSession:null}catch(_){s=null}
@@ -50,7 +71,7 @@ function walkthroughGenerateTutorPlannerNext(){
     const info={
       rule:presentation.rule||d.rule,technique:presentation.technique,rank:presentation.rank??d.rank,techniqueLevel:presentation.techniqueLevel??d.techniqueLevel,target:[r,c],presentation,deduction:reasoning,
       where:presentation.explanation?.where||'',why:presentation.explanation?.why||'',move:last?(presentation.explanation?.move||presenter.conclusionText(d)):'',automatic:[],pedagogyStageKind:stage.kind,
-      metrics:{plannerStatus:'move',selectionStatus:plan.selectionStatus||null,candidateCount:Number(plan.candidateCount)||0,humanCandidateCount:Number(plan.humanCandidateCount)||0,humanGlobalSelection:false,frontierComplete:plan.frontierComplete!==false,humanProofPolicy:H.POLICY||runtime().HUMAN_PROOF_POLICY||null,humanProofKind:plan.displayProof?.kind||'engine-proof',humanProofCostVector:Array.isArray(plan.displayProof?.costVector)?plan.displayProof.costVector.slice():null,humanProofTraceCollapsed:!!plan.displayProof?.traceCollapsed},
+      metrics:{plannerStatus:'move',selectionStatus:plan.selectionStatus||null,candidateCount:Number(plan.candidateCount)||0,humanCandidateCount:Number(plan.humanCandidateCount)||0,humanGlobalSelection:!!plan.humanGlobalSelection,frontierComplete:plan.frontierComplete!==false,humanProofPolicy:H.POLICY||runtime().HUMAN_PROOF_POLICY||null,humanProofKind:plan.displayProof?.kind||'engine-proof',humanProofCostVector:Array.isArray(plan.displayProof?.costVector)?plan.displayProof.costVector.slice():null,humanProofTraceCollapsed:!!plan.displayProof?.traceCollapsed,tutorPlannerMode:plan.tutorPlannerMode||null},
       beforeSnapshot:copy(beforeSnapshot)
     };
     info.snapshot=copy(last?finalSnapshot:beforeSnapshot);s.moves.push(info)
@@ -69,7 +90,7 @@ function install(){
   root.walkthroughGenerateTangoNext=walkthroughGenerateTutorPlannerNext;
   return true
 }
-const api=Object.freeze({VERSION,TOKEN,install,humanizeTutorPlan,walkthroughGenerateTutorPlannerNext,_test:Object.freeze({humanizeTutorPlan})});
+const api=Object.freeze({VERSION,TOKEN,install,humanizeTutorPlan,walkthroughGenerateTutorPlannerNext,_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,attachHumanProof,humanizeTutorPlan})});
 root.QuadludTangoTutorSinglePlannerR5=api;
 if(typeof document!=='undefined')install();
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
