@@ -5,7 +5,7 @@
 (function(root){
 'use strict';
 
-const VERSION=8;
+const VERSION=9;
 const Planner=root.QuadludTangoPlayedMovePlanner;
 const Policy=root.QuadludPedagogyNextMovePolicy;
 if(!Planner||!Planner._test||typeof Planner.nextPlayedMove!=='function'||!Policy||typeof Policy.rank!=='function')return;
@@ -112,8 +112,48 @@ function localDependencyContinuationCandidate(candidate,context,localContext){
   const realPremises=Policy._test.uniqCells(candidate?.premiseCells||[]).filter(cell=>!sameCell(cell,candidate.target));
   return realPremises.length>0&&realPremises.every(cell=>knownKeys.has(cellKey(cell)))
 }
+function directlyPlacesVisibleValue(session,deduction){
+  const state=session?.state;if(!Array.isArray(state))return false;
+  return !!(deduction?.conclusions||[]).some(c=>c?.type==='VALUE'&&Array.isArray(c.cell)&&c.cell.length===2&&state?.[Number(c.cell[0])]?.[Number(c.cell[1])]===-1&&(Number(c.value)===0||Number(c.value)===1))
+}
+function candidateLimitFor(session,options){return Number.isInteger(options?.maxCandidatePlans)&&options.maxCandidatePlans>0?options.maxCandidatePlans:Math.max(24,Number(session?.n||6)*Number(session?.n||6)*2)}
+function deferEngineMetadata(plan,session,tier,deduction,options){
+  if(!plan||plan.status!=='move')return plan;
+  let cached=null;
+  const cheapCount=Number(plan.engineVisiblePlacementCount)||0,cheapPlacements=copy(plan.engineVisiblePlacements||[]);
+  function hydrate(){
+    if(cached)return cached;
+    const full=Planner._test.planFromFirstDeduction(session,tier,copy(deduction),{...options,advancedStart:false});
+    if(full?.status!=='move'||!sameCell(full.target,plan.target)||Number(full.value)!==Number(plan.value)||JSON.stringify(Planner._test.planCostVector(full))!==JSON.stringify(Planner._test.planCostVector(plan))){
+      cached={count:cheapCount,placements:cheapPlacements};return cached
+    }
+    cached={count:Number(full.engineVisiblePlacementCount)||0,placements:copy(full.engineVisiblePlacements||[])};return cached
+  }
+  Object.defineProperties(plan,{
+    engineVisiblePlacementCount:{enumerable:true,configurable:true,get(){return hydrate().count}},
+    engineVisiblePlacements:{enumerable:true,configurable:true,get(){return copy(hydrate().placements)}}
+  });
+  Object.defineProperty(plan,'__attentionFastDirect',{value:true,enumerable:false,configurable:false});
+  return plan
+}
+function fastDirectPlan(session,tier,deduction,options={}){
+  if(!directlyPlacesVisibleValue(session,deduction)||typeof session?.clone!=='function'||typeof Planner._test.frontierPlacementsFromApplied!=='function'||typeof Planner._test.traceEntries!=='function'||typeof Planner._test.selectPlans!=='function'||typeof Planner._test.planFromFirstDeduction!=='function')return null;
+  const fork=session.clone(),before=copy(fork.state),applied=fork.applyDeduction(copy(deduction),{close:false});if(!applied?.deduction)return null;
+  const trace=Planner._test.traceEntries(applied),placements=Planner._test.frontierPlacementsFromApplied(session,tier,deduction,before,fork.state,trace,[]);if(!placements.length)return null;
+  const branchPlans=placements.map(placement=>deferEngineMetadata({status:'move',tierIndex:tier,...placement,engineStepCount:1,advancedStart:false,startingDeduction:copy(deduction)},session,tier,deduction,options));
+  const selected=Planner._test.selectPlans(branchPlans,{frontierComplete:true});return selected.plan||branchPlans[0]||null
+}
+function evaluateDirectStartingDeductions(session,tier,deductions,options){
+  if(typeof Planner._test.planFromFirstDeduction!=='function')return Planner._test.evaluateStartingDeductions(session,tier,deductions,options,false);
+  const limit=candidateLimitFor(session,options),chosen=(deductions||[]).slice(0,limit),plans=[];let branchBudgetHit=false;
+  for(const deduction of chosen){
+    const fast=fastDirectPlan(session,tier,deduction,options),plan=fast||Planner._test.planFromFirstDeduction(session,tier,deduction,{...options,advancedStart:false});
+    if(plan?.status==='move')plans.push(plan);else if(plan?.status==='budget-exhausted')branchBudgetHit=true
+  }
+  return {plans,truncated:(deductions||[]).length>chosen.length,branchBudgetHit,evaluated:chosen.length,total:(deductions||[]).length}
+}
 function directFrontierCandidates(session,tier,options){
-  const direct=Planner._test.allowedDirectDeductions(session,tier),evaluation=Planner._test.evaluateStartingDeductions(session,tier,direct,options,false);if(!evaluation.plans.length)return {evaluation,frontier:[],policyCandidates:[]};
+  const direct=Planner._test.allowedDirectDeductions(session,tier),evaluation=evaluateDirectStartingDeductions(session,tier,direct,options);if(!evaluation.plans.length)return {evaluation,frontier:[],policyCandidates:[]};
   const selectorCandidates=Planner._test.buildSelectorCandidates(evaluation.plans),activeIds=new Set(selectorCandidates.map(c=>c.id)),blocked=new Set(selectorCandidates.filter(c=>(c.blockedBy||[]).some(id=>activeIds.has(id))).map(c=>c.id));
   const frontier=selectorCandidates.filter(c=>!blocked.has(c.id));
   const policyCandidates=frontier.map(c=>{const cells=planCells(c.plan);return {id:c.id,stableKey:c.stableKey,baseCost:Planner._test.planCostVector(c.plan),target:c.plan.target,value:c.plan.value,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan}});
@@ -169,5 +209,5 @@ function nextPlayedMove(session,diff,options={}){
   return originalNextPlayedMove(session,diff,options)
 }
 
-root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,recentPlayedTargets,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,dominantAxis,expandContextAlongAxis,LOCAL_AXIS_RADIUS,RECENT_ACTION_GROUPS,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,localDependencyContinuationCandidate,directFrontierCandidates,baselineDirectPlan,baselineContinuationPlan,contextualDirectPlan,contextualDependencyPlan,NON_SIMPLE_CONTINUATION_RULES})});
+root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,recentPlayedTargets,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,dominantAxis,expandContextAlongAxis,LOCAL_AXIS_RADIUS,RECENT_ACTION_GROUPS,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,localDependencyContinuationCandidate,directlyPlacesVisibleValue,candidateLimitFor,deferEngineMetadata,fastDirectPlan,evaluateDirectStartingDeductions,directFrontierCandidates,baselineDirectPlan,baselineContinuationPlan,contextualDirectPlan,contextualDependencyPlan,NON_SIMPLE_CONTINUATION_RULES})});
 })(typeof globalThis!=='undefined'?globalThis:this);
