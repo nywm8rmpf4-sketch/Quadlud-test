@@ -9,7 +9,20 @@ const runtime=name=>path.join(__dirname,'..','GitHub',name);
 const Policy=require(runtime('pedagogy-next-move-policy.js'));
 
 global.QuadludPedagogyNextMovePolicy=Policy;
-global.QuadludTangoPlayedMovePlanner={nextPlayedMove(){return null},_test:{}};
+global.QuadludTangoPlayedMovePlanner={
+  nextPlayedMove(){return null},
+  _test:{
+    selectPlans(plans,{frontierComplete=true}={}){
+      const plan=plans?.[0]||null;
+      if(!plan)return {plan:null,selection:{status:'empty',selected:null},candidates:[]};
+      return {
+        plan,
+        selection:{status:frontierComplete?'human-proof-global-minimum':'best-available',selected:{costVector:[0,1,1,2,2,0,0]}},
+        candidates:[{plan}]
+      };
+    }
+  }
+};
 global.walkthroughSession={
   base:{game:'tango'},
   work:{state:Array.from({length:6},()=>Array(6).fill(-1))},
@@ -51,14 +64,24 @@ assert.equal(T.localDependencyContinuationCandidate(rank1,context,local),false,'
 const abstract=candidate('LINE_DOMAIN_SUPPORT',[2,2],[[2,3],[2,4],[2,5],[2,2]],[0,1,1,5,6,2,1]);
 assert.equal(T.localDependencyContinuationCandidate(abstract,context,local),false,'abstract line-domain support must remain excluded');
 
+const baselineFixture={status:'move',target:[3,4],value:0,deduction:{rule:'TRIPLE_CONSTRAINT'}};
+const reused=T.baselineDirectPlan({evaluation:{plans:[baselineFixture],truncated:false,branchBudgetHit:false}});
+assert.deepStrictEqual(reused.target,[3,4],'cached direct frontier must preserve the baseline-selected target');
+assert.equal(reused.selectionStatus,'human-proof-global-minimum','cached direct frontier must preserve baseline selector status');
+assert.equal(reused.candidateCount,1,'cached direct frontier must preserve baseline candidate count');
+assert.equal(reused.frontierComplete,true,'cached direct frontier must preserve completeness');
+
 const bridgeSource=fs.readFileSync(runtime('tango-attention-continuity-bridge.js'),'utf8');
 const nextStart=bridgeSource.indexOf('function nextPlayedMove('),nextEnd=bridgeSource.indexOf('\n\nroot.QuadludTangoPlayedMovePlanner=',nextStart);
 assert.ok(nextStart>=0&&nextEnd>nextStart,'attention bridge nextPlayedMove source must remain structurally identifiable');
-assert.equal(bridgeSource.slice(nextStart,nextEnd).includes('contextualDependencyPlan('),false,'baseline attention bridge must not run the specialized recent-dependency planner; R5 owns that probe');
+const nextSource=bridgeSource.slice(nextStart,nextEnd);
+assert.equal(nextSource.includes('contextualDependencyPlan('),false,'baseline attention bridge must not run the specialized recent-dependency planner; R5 owns that probe');
+assert.equal((nextSource.match(/directFrontierCandidates\(/g)||[]).length,1,'one Tutor move must build the reusable direct frontier at most once in the attention bridge');
+assert.equal(nextSource.includes('baselineDirectPlan(frontierData)'),true,'baseline direct fallback must reuse the already computed frontier instead of replanning it');
 assert.equal(typeof T.contextualDependencyPlan,'function','specialized recent-dependency selector must remain exported for R5 orchestration');
 
 global.walkthroughGenerateTangoNext=function baselineGenerate(){return 'baseline'};
 assert.equal(Orchestrator.install(),true,'R5 orchestrator must install on the Tango Tutor generation hook');
 assert.equal(global.walkthroughGenerateTangoNext.__quadludTutorAttentionOrchestratorR5,true,'installed Tango Tutor hook must carry the R5 marker');
 
-console.log('v319-r3ui-tango-attention-dependency.test.js: PASS — local target + recent demonstrated source only; dependency probe owned by R5; redundant late probes suppressed');
+console.log('v319-r3ui-tango-attention-dependency.test.js: PASS — R5 dependency probe single-owner; direct Tutor frontier reused without changing baseline selection');

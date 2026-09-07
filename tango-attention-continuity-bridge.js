@@ -5,7 +5,7 @@
 (function(root){
 'use strict';
 
-const VERSION=6;
+const VERSION=7;
 const Planner=root.QuadludTangoPlayedMovePlanner;
 const Policy=root.QuadludPedagogyNextMovePolicy;
 if(!Planner||!Planner._test||typeof Planner.nextPlayedMove!=='function'||!Policy||typeof Policy.rank!=='function')return;
@@ -119,9 +119,15 @@ function directFrontierCandidates(session,tier,options){
   const policyCandidates=frontier.map(c=>{const cells=planCells(c.plan);return {id:c.id,stableKey:c.stableKey,baseCost:Planner._test.planCostVector(c.plan),target:c.plan.target,value:c.plan.value,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan}});
   return {evaluation,frontier,policyCandidates}
 }
-function contextualDirectPlan(session,diff,options,context){
+function baselineDirectPlan(frontierData){
+  const evaluation=frontierData?.evaluation;if(!evaluation?.plans?.length||typeof Planner._test.selectPlans!=='function')return null;
+  const frontierComplete=!evaluation.truncated&&!evaluation.branchBudgetHit,selected=Planner._test.selectPlans(evaluation.plans,{frontierComplete});
+  if(!selected?.plan||!selected?.selection?.selected)return null;
+  return {...copy(selected.plan),selectionStatus:selected.selection.status,selectedCostVector:copy(selected.selection.selected.costVector),candidateCount:selected.candidates.length,frontierComplete,budgetHit:!frontierComplete}
+}
+function contextualDirectPlan(session,diff,options,context,frontierData=null){
   const contextCells=context?.recentCells||[],pending=context?.pendingConclusions||[],tier=tierIndex(diff);if(!Number.isInteger(tier)||(!contextCells.length&&!pending.length))return null;
-  const {evaluation,frontier,policyCandidates}=directFrontierCandidates(session,tier,options);if(!frontier.length)return null;
+  const {evaluation,frontier,policyCandidates}=frontierData||directFrontierCandidates(session,tier,options);if(!frontier.length)return null;
   const eligible=policyCandidates.filter(c=>pendingConclusionMatch(c,pending)||simpleDirectContinuationCandidate(c,contextCells));if(!eligible.length)return null;
   const ranked=Policy.rank(eligible,{recentCells:contextCells,pendingConclusions:pending}),selected=ranked.selected;if(!selected?.payload)return null;
   const frontierComplete=!evaluation.truncated&&!evaluation.branchBudgetHit;
@@ -138,15 +144,17 @@ function contextualDependencyPlan(session,diff,options,context,localContext){
 function nextPlayedMove(session,diff,options={}){
   const context=tutorRecentContext();if(!context.recentCells.length&&!context.pendingConclusions.length)return originalNextPlayedMove(session,diff,options);
   try{
-    const exact=contextualDirectPlan(session,diff,options,context);if(exact)return exact;
+    const tier=tierIndex(diff),frontierData=Number.isInteger(tier)?directFrontierCandidates(session,tier,options):null;
+    const exact=contextualDirectPlan(session,diff,options,context,frontierData);if(exact)return exact;
     const local=expandContextAlongAxis(context,session?.state,LOCAL_AXIS_RADIUS);
     if(local.localExpansionApplied){
-      const contextual=contextualDirectPlan(session,diff,options,local);
+      const contextual=contextualDirectPlan(session,diff,options,local,frontierData);
       if(contextual)return {...contextual,localAttentionContinuation:true,localAttentionAxis:copy(local.localAxis),localAttentionRadius:LOCAL_AXIS_RADIUS,humanRecentCellsOriginal:copy(context.recentCells)}
     }
+    const baseline=baselineDirectPlan(frontierData);if(baseline)return baseline;
   }catch(_){/* fail safely to certified baseline planner */}
   return originalNextPlayedMove(session,diff,options)
 }
 
-root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,recentPlayedTargets,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,dominantAxis,expandContextAlongAxis,LOCAL_AXIS_RADIUS,RECENT_ACTION_GROUPS,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,localDependencyContinuationCandidate,directFrontierCandidates,contextualDirectPlan,contextualDependencyPlan,NON_SIMPLE_CONTINUATION_RULES})});
+root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,recentPlayedTargets,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,dominantAxis,expandContextAlongAxis,LOCAL_AXIS_RADIUS,RECENT_ACTION_GROUPS,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,localDependencyContinuationCandidate,directFrontierCandidates,baselineDirectPlan,contextualDirectPlan,contextualDependencyPlan,NON_SIMPLE_CONTINUATION_RULES})});
 })(typeof globalThis!=='undefined'?globalThis:this);
