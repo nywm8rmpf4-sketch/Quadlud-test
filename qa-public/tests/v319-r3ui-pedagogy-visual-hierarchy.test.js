@@ -63,8 +63,10 @@ assert.deepStrictEqual(bridgeSession.moves.map(m=>m.pedagogyStageKind),['hypothe
 const css=fs.readFileSync(path.join(ROOT,'GitHub','tutor-action-first-navigation.css'),'utf8');
 assert(css.includes('.walkthrough-unit-context'));assert(css.includes('.hint-unit-context'));assert(css.includes('.walkthrough-reasoning-context'));assert(css.includes('.walkthrough-current-focus'));assert(css.includes('.walkthrough-current-action'));
 assert(/walkthrough-unit-context[\s\S]*?outline:none/.test(css));assert(/walkthrough-unit-context\.walkthrough-context[\s\S]*?box-shadow:inset 0 0 0 999px/.test(css));assert(/walkthrough-reasoning-context[\s\S]*?outline:2px dashed/.test(css));assert(/walkthrough-current-focus[^\{]*\{[\s\S]*?outline:3px solid/.test(css));assert(/walkthrough-current-action[^\{]*\{[\s\S]*?outline:5px double/.test(css));assert(css.includes('@media(forced-colors:active)'));assert(css.includes('.ng-focus-target{outline-style:double'));
+assert(css.includes('@media(max-width:520px) and (orientation:portrait)'),'R5.3 phone portrait proof-fit media query missing');
+assert(css.includes('body.tutor-active:has(.walkthrough-proof-chain-active) .walkthrough-help-note{display:none}'),'R5.3 must reclaim repeated help-note space during proof chains');
 
-const unitToken='3.1.9-r3ui-causal-focus-r4',cssToken='3.1.9-r3ui-unit-context-r2',navigationToken='3.1.9-r3ui-unit-context-r2',bridgeToken='3.1.9-r3ui-progressive-proof-r3',playedToken='3.1.9-a13r6-single-proof',singlePlannerToken='3.1.9-hf3.9-r5.1b-single-planner-v2';
+const unitToken='3.1.9-r3ui-causal-focus-r4',cssToken='3.1.9-hf3.9-r5.3-proof-fit-r1',navigationToken='3.1.9-hf3.9-r5.2-action-atomicity-r1',bridgeToken='3.1.9-r3ui-progressive-proof-r3',playedToken='3.1.9-a13r6-single-proof',singlePlannerToken='3.1.9-hf3.9-r5.1b-single-planner-v2';
 const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8'),sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
 assert(index.includes(`tutor-action-first-navigation.css?v=${cssToken}`));assert(sw.includes(`./tutor-action-first-navigation.css?v=${cssToken}`));
 assert(index.includes(`tutor-action-first-navigation.js?v=${navigationToken}`));assert(sw.includes(`./tutor-action-first-navigation.js?v=${navigationToken}`));
@@ -72,5 +74,5 @@ assert(index.includes(`tango-pedagogy-unit-focus.js?v=${unitToken}`));assert(sw.
 assert(index.includes(`tango-progressive-proof-bridge.js?v=${bridgeToken}`));assert(sw.includes(`./tango-progressive-proof-bridge.js?v=${bridgeToken}`));
 assert(index.includes(`tango-played-move-runtime.js?v=${playedToken}`));assert(sw.includes(`./tango-played-move-runtime.js?v=${playedToken}`));
 assert(index.includes(`tango-tutor-single-planner-r5.js?v=${singlePlannerToken}`));assert(sw.includes(`./tango-tutor-single-planner-r5.js?v=${singlePlannerToken}`));
-const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-hf39r5b-v13');
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-hf39r5b-v15');
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
