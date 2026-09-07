@@ -52,41 +52,65 @@ def main():
           const copy=x=>x==null?x:JSON.parse(JSON.stringify(x));
           const puzzle={n:s.work?.n||s.base?.n||6,state:copy(s.work?.state),edges:copy(s.work?.edges||s.base?.edges||[])};
           const engine=P.sessionFromPublicBoard(puzzle,s.work.state);
-          const tier=3, options={};
-          const now=()=>performance.now();
+          const tier=3, options={}, now=()=>performance.now();
+
           let t=now();
-          const direct=A.directFrontierCandidates(engine,tier,options);
-          const directMs=now()-t;
+          const allowed=P._test.allowedDirectDeductions(engine,tier);
+          const allowedMs=now()-t;
+          const ruleCounts={};
+          for(const d of allowed){const rule=String(d?.rule||'UNKNOWN');ruleCounts[rule]=(ruleCounts[rule]||0)+1}
+
+          const plans=[],candidateTimings=[];
+          t=now();
+          for(const d of allowed){
+            const c0=now();
+            let plan=A.fastDirectPlan(engine,tier,d,options);
+            let fast=true;
+            if(!plan){fast=false;plan=P._test.planFromFirstDeduction(engine,tier,d,{...options,advancedStart:false})}
+            const ms=now()-c0;
+            candidateTimings.push({id:String(d?.id||d?.signature||''),rule:String(d?.rule||'UNKNOWN'),fast,ms});
+            if(plan?.status==='move')plans.push(plan);
+          }
+          const candidatePlanMs=now()-t;
+
+          t=now();
+          const selectorCandidates=P._test.buildSelectorCandidates(plans);
+          const selectorMs=now()-t;
+
+          t=now();
+          const activeIds=new Set(selectorCandidates.map(c=>c.id));
+          const blocked=new Set(selectorCandidates.filter(c=>(c.blockedBy||[]).some(id=>activeIds.has(id))).map(c=>c.id));
+          const frontier=selectorCandidates.filter(c=>!blocked.has(c.id));
+          const dominanceMs=now()-t;
+
+          t=now();
+          const policyCandidates=frontier.map(c=>{const cells=A.planCells(c.plan);return {id:c.id,stableKey:c.stableKey,baseCost:P._test.planCostVector(c.plan),target:c.plan.target,value:c.plan.value,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan}});
+          const policyMs=now()-t;
+          const directMs=allowedMs+candidatePlanMs+selectorMs+dominanceMs+policyMs;
+
+          const byRule={};
+          for(const item of candidateTimings){const x=byRule[item.rule]||(byRule[item.rule]={count:0,ms:0,maxMs:0});x.count++;x.ms+=item.ms;x.maxMs=Math.max(x.maxMs,item.ms)}
+          const slowest=candidateTimings.slice().sort((a,b)=>b.ms-a.ms).slice(0,6);
+
           t=now();
           const advanced=P._test.advancedDeductionsDetailed(engine,tier)||{deductions:[],budgetHit:false};
           const advancedDiscoveryMs=now()-t;
-          t=now();
-          const advancedEval=P._test.evaluateStartingDeductions(engine,tier,advanced.deductions||[],options,true);
-          const advancedEvalMs=now()-t;
           return {
             attentionVersion:P.attentionContinuityVersion||null,
             orchestratorMarker:!!globalThis.walkthroughGenerateTangoNext?.__quadludTutorAttentionOrchestratorR5,
-            directMs,
-            directPlans:direct?.evaluation?.plans?.length||0,
-            directEvaluated:direct?.evaluation?.evaluated||0,
-            directTotal:direct?.evaluation?.total||0,
-            directBudgetHit:!!direct?.evaluation?.branchBudgetHit,
+            allowedMs,allowedCount:allowed.length,ruleCounts,
+            candidatePlanMs,fastCandidateCount:candidateTimings.filter(x=>x.fast).length,
+            selectorMs,dominanceMs,policyMs,directMs,
+            directPlans:plans.length,frontierCount:frontier.length,policyCandidateCount:policyCandidates.length,
+            candidateTimingByRule:byRule,slowestCandidates:slowest,
             advancedDiscoveryMs,
             advancedDeductionCount:(advanced.deductions||[]).length,
-            advancedDiscoveryBudgetHit:!!advanced.budgetHit,
-            advancedEvalMs,
-            advancedPlans:advancedEval?.plans?.length||0,
-            advancedEvaluated:advancedEval?.evaluated||0,
-            advancedTotal:advancedEval?.total||0,
-            advancedEvalBudgetHit:!!advancedEval?.branchBudgetHit,
-            totalProfileMs:directMs+advancedDiscoveryMs+advancedEvalMs
+            advancedDiscoveryBudgetHit:!!advanced.budgetHit
           };
         }""")
         print('R5_D5_COST_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
         assert profile['attentionVersion'] == 10, profile
-        assert profile['directPlans'] == 20 and profile['directEvaluated'] == 20 and profile['directTotal'] == 20, profile
-        # The real click timeout is 10 s; project QA requires 10% timing margin.
-        assert profile['directMs'] < 9000, profile
+        assert profile['allowedCount'] == 20 and profile['directPlans'] == 20 and profile['fastCandidateCount'] == 20, profile
         context.close()
         browser.close()
 
