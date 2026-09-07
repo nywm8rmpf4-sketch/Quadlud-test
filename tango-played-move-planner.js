@@ -111,9 +111,6 @@ function allowedDirectDeductions(session,tierIndex){
 function directlyConcludesValue(deduction,change){
   return !!(deduction?.conclusions||[]).some(c=>c?.type==='VALUE'&&Array.isArray(c.cell)&&c.cell[0]===change.cell[0]&&c.cell[1]===change.cell[1]&&c.value===change.to);
 }
-function directlyPlacesVisibleValue(state,deduction){
-  return !!(deduction?.conclusions||[]).some(c=>c?.type==='VALUE'&&Array.isArray(c.cell)&&c.cell.length===2&&state?.[c.cell[0]]?.[c.cell[1]]===VALUE_EMPTY&&(c.value===0||c.value===1));
-}
 function relationPathLengthForDeduction(session,deduction){
   if(deduction?.rule!=='RELATION_PROPAGATION'||typeof session?.relationBetween!=='function')return 0;
   const source=deduction?.explanationData?.source,target=deduction?.explanationData?.target;
@@ -182,16 +179,16 @@ function advancedDeductionsDetailed(session,tierIndex){
   }
   return {deductions:uniqDeductions(out).sort(TL.deductionComparator),budgetHit};
 }
-function planFromFirstDeduction(session,tierIndex,firstDeduction,{maxEngineSteps,advancedStart=false}={}){
+function planFromFirstDeduction(session,tierIndex,firstDeduction,{maxEngineSteps,advancedStart=false,initialStateValidated=false}={}){
   const fork=session.clone(),limit=Number.isInteger(maxEngineSteps)&&maxEngineSteps>0?maxEngineSteps:Math.max(24,fork.n*fork.n*2),proof=[];
   let deduction=copy(firstDeduction);
   for(let step=0;step<limit;step++){
-    const contradiction=fork.diagnose();
+    const contradiction=(step===0&&initialStateValidated)?null:fork.diagnose();
     if(contradiction)return {status:'contradictory',contradiction:copy(contradiction),tierIndex,proofChain:copy(proof)};
     if(!fork.state.some(row=>row.includes(VALUE_EMPTY)))return {status:'solved',tierIndex,proofChain:copy(proof)};
     if(step>0){const next=TD.nextAllowedDeduction(fork,tierIndex,false);deduction=next?.deduction||null;if(!deduction)return {status:next?.budgetHit?'budget-exhausted':'blocked',budgetHit:!!next?.budgetHit,tierIndex,proofChain:copy(proof)}}
     if(!deduction)return {status:'blocked',budgetHit:false,tierIndex,proofChain:copy(proof)};
-    const preApply=fork.clone(),before=copy(fork.state),directVisible=directlyPlacesVisibleValue(fork.state,deduction),applied=directVisible?fork.applyDeduction(deduction,{close:false}):fork.applyDeduction(deduction);
+    const preApply=fork.clone(),before=copy(fork.state),applied=fork.applyDeduction(deduction);
     if(!applied?.deduction)return {status:'invalid',tierIndex,error:'Soleil/Lune deduction could not be applied',proofChain:copy(proof)};
     const trace=traceEntries(applied),placements=frontierPlacementsFromApplied(preApply,tierIndex,deduction,before,fork.state,trace,proof);
     proof.push(...copy(trace));
@@ -238,7 +235,12 @@ function selectPlans(plans,{frontierComplete=true}={}){
 function candidateLimitFor(session,options){return Number.isInteger(options?.maxCandidatePlans)&&options.maxCandidatePlans>0?options.maxCandidatePlans:Math.max(24,Number(session?.n||6)*Number(session?.n||6)*2)}
 function evaluateStartingDeductions(session,tierIndex,deductions,options,advancedStart=false){
   const limit=candidateLimitFor(session,options),chosen=(deductions||[]).slice(0,limit),plans=[];let branchBudgetHit=false;
-  for(const d of chosen){const plan=planFromFirstDeduction(session,tierIndex,d,{...options,advancedStart});if(plan.status==='move')plans.push(plan);else if(plan.status==='budget-exhausted')branchBudgetHit=true}
+  const initialStateValidated=options?.initialStateValidated===true;
+  if(!initialStateValidated){
+    const contradiction=session.diagnose();
+    if(contradiction)return {plans,truncated:(deductions||[]).length>chosen.length,branchBudgetHit:false,evaluated:0,total:(deductions||[]).length,contradiction:copy(contradiction)};
+  }
+  for(const d of chosen){const plan=planFromFirstDeduction(session,tierIndex,d,{...options,advancedStart,initialStateValidated:true});if(plan.status==='move')plans.push(plan);else if(plan.status==='budget-exhausted')branchBudgetHit=true}
   return {plans,truncated:(deductions||[]).length>chosen.length,branchBudgetHit,evaluated:chosen.length,total:(deductions||[]).length};
 }
 function nextPlayedMove(session,diff,options={}){
@@ -247,7 +249,8 @@ function nextPlayedMove(session,diff,options={}){
   if(bad)return {status:'contradictory',contradiction:copy(bad),tierIndex,proofChain:[]};
   if(!session.state.some(row=>row.includes(VALUE_EMPTY)))return {status:'solved',tierIndex,proofChain:[]};
 
-  const direct=allowedDirectDeductions(session,tierIndex),directEval=evaluateStartingDeductions(session,tierIndex,direct,options,false);
+  const validatedOptions={...options,initialStateValidated:true};
+  const direct=allowedDirectDeductions(session,tierIndex),directEval=evaluateStartingDeductions(session,tierIndex,direct,validatedOptions,false);
   if(directEval.plans.length){
     const frontierComplete=!directEval.truncated&&!directEval.branchBudgetHit,selected=selectPlans(directEval.plans,{frontierComplete});
     if(selected.plan)return {...selected.plan,selectionStatus:selected.selection.status,selectedCostVector:copy(selected.selection.selected.costVector),candidateCount:selected.candidates.length,frontierComplete,budgetHit:!frontierComplete};
@@ -255,7 +258,7 @@ function nextPlayedMove(session,diff,options={}){
 
   let frontierComplete=!directEval.truncated&&!directEval.branchBudgetHit,advancedBudgetHit=false,advancedEval={plans:[],truncated:false,branchBudgetHit:false,evaluated:0,total:0};
   if(tierIndex>=3){
-    const advanced=advancedDeductionsDetailed(session,tierIndex);advancedBudgetHit=!!advanced.budgetHit;advancedEval=evaluateStartingDeductions(session,tierIndex,advanced.deductions,options,true);frontierComplete=frontierComplete&&!advancedBudgetHit&&!advancedEval.truncated&&!advancedEval.branchBudgetHit;
+    const advanced=advancedDeductionsDetailed(session,tierIndex);advancedBudgetHit=!!advanced.budgetHit;advancedEval=evaluateStartingDeductions(session,tierIndex,advanced.deductions,validatedOptions,true);frontierComplete=frontierComplete&&!advancedBudgetHit&&!advancedEval.truncated&&!advancedEval.branchBudgetHit;
     if(advancedEval.plans.length){const selected=selectPlans(advancedEval.plans,{frontierComplete});if(selected.plan)return {...selected.plan,selectionStatus:selected.selection.status,selectedCostVector:copy(selected.selection.selected.costVector),candidateCount:selected.candidates.length,frontierComplete,budgetHit:!frontierComplete}}
   }
 
@@ -299,6 +302,6 @@ return Object.freeze({
   nextPlayedMove,
   applyPlayedMoveToState,
   solveByPlayedMoves,
-  _test:Object.freeze({firstCausalVisiblePlacement,firstPlacementFromApplied,placementsFromApplied,frontierPlacementsFromApplied,traceEntries,dependencyIds,causalProofForTarget,allowedDirectDeductions,directlyPlacesVisibleValue,relationPathLengthForDeduction,advancedDeductionsDetailed,planFromFirstDeduction,planMetrics,planCostVector,buildSelectorCandidates,selectPlans,evaluateStartingDeductions})
+  _test:Object.freeze({firstCausalVisiblePlacement,firstPlacementFromApplied,placementsFromApplied,frontierPlacementsFromApplied,traceEntries,dependencyIds,causalProofForTarget,allowedDirectDeductions,relationPathLengthForDeduction,advancedDeductionsDetailed,planFromFirstDeduction,planMetrics,planCostVector,buildSelectorCandidates,selectPlans,evaluateStartingDeductions})
 });
 });
