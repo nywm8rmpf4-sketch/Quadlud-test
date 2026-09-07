@@ -2,7 +2,7 @@ name: QUADLUD Tutor semantic evidence
 
 on:
   push:
-    branches: [main]
+    branches: [qa/semantic-validation-v1]
   workflow_dispatch:
 
 permissions:
@@ -68,6 +68,14 @@ jobs:
           cd "$RUNNER_TEMP/quadlud-public-qa"
           export PYTHONPATH="$PWD/tests"
           python3 tests/v319-semantic-tango-tutor-journey-browser.test.py
+
+      - name: Gate semantic evidence defects
+        env:
+          QUADLUD_SEMANTIC_EVIDENCE_DIR: ${{ runner.temp }}/semantic-evidence/tango-expert-fr-mobile-v1
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          python3 tests/v319-semantic-evidence-guard.py
 
       - name: Upload semantic evidence
         if: always()
