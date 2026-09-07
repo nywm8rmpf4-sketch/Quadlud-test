@@ -47,22 +47,46 @@ def main():
         profile = page.evaluate("""()=>{
           const s=typeof walkthroughSession!=='undefined'?walkthroughSession:null;
           const P=globalThis.QuadludTangoPlayedMovePlanner;
-          if(!s||!P||!P._test)throw new Error('missing Tango Tutor planner runtime');
+          const R=globalThis.QuadludTangoPlayedMoveRuntime;
+          if(!s||!P||!P._test||!R||typeof R.selectDisplayProof!=='function'||typeof R.planHumanMove!=='function')throw new Error('missing Tango Tutor planner/runtime');
           const copy=x=>x==null?x:JSON.parse(JSON.stringify(x));
           const puzzle={n:s.work?.n||s.base?.n||6,state:copy(s.work?.state),edges:copy(s.work?.edges||s.base?.edges||[])};
-          const engine=P.sessionFromPublicBoard(puzzle,s.work.state);
-          const started=performance.now();
-          const plan=P.nextPlayedMove(engine,'expert',{});
-          const elapsedMs=performance.now()-started;
+          const fresh=()=>P.sessionFromPublicBoard(puzzle,s.work.state);
+          const now=()=>performance.now();
+
+          const plannerEngine=fresh();
+          let started=now();
+          const plan=P.nextPlayedMove(plannerEngine,'expert',{});
+          const plannerMs=now()-started;
+
+          started=now();
+          const displayProof=R.selectDisplayProof(plannerEngine,plan);
+          const displayProofMs=now()-started;
+
+          const humanEngine=fresh();
+          started=now();
+          const humanPlan=R.planHumanMove(humanEngine,'expert');
+          const humanPlanMs=now()-started;
+
           return {
             attentionVersion:P.attentionContinuityVersion||null,
             prunerVersion:P.relationFrontierPrunerVersion||null,
-            elapsedMs,
+            runtimeVersion:R.VERSION||null,
+            plannerMs,
+            displayProofMs,
+            plannerPlusDisplayMs:plannerMs+displayProofMs,
+            humanPlanMs,
             status:plan?.status||null,
+            humanStatus:humanPlan?.status||null,
             target:copy(plan?.target||null),
+            humanTarget:copy(humanPlan?.target||null),
             value:plan?.value,
+            humanValue:humanPlan?.value,
             engineStepCount:Number(plan?.engineStepCount)||null,
             selectionStatus:plan?.selectionStatus||null,
+            humanProofKind:displayProof?.kind||null,
+            humanProofRule:String(displayProof?.deduction?.rule||''),
+            humanProofCostVector:copy(displayProof?.costVector||null),
             relationFrontierPruned:!!plan?.relationFrontierPruned,
             estimatedCandidateCount:Number(plan?.relationFrontierEstimatedCandidateCount)||0,
             hydratedCandidateCount:Number(plan?.relationFrontierHydratedCandidateCount)||0,
@@ -73,10 +97,12 @@ def main():
             proofRules:(plan?.proofChain||[]).map(d=>String(d?.rule||''))
           };
         }""")
-        print('R5_D5_RELATION_PRUNER_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
+        print('R5_D5_HUMAN_PLAN_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
         assert profile['attentionVersion'] == 11, profile
         assert profile['prunerVersion'] == 1, profile
-        assert profile['status'] == 'move', profile
+        assert profile['status'] == profile['humanStatus'] == 'move', profile
+        assert profile['target'] == profile['humanTarget'], profile
+        assert profile['value'] == profile['humanValue'], profile
         assert profile['relationFrontierPruned'], profile
         assert profile['estimatedCandidateCount'] == 20, profile
         assert 0 < profile['hydratedCandidateCount'] < profile['estimatedCandidateCount'], profile
@@ -84,7 +110,7 @@ def main():
         assert profile['advancedStateCount'] > 0, profile
         assert profile['minimumEngineStepCount'] == profile['engineStepCount'] == 15, profile
         assert profile['proofChainLength'] > 0, profile
-        assert profile['elapsedMs'] < 9000, profile
+        assert profile['plannerMs'] < 9000, profile
         context.close()
         browser.close()
 
