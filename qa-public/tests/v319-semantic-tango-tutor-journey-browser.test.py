@@ -177,6 +177,38 @@ def observable_snapshot(page) -> dict:
     )
 
 
+def pre_click_diagnostics(page, transition: int, ordinal: int) -> dict:
+    return page.evaluate(
+        """args=>{
+          const s=typeof walkthroughSession!=='undefined'?walkthroughSession:null;
+          const group=typeof walkthroughCurrentGroup==='function'?walkthroughCurrentGroup():null;
+          const humanCell=cell=>Array.isArray(cell)?`${String.fromCharCode(65+Number(cell[0]))}${Number(cell[1])+1}`:null;
+          const tail=(s?.moves||[]).slice(-10).map(move=>({
+            target:humanCell(move?.target),kind:String(move?.pedagogyStageKind||move?.proofStage?.kind||''),
+            rule:String(move?.rule||move?.deduction?.rule||''),selectionStatus:move?.metrics?.selectionStatus||null,
+            localAttentionContinuation:!!move?.metrics?.localAttentionContinuation,
+            recentDependencyContinuation:!!move?.metrics?.recentDependencyContinuation
+          }));
+          let attention=null;
+          try{attention=QuadludTangoPlayedMovePlanner?._attentionTest?.tutorRecentContext?.()||null}catch(e){attention={error:String(e)}}
+          return {
+            transition:args.transition,ordinal:args.ordinal,
+            navigation:s?.navigation||null,movesLength:(s?.moves||[]).length,
+            tutorStatus:s?.tangoTutorStatus||null,selectionStatus:s?.tangoTutorSelectionStatus||null,
+            groupLogicalMoveIndex:group?.logicalMoveIndex??null,
+            groupKinds:(group?.entries||[]).map(entry=>String(entry?.move?.pedagogyStageKind||entry?.move?.proofStage?.kind||'')),
+            currentAction:humanCell(document.querySelector('.walkthrough-current-action')?[Number(document.querySelector('.walkthrough-current-action').dataset.r),Number(document.querySelector('.walkthrough-current-action').dataset.c)]:null),
+            tail,
+            attentionVersion:QuadludTangoPlayedMovePlanner?.attentionContinuityVersion||null,
+            attention,
+            orchestratorToken:QuadludTangoTutorAttentionOrchestratorR5?.TOKEN||null,
+            orchestratorInstalled:!!walkthroughGenerateTangoNext?.__quadludTutorAttentionOrchestratorR5
+          };
+        }""",
+        {"transition": transition, "ordinal": ordinal},
+    )
+
+
 def signature(snapshot: dict) -> str:
     compact = {
         "counter": snapshot.get("counter"),
@@ -248,7 +280,9 @@ def main() -> None:
                 terminated = True
                 break
 
-            next_button.click()
+            diagnostic = pre_click_diagnostics(page, transition, ordinal)
+            print("R5_NEXT_PRE " + json.dumps(diagnostic, ensure_ascii=False, sort_keys=True), flush=True)
+            next_button.click(timeout=10000)
             page.wait_for_timeout(700)
             snap, sig = capture(page, evidence_dir, ordinal, "logical")
             assert sig not in seen, f"Tutor logical navigation made no observable progress at capture {ordinal}"
