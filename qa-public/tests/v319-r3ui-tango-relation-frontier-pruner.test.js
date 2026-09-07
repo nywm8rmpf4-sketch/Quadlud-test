@@ -37,9 +37,11 @@ global.TangoDifficulty={
 global.QuadludTangoPlayedMovePlanner={
   VERSION:4,
   nextPlayedMove(){previousCalls++;return {status:'legacy-baseline'}},
-  _test:{
+  _attentionTest:{
     candidateLimitFor(){return 20},
-    tutorRecentContext(){return {recentCells:[[0,0]],pendingConclusions:pending?[{cell:[0,0],value:1}]:[]}},
+    tutorRecentContext(){return {recentCells:[[0,0]],pendingConclusions:pending?[{cell:[0,0],value:1}]:[]}}
+  },
+  _test:{
     allowedDirectDeductions(session){
       if(session.relationClosure.size===0)return starts;
       if(session.relationClosure.has(key([1,0],[1,1]))&&!session.relationClosure.has(key([1,1],[1,2])))return [slowSecond];
