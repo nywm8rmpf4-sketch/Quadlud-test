@@ -11,7 +11,7 @@
   if(typeof document!=='undefined')api.install();
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
-const VERSION=1;
+const VERSION=2;
 const ROLE_CLASSES=Object.freeze([
   'walkthrough-causal-context','walkthrough-causal-focus','walkthrough-causal-hypothesis',
   'walkthrough-causal-hypothetical-move','walkthrough-causal-contradiction','walkthrough-causal-conclusion'
@@ -49,6 +49,7 @@ function currentEntry(){
 }
 function board(){return root?.document?.querySelector?.('.walkthrough-board')||null}
 function cellElement(boardNode,cell){return boardNode?.querySelector?.(`[data-r="${Number(cell?.[0])}"][data-c="${Number(cell?.[1])}"]`)||null}
+function semanticMarkerOwnerActive(){return root?.QuadludTangoSemanticCoherenceHF39?.OWNS_HYPOTHETICAL_MARKERS===true}
 function clear(boardNode){
   if(!boardNode)return;for(const cls of ROLE_CLASSES)boardNode.querySelectorAll?.(`.${cls}`).forEach(el=>el.classList.remove(cls));
   boardNode.querySelectorAll?.('.walkthrough-hypothetical-badge').forEach(el=>el.remove());
@@ -68,7 +69,7 @@ function decorate(){
   applyCells(boardNode,projection.hypotheticalMoves.map(x=>x.cell),'walkthrough-causal-hypothetical-move');
   applyCells(boardNode,projection.contradictionCells,'walkthrough-causal-contradiction');
   applyCells(boardNode,projection.conclusionCells,'walkthrough-causal-conclusion');
-  for(const item of projection.hypotheticalMoves)addHypotheticalBadge(boardNode,item);
+  if(!semanticMarkerOwnerActive())for(const item of projection.hypotheticalMoves)addHypotheticalBadge(boardNode,item);
   boardNode.dataset.causalProofKind=projection.kind;boardNode.dataset.causalProofStep=projection.stepId;
   return true
 }
@@ -79,5 +80,5 @@ function install(){
   if(typeof walkthroughNavigateProof==='function'){previousNavigate=walkthroughNavigateProof;const nav=function(delta){const result=previousNavigate(delta);decorate();return result};nav.__quadludCausalProofProjection=true;walkthroughNavigateProof=nav}
   installed=true;decorate();return true
 }
-return Object.freeze({VERSION,install,decorate,projectionForMove,_test:Object.freeze({causalStep,premiseCells,uniqueCells,projectionForMove,sameCell})});
+return Object.freeze({VERSION,install,decorate,projectionForMove,_test:Object.freeze({causalStep,premiseCells,uniqueCells,projectionForMove,sameCell,semanticMarkerOwnerActive})});
 });
