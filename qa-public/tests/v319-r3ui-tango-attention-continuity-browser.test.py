@@ -52,27 +52,20 @@ def advance_logical(page):
 
 def attention_diagnostics(page):
     return page.evaluate("""()=>{
-      const P=QuadludTangoPlayedMovePlanner,A=P?._attentionTest,Q=QuadludPedagogyNextMovePolicy,s=walkthroughSession;
+      const P=QuadludTangoPlayedMovePlanner,A=P?._attentionTest,s=walkthroughSession;
       const safe=(fn,fallback=null)=>{try{return fn()}catch(e){return {error:String(e?.stack||e)}}};
       const publicPuzzle={n:s?.work?.n||s?.base?.n||6,state:JSON.parse(JSON.stringify(s?.work?.state||[])),edges:JSON.parse(JSON.stringify(s?.work?.edges||s?.base?.edges||[]))};
       const logic=safe(()=>P.sessionFromPublicBoard(publicPuzzle,s.work.state),null);
-      const summarizePlan=plan=>plan?{target:plan.target,value:plan.value,rule:plan.deduction?.rule||null,selectionStatus:plan.selectionStatus||null,selectedCostVector:plan.selectedCostVector||null,localAttentionContinuation:!!plan.localAttentionContinuation,localAttentionAxis:plan.localAttentionAxis||null,humanRecentCells:plan.humanRecentCells||null}:null;
-      const ctx=safe(()=>A.tutorRecentContext(),{});
-      const axis=safe(()=>A.dominantAxis(ctx.recentCells),null);
-      const expanded=safe(()=>A.expandContextAlongAxis(ctx,s?.work?.state,A.LOCAL_AXIS_RADIUS),{});
-      const exact=safe(()=>A.contextualDirectPlan(logic,'expert',{},ctx),null);
-      const local=safe(()=>A.contextualDirectPlan(logic,'expert',{},expanded),null);
-      const candidates=safe(()=>{
-        const direct=P._test.allowedDirectDeductions(logic,3),ev=P._test.evaluateStartingDeductions(logic,3,direct,{},false),selectors=P._test.buildSelectorCandidates(ev.plans);
-        return selectors.map(c=>{
-          const cells=A.planCells(c.plan),base=P._test.planCostVector(c.plan),target=c.plan?.target||null;
-          const originalMetrics=Q.contextualMetrics({target:c.plan?.target,value:c.plan?.value,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan},{recentCells:ctx.recentCells||[],pendingConclusions:ctx.pendingConclusions||[]});
-          const expandedMetrics=Q.contextualMetrics({target:c.plan?.target,value:c.plan?.value,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan},{recentCells:expanded.recentCells||[],pendingConclusions:ctx.pendingConclusions||[]});
-          const human=target?`${String.fromCharCode(65+Number(target[0]))}${Number(target[1])+1}`:'';
-          return {human,target,value:c.plan?.value,rule:c.plan?.deduction?.rule||null,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,originalMetrics,expandedMetrics,eligibleOriginal:A.simpleDirectContinuationCandidate({target:c.plan?.target,value:c.plan?.value,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan},ctx.recentCells||[]),eligibleExpanded:A.simpleDirectContinuationCandidate({target:c.plan?.target,value:c.plan?.value,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan},expanded.recentCells||[])};
-        }).filter(x=>x.human==='C3'||x.human==='C1'||x.eligibleOriginal||x.eligibleExpanded);
+      const human=target=>Array.isArray(target)?`${String.fromCharCode(65+Number(target[0]))}${Number(target[1])+1}`:'';
+      const summarizePlan=plan=>plan?{target:human(plan.target),rule:plan.deduction?.rule||null,selectionStatus:plan.selectionStatus||null,recentDependencyContinuation:!!plan.recentDependencyContinuation,recentActionCells:plan.recentActionCells||null}:null;
+      const ctx=safe(()=>A.tutorRecentContext(),{}),expanded=safe(()=>A.expandContextAlongAxis(ctx,s?.work?.state,A.LOCAL_AXIS_RADIUS),{});
+      const dependency=safe(()=>A.contextualDependencyPlan(logic,'expert',{},ctx,expanded),null);
+      const raw=safe(()=>{
+        const direct=P._test.allowedDirectDeductions(logic,3),ev=P._test.evaluateStartingDeductions(logic,3,direct,{},false),selectors=P._test.buildSelectorCandidates(ev.plans),activeIds=new Set(selectors.map(c=>c.id));
+        return selectors.map(c=>{const cells=A.planCells(c.plan),base=P._test.planCostVector(c.plan),h=human(c.plan?.target),blockedBy=(c.blockedBy||[]).filter(id=>activeIds.has(id));return {human:h,id:c.id,rule:c.plan?.deduction?.rule||null,baseCost:base,premiseCells:cells.premiseCells,blockedBy,dependencyEligible:A.localDependencyContinuationCandidate({target:c.plan?.target,value:c.plan?.value,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan},ctx,expanded)};}).filter(x=>x.human==='C3'||x.human==='C1'||x.dependencyEligible);
       },[]);
-      return {attentionVersion:P.attentionContinuityVersion,ctx,axis,expanded,exact:summarizePlan(exact),local:summarizePlan(local),candidates};
+      const frontier=safe(()=>A.directFrontierCandidates(logic,3,{}),null);
+      return {attentionVersion:P.attentionContinuityVersion,ctx,expanded,dependency:summarizePlan(dependency),frontierTargets:(frontier?.policyCandidates||[]).map(c=>human(c.target)).filter(x=>x==='C3'||x==='C1'),raw};
     }""")
 
 
