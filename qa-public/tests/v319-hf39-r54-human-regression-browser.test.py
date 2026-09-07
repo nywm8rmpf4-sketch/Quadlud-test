@@ -12,7 +12,7 @@ from qa_runtime_loader import runtime_sources, runtime_styles
 ROOT = Path(__file__).resolve().parents[1] / "GitHub"
 EVIDENCE = Path(os.environ.get("QUADLUD_HUMAN_R54_EVIDENCE_DIR", "/tmp/quadlud-human-r54-evidence"))
 VIEWPORT = {"width": 390, "height": 844}
-TARGET_GROUPS = 18
+TARGET_MOVES = 18
 
 
 def prepare_html() -> str:
@@ -83,20 +83,22 @@ def install_human_fixture(page) -> dict:
 
 def group_state(page) -> dict:
     return page.evaluate(
-        """()=>{
+        r"""()=>{
           const s=typeof walkthroughSession!=='undefined'?walkthroughSession:null;
           const g=typeof walkthroughCurrentGroup==='function'?walkthroughCurrentGroup():null;
           const humanCell=cell=>Array.isArray(cell)?`${String.fromCharCode(65+Number(cell[0]))}${Number(cell[1])+1}`:null;
           const same=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1]);
-          const entries=(g?.entries||[]).map((entry,index)=>{
-            const move=entry?.move||{},kind=String(move?.pedagogyStageKind||move?.proofStage?.kind||''),d=move?.deduction||move?.presentation?.evidence?.primary||null;
-            return {index,kind,target:humanCell(move?.target),value:Number(move?.value),rule:String(d?.rule||move?.rule||''),causalStepId:move?.causalStepId||null,causalStep:move?.causalProof?.steps?.find(step=>step?.id===move?.causalStepId)||null};
-          });
           const actionEntry=[...(g?.entries||[])].reverse().find(entry=>String(entry?.move?.pedagogyStageKind||entry?.move?.proofStage?.kind||'')==='action')||(g?.entries||[]).at(-1)||null;
-          const move=actionEntry?.move||{},target=Array.isArray(move?.target)?move.target:null,value=Number(move?.value),d=move?.deduction||move?.presentation?.evidence?.primary||null;
+          const move=actionEntry?.move||{},target=Array.isArray(move?.target)?move.target:null,d=move?.deduction||move?.presentation?.evidence?.primary||null;
           const allConclusions=[...(d?.conclusions||[]),...(move?.presentation?.action?.conclusions||[]),...(move?.presentation?.evidence?.final?.conclusions||[])];
-          const demonstrated=!!target&&allConclusions.some(c=>c?.type==='VALUE'&&same(c.cell,target)&&Number(c.value)===value);
+          let value=target?move?.snapshot?.state?.[Number(target[0])]?.[Number(target[1])]:undefined;
+          if(!(Number(value)===0||Number(value)===1)){const c=allConclusions.find(x=>x?.type==='VALUE'&&same(x.cell,target));value=c?.value}
+          const demonstrated=!!target&&(Number(value)===0||Number(value)===1)&&allConclusions.some(c=>c?.type==='VALUE'&&same(c.cell,target)&&Number(c.value)===Number(value));
           const beforeValue=target?move?.beforeSnapshot?.state?.[Number(target[0])]?.[Number(target[1])]??null:null;
+          const entries=(g?.entries||[]).map((entry,index)=>{
+            const m=entry?.move||{},kind=String(m?.pedagogyStageKind||m?.proofStage?.kind||''),dd=m?.deduction||m?.presentation?.evidence?.primary||null;
+            return {index,kind,target:humanCell(m?.target),rule:String(dd?.rule||m?.rule||''),causalStepId:m?.causalStepId||null,causalStep:m?.causalProof?.steps?.find(step=>step?.id===m?.causalStepId)||null};
+          });
           const markers=[...document.querySelectorAll('.hf39-marker-badge')].map(b=>{const cell=b.closest('[data-r][data-c]');return {label:String(b.textContent||'').trim(),cell:cell?humanCell([Number(cell.dataset.r),Number(cell.dataset.c)]):null};});
           const scroll=document.querySelector('.walkthrough-scroll');
           const explanation=String(document.querySelector('.walkthrough-scroll')?.innerText||'').trim().replace(/\s+/g,' ');
@@ -104,7 +106,7 @@ def group_state(page) -> dict:
             logicalMoveIndex:g?.logicalMoveIndex??null,
             proofStepIndex:Number(s?.navigation?.proofStepIndex)||0,
             entries,
-            action:{target:humanCell(target),value:Number.isFinite(value)?value:null,demonstrated,beforeValue,rule:String(d?.rule||move?.rule||'')},
+            action:{target:humanCell(target),value:Number(value)===0||Number(value)===1?Number(value):null,demonstrated,beforeValue,rule:String(d?.rule||move?.rule||'')},
             markers,
             explanation,
             scroll:scroll?{clientHeight:Math.round(scroll.clientHeight),scrollHeight:Math.round(scroll.scrollHeight),scrollTop:Math.round(scroll.scrollTop)}:null,
@@ -115,24 +117,32 @@ def group_state(page) -> dict:
     )
 
 
-def capture(page, group_number: int, phase: str, ordinal: int) -> dict:
+def capture(page, move_number: int, phase: str, ordinal: int) -> dict:
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     state = group_state(page)
-    stem = f"g{group_number:02d}-{ordinal:02d}-{phase}"
+    stem = f"step{move_number:02d}-{ordinal:02d}-{phase}" if move_number else f"initial-{ordinal:02d}-{phase}"
     (EVIDENCE / f"{stem}.json").write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
     page.screenshot(path=str(EVIDENCE / f"{stem}.png"), full_page=False)
     return state
 
 
+def next_logical_move(page, next_number: int) -> None:
+    button = page.locator("#walkthroughNext")
+    assert button.count() and button.is_visible() and not button.is_disabled(), f"Tutor stopped before human step {next_number}"
+    button.click(timeout=40000)
+    page.wait_for_timeout(500)
+
+
 def main() -> None:
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     console_errors: list[str] = []
-    groups: list[dict] = []
+    moves: list[dict] = []
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, executable_path="/usr/bin/chromium", args=["--no-sandbox"])
         context = browser.new_context(viewport=VIEWPORT, locale="fr-FR", has_touch=True, is_mobile=True)
         page = context.new_page()
+        page.set_default_timeout(45000)
         page.on("pageerror", lambda exc: console_errors.append("pageerror:" + str(exc)))
         page.on("console", lambda msg: console_errors.append("console:" + msg.text) if msg.type == "error" else None)
         load_runtime(page)
@@ -140,27 +150,26 @@ def main() -> None:
         page.locator("#walkthroughBtn").click()
         page.wait_for_selector(".walkthrough-panel")
         page.wait_for_timeout(150)
+        capture(page, 0, "position-initiale", 0)
+        next_logical_move(page, 1)
 
-        for group_number in range(1, TARGET_GROUPS + 1):
-            states = [capture(page, group_number, "start", 0)]
+        for move_number in range(1, TARGET_MOVES + 1):
+            states = [capture(page, move_number, "start", 0)]
             ordinal = 1
             while True:
                 proof_next = page.locator("#walkthroughProofNext")
                 if not (proof_next.count() and proof_next.is_visible() and not proof_next.is_disabled()):
                     break
-                proof_next.click()
+                proof_next.click(timeout=10000)
                 page.wait_for_timeout(120)
-                states.append(capture(page, group_number, "proof", ordinal))
+                states.append(capture(page, move_number, "proof", ordinal))
                 ordinal += 1
-                assert ordinal < 40, f"Unbounded proof navigation in logical group {group_number}"
+                assert ordinal < 40, f"Unbounded proof navigation in human step {move_number}"
             canonical = states[-1]
-            groups.append({"number": group_number, "action": canonical["action"], "states": states})
-            print("R54_HUMAN_GROUP " + json.dumps({"group": group_number, "action": canonical["action"], "markers": [x["markers"] for x in states], "texts": [x["explanation"] for x in states]}, ensure_ascii=False), flush=True)
-            if group_number < TARGET_GROUPS:
-                next_button = page.locator("#walkthroughNext")
-                assert next_button.count() and next_button.is_visible() and not next_button.is_disabled(), f"Tutor stopped before group {group_number + 1}"
-                next_button.click(timeout=10000)
-                page.wait_for_timeout(500)
+            moves.append({"number": move_number, "action": canonical["action"], "states": states})
+            print("R54_HUMAN_STEP " + json.dumps({"step": move_number, "action": canonical["action"], "markers": [x["markers"] for x in states], "texts": [x["explanation"] for x in states]}, ensure_ascii=False), flush=True)
+            if move_number < TARGET_MOVES:
+                next_logical_move(page, move_number + 1)
 
         context.close()
         browser.close()
@@ -168,24 +177,24 @@ def main() -> None:
     summary = {
         "fixture": fixture,
         "viewport": VIEWPORT,
-        "actions": [g["action"]["target"] for g in groups],
-        "groups": groups,
+        "actions": [m["action"]["target"] for m in moves],
+        "moves": moves,
         "consoleErrors": console_errors,
     }
     (EVIDENCE / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
 
     assert not console_errors, console_errors
-    assert len(groups) == TARGET_GROUPS
-    assert groups[2]["action"]["target"] == "B3", f"Human regression: step 3 must be B3; sequence={summary['actions']}"
-    assert groups[3]["action"]["target"] == "E2", f"Human regression: step 4 must be E2; sequence={summary['actions']}"
-    assert groups[2]["action"]["demonstrated"] and groups[2]["action"]["beforeValue"] == -1, groups[2]["action"]
-    assert groups[3]["action"]["demonstrated"] and groups[3]["action"]["beforeValue"] == -1, groups[3]["action"]
+    assert len(moves) == TARGET_MOVES
+    assert moves[2]["action"]["target"] == "B3", f"Human regression: step 3 must be B3; sequence={summary['actions']}"
+    assert moves[3]["action"]["target"] == "E2", f"Human regression: step 4 must be E2; sequence={summary['actions']}"
+    assert moves[2]["action"]["demonstrated"] and moves[2]["action"]["beforeValue"] == -1, moves[2]["action"]
+    assert moves[3]["action"]["demonstrated"] and moves[3]["action"]["beforeValue"] == -1, moves[3]["action"]
 
-    marker3 = [m for state in groups[5]["states"] for m in state["markers"] if m["label"] == "3"]
+    marker3 = [m for state in moves[5]["states"] for m in state["markers"] if m["label"] == "3"]
     assert marker3, "Human regression: step 6 must expose hypothetical marker 3"
     assert all(m["cell"] == "A5" for m in marker3), f"Human regression: marker 3 must be on A5; got {marker3}"
 
-    step18_text = " ".join(state["explanation"] for state in groups[17]["states"])
+    step18_text = " ".join(state["explanation"] for state in moves[17]["states"])
     normalized18 = step18_text.lower()
     for token in ["d4", "e4", "colonne 4", "f4", "soleil"]:
         assert token in normalized18, f"Human regression: step 18 explanation must contain {token!r}; text={step18_text}"
