@@ -68,7 +68,15 @@ def main():
             let fast=true;
             if(!plan){fast=false;plan=P._test.planFromFirstDeduction(engine,tier,d,{...options,advancedStart:false})}
             const ms=now()-c0;
-            candidateTimings.push({id:String(d?.id||d?.signature||''),rule:String(d?.rule||'UNKNOWN'),fast,ms});
+            const conclusionTypes=(d?.conclusions||[]).reduce((acc,c)=>{const k=String(c?.type||'UNKNOWN');acc[k]=(acc[k]||0)+1;return acc},{});
+            candidateTimings.push({
+              id:String(d?.id||d?.signature||''),rule:String(d?.rule||'UNKNOWN'),fast,ms,conclusionTypes,
+              status:plan?.status||null,target:copy(plan?.target||null),value:plan?.value,
+              engineStepCount:plan?.engineStepCount||null,visibleRule:String(plan?.deduction?.rule||''),
+              proofRules:(plan?.proofChain||[]).map(x=>String(x?.rule||'')),
+              proofDepth:(plan?.proofChain||[]).length,
+              costVector:plan?.status==='move'?P._test.planCostVector(plan):null
+            });
             if(plan?.status==='move')plans.push(plan);
           }
           const candidatePlanMs=now()-t;
@@ -76,41 +84,27 @@ def main():
           t=now();
           const selectorCandidates=P._test.buildSelectorCandidates(plans);
           const selectorMs=now()-t;
-
           t=now();
-          const activeIds=new Set(selectorCandidates.map(c=>c.id));
-          const blocked=new Set(selectorCandidates.filter(c=>(c.blockedBy||[]).some(id=>activeIds.has(id))).map(c=>c.id));
-          const frontier=selectorCandidates.filter(c=>!blocked.has(c.id));
-          const dominanceMs=now()-t;
-
-          t=now();
-          const policyCandidates=frontier.map(c=>{const cells=A.planCells(c.plan);return {id:c.id,stableKey:c.stableKey,baseCost:P._test.planCostVector(c.plan),target:c.plan.target,value:c.plan.value,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan}});
-          const policyMs=now()-t;
-          const directMs=allowedMs+candidatePlanMs+selectorMs+dominanceMs+policyMs;
+          const selected=P._test.selectPlans(plans,{frontierComplete:true});
+          const selectMs=now()-t;
 
           const byRule={};
           for(const item of candidateTimings){const x=byRule[item.rule]||(byRule[item.rule]={count:0,ms:0,maxMs:0});x.count++;x.ms+=item.ms;x.maxMs=Math.max(x.maxMs,item.ms)}
           const slowest=candidateTimings.slice().sort((a,b)=>b.ms-a.ms).slice(0,6);
-
-          t=now();
-          const advanced=P._test.advancedDeductionsDetailed(engine,tier)||{deductions:[],budgetHit:false};
-          const advancedDiscoveryMs=now()-t;
+          const summaries=candidateTimings.map(({id,rule,conclusionTypes,target,value,engineStepCount,visibleRule,proofRules,proofDepth,costVector,ms})=>({id,rule,conclusionTypes,target,value,engineStepCount,visibleRule,proofRules,proofDepth,costVector,ms}));
           return {
             attentionVersion:P.attentionContinuityVersion||null,
-            orchestratorMarker:!!globalThis.walkthroughGenerateTangoNext?.__quadludTutorAttentionOrchestratorR5,
             allowedMs,allowedCount:allowed.length,ruleCounts,
             candidatePlanMs,fastCandidateCount:candidateTimings.filter(x=>x.fast).length,
-            selectorMs,dominanceMs,policyMs,directMs,
-            directPlans:plans.length,frontierCount:frontier.length,policyCandidateCount:policyCandidates.length,
+            selectorMs,selectMs,directPlans:plans.length,
             candidateTimingByRule:byRule,slowestCandidates:slowest,
-            advancedDiscoveryMs,
-            advancedDeductionCount:(advanced.deductions||[]).length,
-            advancedDiscoveryBudgetHit:!!advanced.budgetHit
+            selected: selected?.plan?{target:copy(selected.plan.target),value:selected.plan.value,engineStepCount:selected.plan.engineStepCount,startingRule:selected.plan.startingDeduction?.rule||null,visibleRule:selected.plan.deduction?.rule||null,costVector:P._test.planCostVector(selected.plan)}:null,
+            candidates:summaries
           };
         }""")
-        print('R5_D5_COST_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
+        print('R5_D5_SUCCESSOR_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
         assert profile['attentionVersion'] == 10, profile
-        assert profile['allowedCount'] == 20 and profile['directPlans'] == 20 and profile['fastCandidateCount'] == 20, profile
+        assert profile['allowedCount'] == 20 and profile['directPlans'] == 20, profile
         context.close()
         browser.close()
 
