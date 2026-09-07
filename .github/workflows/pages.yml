@@ -161,7 +161,11 @@ jobs:
               page.on('pageerror', lambda e: errors.append(str(e)))
               response = page.goto(base, wait_until='networkidle', timeout=60000)
               assert response and response.ok, response.status if response else None
-              page.wait_for_function("document.querySelector('#testBuildId') && document.querySelector('#testBuildId').textContent.includes('HF3.8-R1')", timeout=20000)
+              page.wait_for_function(
+                  "expected => { const el=document.querySelector('#testBuildId'); return !!el && el.textContent.includes(expected); }",
+                  expected['candidate'],
+                  timeout=20000,
+              )
               identity = page.locator('#testBuildId').inner_text()
               assert expected['version'] in identity, identity
               assert expected['candidate'] in identity, identity
