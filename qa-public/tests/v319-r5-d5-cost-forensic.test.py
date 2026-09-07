@@ -84,62 +84,82 @@ def main():
             session.rebuildRelationClosure();
             return true;
           }
-          function relationSignature(session){
-            return [...session.relationClosure.values()].map(rel=>{
+          function stateSignature(session){
+            const values=(session.state||[]).map(row=>row.join(',')).join('/');
+            const relations=[...session.relationClosure.values()].map(rel=>{
               const a=rel.a||[],b=rel.b||[];
               return `${a[0]}:${a[1]}|${b[0]}:${b[1]}=${Number(rel.parity)}@${Number(rel.rank)||0}`;
             }).sort().join(';');
+            return `${values}#${relations}`;
           }
-          function lightPlan(first){
-            const fork=engine.clone(),rules=[],start=now();let advancedMs=0;
-            let deduction=copy(first);
+          function advancedStructural(result){
+            const d=result?.deduction||null;
+            return {budgetHit:!!result?.budgetHit,rule:String(d?.rule||''),conclusions:copy(d?.conclusions||[])};
+          }
+
+          const advancedCache=new Map();let advancedCacheHits=0,advancedCacheMisses=0,advancedDiscoveryMs=0;
+          function cachedLightPlan(first){
+            const fork=engine.clone(),rules=[],start=now();
+            let deduction=copy(first),preAdvancedSignature=null;
             for(let step=1;step<=48;step++){
               const visible=visibleConclusion(fork,deduction);
               rules.push(String(deduction?.rule||''));
-              if(visible)return {status:'move',...visible,engineStepCount:step,visibleRule:String(deduction?.rule||''),rules,ms:now()-start,advancedMs,preAdvancedSignature:null};
-              if(!lightApplyRelations(fork,deduction))return {status:'unsupported',engineStepCount:step,rules,ms:now()-start,advancedMs,preAdvancedSignature:null};
+              if(visible)return {status:'move',...visible,engineStepCount:step,visibleRule:String(deduction?.rule||''),rules,ms:now()-start,preAdvancedSignature};
+              if(!lightApplyRelations(fork,deduction))return {status:'unsupported',engineStepCount:step,rules,ms:now()-start,preAdvancedSignature};
               const direct=P._test.allowedDirectDeductions(fork,tier);
               if(direct.length){deduction=copy(direct[0]);continue}
-              const signature=relationSignature(fork),t=now();
-              const next=TD.nextAllowedDeduction(fork,tier,false);advancedMs+=now()-t;
+              preAdvancedSignature=stateSignature(fork);
+              let next=advancedCache.get(preAdvancedSignature);
+              if(next){advancedCacheHits++}
+              else{
+                const t=now();next=TD.nextAllowedDeduction(fork,tier,false);advancedDiscoveryMs+=now()-t;
+                advancedCache.set(preAdvancedSignature,copy(next));advancedCacheMisses++;
+              }
               deduction=copy(next?.deduction||null);
-              if(!deduction)return {status:next?.budgetHit?'budget-exhausted':'blocked',engineStepCount:step,rules,ms:now()-start,advancedMs,preAdvancedSignature:signature};
+              if(!deduction)return {status:next?.budgetHit?'budget-exhausted':'blocked',engineStepCount:step,rules,ms:now()-start,preAdvancedSignature};
               const advancedVisible=visibleConclusion(fork,deduction);
-              if(advancedVisible){rules.push(String(deduction?.rule||''));return {status:'move',...advancedVisible,engineStepCount:step+1,visibleRule:String(deduction?.rule||''),rules,ms:now()-start,advancedMs,preAdvancedSignature:signature}}
-              return {status:'unsupported-advanced-relation',engineStepCount:step+1,rules:[...rules,String(deduction?.rule||'')],ms:now()-start,advancedMs,preAdvancedSignature:signature};
+              if(advancedVisible){rules.push(String(deduction?.rule||''));return {status:'move',...advancedVisible,engineStepCount:step+1,visibleRule:String(deduction?.rule||''),rules,ms:now()-start,preAdvancedSignature}}
+              return {status:'unsupported-advanced-relation',engineStepCount:step+1,rules:[...rules,String(deduction?.rule||'')],ms:now()-start,preAdvancedSignature};
             }
-            return {status:'budget-exhausted',engineStepCount:48,rules,ms:now()-start,advancedMs,preAdvancedSignature:null};
+            return {status:'budget-exhausted',engineStepCount:48,rules,ms:now()-start,preAdvancedSignature};
           }
 
-          const rows=[];let fullMs=0,lightMs=0;
+          const rows=[];let fullMs=0,cachedLightMs=0;
           for(const d of allowed){
             let t=now();const full=P._test.planFromFirstDeduction(engine,tier,d,{...options,advancedStart:false});fullMs+=now()-t;
-            t=now();const light=lightPlan(d);lightMs+=now()-t;
+            t=now();const light=cachedLightPlan(d);cachedLightMs+=now()-t;
             rows.push({
               id:String(d?.id||d?.signature||''),startingRule:String(d?.rule||''),
               full:{status:full?.status||null,target:copy(full?.target||null),value:full?.value,engineStepCount:full?.engineStepCount||null,visibleRule:String(full?.deduction?.rule||'')},
-              light:{status:light.status,target:copy(light.target||null),value:light.value,engineStepCount:light.engineStepCount||null,visibleRule:light.visibleRule||null,ms:light.ms,advancedMs:light.advancedMs,preAdvancedSignature:light.preAdvancedSignature,rules:light.rules}
+              light:{status:light.status,target:copy(light.target||null),value:light.value,engineStepCount:light.engineStepCount||null,visibleRule:light.visibleRule||null,preAdvancedSignature:light.preAdvancedSignature,rules:light.rules}
             });
           }
           const mismatches=rows.filter(row=>JSON.stringify([row.full.status,row.full.target,row.full.value,row.full.engineStepCount,row.full.visibleRule])!==JSON.stringify([row.light.status,row.light.target,row.light.value,row.light.engineStepCount,row.light.visibleRule]));
-          const sigs=[...new Set(rows.map(row=>row.light.preAdvancedSignature).filter(Boolean))];
           const fullMin=Math.min(...rows.filter(r=>r.full.status==='move').map(r=>r.full.engineStepCount));
           const lightMin=Math.min(...rows.filter(r=>r.light.status==='move').map(r=>r.light.engineStepCount));
+          const groups={};
+          for(const row of rows){const k=row.light.preAdvancedSignature||'none';const g=groups[k]||(groups[k]={count:0,structural:new Set()});g.count++;g.structural.add(JSON.stringify([row.light.visibleRule,row.light.target,row.light.value,row.light.engineStepCount]));}
+          const groupStructuralMismatchCount=Object.values(groups).filter(g=>g.structural.size!==1).length;
           return {
             attentionVersion:P.attentionContinuityVersion||null,
-            candidateCount:allowed.length,fullMs,lightMs,mismatchCount:mismatches.length,
+            candidateCount:allowed.length,fullMs,cachedLightMs,mismatchCount:mismatches.length,
             fullMin,lightMin,fullMinIds:rows.filter(r=>r.full.engineStepCount===fullMin).map(r=>r.id),lightMinIds:rows.filter(r=>r.light.engineStepCount===lightMin).map(r=>r.id),
-            preAdvancedSignatureCount:sigs.length,
-            lightAdvancedMs:rows.reduce((sum,r)=>sum+Number(r.light.advancedMs||0),0),
-            mismatches,rows
+            advancedStateCount:advancedCache.size,advancedCacheHits,advancedCacheMisses,advancedDiscoveryMs,
+            groupStructuralMismatchCount,
+            advancedStructural:[...advancedCache.entries()].map(([signature,result])=>({signature,structural:advancedStructural(result)})),
+            mismatches
           };
         }""")
-        print('R5_D5_LIGHT_CHAIN_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
+        print('R5_D5_ADVANCED_CACHE_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
         assert profile['attentionVersion'] == 10, profile
         assert profile['candidateCount'] == 20, profile
         assert profile['mismatchCount'] == 0, profile
         assert profile['fullMin'] == profile['lightMin'] == 15, profile
         assert profile['fullMinIds'] == profile['lightMinIds'], profile
+        assert profile['advancedStateCount'] == profile['advancedCacheMisses'] == 6, profile
+        assert profile['advancedCacheHits'] == 14, profile
+        assert profile['groupStructuralMismatchCount'] == 0, profile
+        assert profile['cachedLightMs'] < 9000, profile
         context.close()
         browser.close()
 
