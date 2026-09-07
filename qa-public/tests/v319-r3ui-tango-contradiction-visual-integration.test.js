@@ -23,7 +23,7 @@ assert(sw.includes(`./${visualUrl}`),'service worker must precache contradiction
 assert(sw.includes(`./${cssUrl}`),'service worker must precache matching contradiction visual CSS');
 assert(index.includes(`<script src="${singlePlannerUrl}"></script>`),'index must load current Tutor single-planner v2');
 assert(sw.includes(`./${singlePlannerUrl}`),'service worker must precache current Tutor single-planner v2');
-assert(sw.includes("const CACHE='quadlud-v3.1.9-hf39r5b-v15'"),'service-worker cache identity must match the current HF3 delivery');
+assert(sw.includes("const CACHE='quadlud-v3.1.9-hf39r5b-v17'"),'service-worker cache identity must match the current HF3 delivery');
 assert(index.indexOf('tutor-action-first-navigation.js')<index.indexOf('tango-contradiction-visuals.js'),'contradiction decorator must load after Tutor action projection');
 
 assert(/\.walkthrough-hypothetical-symbol\s*\{[^}]*opacity:\s*\.5\s*;/s.test(css),'hypothetical sun/moon symbols must render at exactly 50% opacity');
