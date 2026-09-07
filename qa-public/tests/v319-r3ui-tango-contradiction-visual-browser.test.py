@@ -24,7 +24,7 @@ with sync_playwright() as p:
     page.on('pageerror',lambda e:errors.append('pageerror:'+str(e)))
     page.on('console',lambda m:errors.append('console:'+m.text) if m.type=='error' else None)
     load(page)
-    page.wait_for_function("()=>window.QuadludTangoContradictionVisuals && window.QuadludTutorActionFirstNavigation")
+    page.wait_for_function("()=>window.QuadludTangoContradictionVisuals && window.QuadludTutorActionFirstNavigation && window.QuadludTangoSemanticCoherenceHF39")
 
     page.evaluate("""()=>{
       const cell=(r,c)=>`<div class="cell walkthrough-cell" data-r="${r}" data-c="${c}" aria-label="${String.fromCharCode(65+r)}${c+1}"></div>`;
@@ -41,42 +41,53 @@ with sync_playwright() as p:
         move('action',{premises:[],focusCells:[[0,2]],conclusions:[{type:'VALUE',cell:[0,2],value:1}]})
       ];
       walkthroughSession={base:{game:'tango',n:6},initial:{state:blank()},moves,pedagogyNavigationByMove:moves.map((_,i)=>nav(i)),navigation:nav(0),atStart:false,index:1,done:false,stalled:false};
-      window.__setProofStep=i=>{walkthroughSession.navigation=nav(i);walkthroughSession.index=i+1;QuadludTutorActionFirstNavigation.decorateCurrentAction();QuadludTangoContradictionVisuals.decorate()};
+      window.__setProofStep=i=>{
+        walkthroughSession.navigation=nav(i);walkthroughSession.index=i+1;
+        QuadludTutorActionFirstNavigation.decorateCurrentAction();
+        // Production order: contradiction layer keeps semantic classes/red witness;
+        // HF3.9 then owns the single persistent H/1/2/3 marker set.
+        QuadludTangoContradictionVisuals.decorate();
+        QuadludTangoSemanticCoherenceHF39.decorate();
+      };
       window.__setProofStep(0);
     }""")
 
-    hypothesis=page.evaluate("""()=>{const cell=document.querySelector('[data-r="0"][data-c="2"]'),symbol=cell.querySelector('.walkthrough-hypothetical-symbol'),badge=cell.querySelector('.walkthrough-hypothetical-badge');return {badge:badge?.textContent,symbol:symbol?.textContent,opacity:symbol?getComputedStyle(symbol).opacity:null,action:cell.classList.contains('walkthrough-current-action'),a11y:cell.getAttribute('aria-label')||''}}""")
+    hypothesis=page.evaluate("""()=>{const cell=document.querySelector('[data-r="0"][data-c="2"]'),symbol=cell.querySelector('.walkthrough-hypothetical-symbol'),badge=cell.querySelector('.hf39-marker-badge');return {badge:badge?.textContent,symbol:symbol?.textContent,opacity:symbol?getComputedStyle(symbol).opacity:null,legacy:document.querySelectorAll('.walkthrough-hypothetical-badge').length,semantic:document.querySelectorAll('.hf39-marker-badge').length,action:cell.classList.contains('walkthrough-current-action'),a11y:cell.getAttribute('aria-label')||''}}""")
     assert hypothesis['badge']=='H',hypothesis
     assert hypothesis['symbol']=='☾',hypothesis
     assert float(hypothesis['opacity'])==0.5,hypothesis
+    assert hypothesis['legacy']==0 and hypothesis['semantic']==1,hypothesis
     assert not hypothesis['action'],hypothesis
     assert 'Hypothèse' in hypothesis['a11y'],hypothesis
 
     page.evaluate("__setProofStep(1)")
-    first=page.evaluate("""()=>({badges:[...document.querySelectorAll('.walkthrough-hypothetical-badge')].map(x=>x.textContent),symbols:[...document.querySelectorAll('.walkthrough-hypothetical-symbol')].map(x=>x.textContent),opacities:[...document.querySelectorAll('.walkthrough-hypothetical-symbol')].map(x=>getComputedStyle(x).opacity),finalAction:document.querySelector('[data-r="0"][data-c="2"]').classList.contains('walkthrough-current-action')})""")
+    first=page.evaluate("""()=>({badges:[...document.querySelectorAll('.hf39-marker-badge')].map(x=>x.textContent),legacy:document.querySelectorAll('.walkthrough-hypothetical-badge').length,symbols:[...document.querySelectorAll('.walkthrough-hypothetical-symbol')].map(x=>x.textContent),opacities:[...document.querySelectorAll('.walkthrough-hypothetical-symbol')].map(x=>getComputedStyle(x).opacity),finalAction:document.querySelector('[data-r="0"][data-c="2"]').classList.contains('walkthrough-current-action')})""")
     assert first['badges']==['H','1'],first
+    assert first['legacy']==0,first
     assert first['symbols']==['☾','☀'],first
     assert all(float(x)==0.5 for x in first['opacities']),first
     assert not first['finalAction'],first
 
     page.evaluate("__setProofStep(2)")
-    relation_only=page.evaluate("()=>[...document.querySelectorAll('.walkthrough-hypothetical-badge')].map(x=>x.textContent)")
-    assert relation_only==['H','1'],relation_only
+    relation_only=page.evaluate("""()=>({semantic:[...document.querySelectorAll('.hf39-marker-badge')].map(x=>x.textContent),legacy:document.querySelectorAll('.walkthrough-hypothetical-badge').length})""")
+    assert relation_only=={'semantic':['H','1'],'legacy':0},relation_only
 
     page.evaluate("__setProofStep(3)")
-    chain=page.evaluate("()=>[...document.querySelectorAll('.walkthrough-hypothetical-badge')].map(x=>x.textContent)")
-    assert chain==['H','1','2','3'],chain
+    chain=page.evaluate("""()=>({semantic:[...document.querySelectorAll('.hf39-marker-badge')].map(x=>x.textContent),legacy:document.querySelectorAll('.walkthrough-hypothetical-badge').length})""")
+    assert chain=={'semantic':['H','1','2','3'],'legacy':0},chain
 
     page.evaluate("__setProofStep(4)")
-    contradiction=page.evaluate("""()=>{const cells=[...document.querySelectorAll('.walkthrough-contradiction-cell')];return {badges:[...document.querySelectorAll('.walkthrough-hypothetical-badge')].map(x=>x.textContent),coords:cells.map(x=>[Number(x.dataset.r),Number(x.dataset.c)]),styles:cells.map(x=>({outlineStyle:getComputedStyle(x).outlineStyle,outlineWidth:getComputedStyle(x).outlineWidth,boxShadow:getComputedStyle(x).boxShadow})),dataset:document.querySelector('.walkthrough-board').dataset.contradictionVisual}}""")
+    contradiction=page.evaluate("""()=>{const cells=[...document.querySelectorAll('.walkthrough-contradiction-cell')];return {badges:[...document.querySelectorAll('.hf39-marker-badge')].map(x=>x.textContent),legacy:document.querySelectorAll('.walkthrough-hypothetical-badge').length,coords:cells.map(x=>[Number(x.dataset.r),Number(x.dataset.c)]),styles:cells.map(x=>({outlineStyle:getComputedStyle(x).outlineStyle,outlineWidth:getComputedStyle(x).outlineWidth,boxShadow:getComputedStyle(x).boxShadow})),dataset:document.querySelector('.walkthrough-board').dataset.contradictionVisual}}""")
     assert contradiction['badges']==['H','1','2','3'],contradiction
+    assert contradiction['legacy']==0,contradiction
     assert contradiction['coords']==[[2,2],[3,2]],contradiction
     assert contradiction['dataset']=='contradiction',contradiction
     assert all(s['outlineStyle']=='solid' and float(s['outlineWidth'].replace('px',''))>=4 and s['boxShadow']!='none' for s in contradiction['styles']),contradiction
 
     page.evaluate("__setProofStep(5)")
-    action=page.evaluate("""()=>({hypothetical:document.querySelectorAll('.walkthrough-hypothetical-piece').length,contradiction:document.querySelectorAll('.walkthrough-contradiction-cell').length,action:document.querySelector('[data-r="0"][data-c="2"]').classList.contains('walkthrough-current-action'),a11y:[...document.querySelectorAll('.walkthrough-board [aria-label]')].map(x=>x.getAttribute('aria-label'))})""")
+    action=page.evaluate("""()=>({hypothetical:document.querySelectorAll('.walkthrough-hypothetical-piece').length,semanticBadges:document.querySelectorAll('.hf39-marker-badge').length,legacyBadges:document.querySelectorAll('.walkthrough-hypothetical-badge').length,contradiction:document.querySelectorAll('.walkthrough-contradiction-cell').length,action:document.querySelector('[data-r="0"][data-c="2"]').classList.contains('walkthrough-current-action'),a11y:[...document.querySelectorAll('.walkthrough-board [aria-label]')].map(x=>x.getAttribute('aria-label'))})""")
     assert action['hypothetical']==0,action
+    assert action['semanticBadges']==0 and action['legacyBadges']==0,action
     assert action['contradiction']==0,action
     assert action['action'],action
     assert not any(('Hypothèse' in label or 'Conséquence' in label or 'Contradiction' in label) for label in action['a11y']),action
@@ -85,4 +96,4 @@ with sync_playwright() as p:
     assert not errors,errors
     ctx.close();browser.close()
 
-print('v319-r3ui-tango-contradiction-visual-browser.test.py: PASS')
+print('v319-r3ui-tango-contradiction-visual-browser.test.py: PASS — single HF3.9 marker owner + contradiction witness')
