@@ -19,6 +19,7 @@ global.walkthroughSession={
 };
 require(runtime('tango-attention-continuity-bridge.js'));
 const T=global.QuadludTangoPlayedMovePlanner._attentionTest;
+const Orchestrator=require(runtime('tango-tutor-attention-orchestrator-r5.js'));
 
 assert.deepStrictEqual(T.recentPlayedTargets(global.walkthroughSession),[[2,5],[1,3]],'two most recent demonstrated action targets must remain available');
 
@@ -30,6 +31,12 @@ const candidate=(rule,target,premises,baseCost=[0,1,1,3,2,0,0])=>({
 
 const c3=candidate('RELATION_PROPAGATION',[2,2],[[1,3],[2,2]]);
 assert.equal(T.localDependencyContinuationCandidate(c3,context,local),true,'C3 must reuse B4 while staying inside the local C-row attention zone');
+assert.equal(Orchestrator._test.needsDependencyProbe(context,local),true,'C6/C5 context must probe because demonstrated B4 has just fallen outside the local context');
+
+const d5Context={recentCells:[[3,4],[3,2],[3,3]],recentActionCells:[[3,4],[3,3]],pendingConclusions:[]};
+const d5Local={...d5Context,recentCells:[[3,4],[3,2],[3,3],[3,1]],localExpansionApplied:true,localAxis:{family:'row',id:3}};
+assert.equal(Orchestrator._test.needsDependencyProbe(d5Context,d5Local),false,'D5/D4 are already in current context: R5 must not launch a redundant planner before delegating to R4');
+assert.equal(Orchestrator._test.needsDependencyProbe(context,{...local,localExpansionApplied:false}),false,'without a local attention extension there is no R5 dependency probe');
 
 const distant=candidate('RELATION_PROPAGATION',[0,0],[[1,3],[0,0]]);
 assert.equal(T.localDependencyContinuationCandidate(distant,context,local),false,'recent dependency must not pull attention to a distant target');
@@ -43,4 +50,4 @@ assert.equal(T.localDependencyContinuationCandidate(rank1,context,local),false,'
 const abstract=candidate('LINE_DOMAIN_SUPPORT',[2,2],[[2,3],[2,4],[2,5],[2,2]],[0,1,1,5,6,2,1]);
 assert.equal(T.localDependencyContinuationCandidate(abstract,context,local),false,'abstract line-domain support must remain excluded');
 
-console.log('v319-r3ui-tango-attention-dependency.test.js: PASS — local target + recent demonstrated source only');
+console.log('v319-r3ui-tango-attention-dependency.test.js: PASS — local target + recent demonstrated source only; redundant late probes are suppressed');
