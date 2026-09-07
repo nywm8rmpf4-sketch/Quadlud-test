@@ -12,7 +12,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=3;
+const VERSION=5;
 const ACTIVE_STAGE_KINDS=new Set(['hypothesis','reasoning','contradiction']);
 const copy=value=>value==null?value:JSON.parse(JSON.stringify(value));
 const sameCell=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1]);
@@ -79,7 +79,6 @@ function unitCells(unit,n=6){
 }
 function locale(){try{return String(typeof lang==='function'?lang():'en').toLowerCase().split('-')[0]}catch(_){return'en'}}
 function pieceWord(value){const fr=locale()==='fr';return Number(value)===1?(fr?'soleil':'sun'):(fr?'lune':'moon')}
-function semanticMarkerOwnerActive(){return root?.QuadludTangoSemanticCoherenceHF39?.OWNS_HYPOTHETICAL_MARKERS===true}
 function rememberA11yBase(cell){
   if(!cell||cell.hasAttribute?.('data-contradiction-a11y-base'))return;
   const had=cell.hasAttribute?.('aria-label'),base=String(cell.getAttribute?.('aria-label')||'');
@@ -105,9 +104,9 @@ function clearVisuals(board,panel){
   panel?.removeAttribute?.('data-contradiction-visual')
 }
 function markerElement(marker,doc){
-  const wrapper=doc.createElement('span');wrapper.className=`walkthrough-hypothetical-piece ${marker.kind==='hypothesis'?'is-hypothesis':'is-consequence'}${marker.current?' is-current':''}`;wrapper.setAttribute('aria-hidden','true');wrapper.dataset.hypotheticalStep=String(marker.label);
+  const wrapper=doc.createElement('span');wrapper.className=`walkthrough-hypothetical-piece hf39-hypothetical-piece ${marker.kind==='hypothesis'?'is-hypothesis':'is-consequence'}${marker.current?' is-current':''}`;wrapper.setAttribute('aria-hidden','true');wrapper.dataset.hypotheticalStep=String(marker.label);
   const symbol=doc.createElement('span');symbol.className='walkthrough-hypothetical-symbol tango-symbol';symbol.textContent=Number(marker.value)===1?'☀':'☾';
-  const badge=doc.createElement('span');badge.className='walkthrough-hypothetical-badge';badge.textContent=String(marker.label);
+  const badge=doc.createElement('span');badge.className='walkthrough-hypothetical-badge hf39-marker-badge';badge.textContent=String(marker.label);
   wrapper.append(symbol,badge);return wrapper
 }
 function decorate(){
@@ -116,11 +115,11 @@ function decorate(){
   clearVisuals(board,panel);
   const index=Math.max(0,Math.min(group.entries.length-1,Number(s.navigation?.proofStepIndex)||0)),state=proofVisualState(group,index);
   if(!state.active)return false;
-  const fr=locale()==='fr',semanticOwner=semanticMarkerOwnerActive();
+  const fr=locale()==='fr';
   for(const marker of state.markers){
     const [r,c]=marker.cell,cell=board.querySelector?.(`[data-r="${Number(r)}"][data-c="${Number(c)}"]`);if(!cell)continue;
     cell.classList.add(marker.kind==='hypothesis'?'walkthrough-hypothesis-cell':'walkthrough-hypothetical-cell');
-    if(!semanticOwner)cell.appendChild(markerElement(marker,doc));
+    cell.appendChild(markerElement(marker,doc));
     const label=marker.kind==='hypothesis'?(fr?`Hypothèse : ${pieceWord(marker.value)}`:`Assumption: ${pieceWord(marker.value)}`):(fr?`Conséquence ${marker.sequence} : ${pieceWord(marker.value)}`:`Consequence ${marker.sequence}: ${pieceWord(marker.value)}`);appendA11y(cell,label)
   }
   if(state.stageKind==='contradiction'){
@@ -143,5 +142,5 @@ function scheduleInstall(){
   retry();if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true
 }
 
-return Object.freeze({VERSION,install,scheduleInstall,decorate,_test:Object.freeze({stageKind,assumptionOf,valueConclusions,contradictionWitness,proofVisualState,unitCells,sameCell,rememberA11yBase,restoreA11y,semanticMarkerOwnerActive})})
+return Object.freeze({VERSION,install,scheduleInstall,decorate,_test:Object.freeze({stageKind,assumptionOf,valueConclusions,contradictionWitness,proofVisualState,unitCells,sameCell,rememberA11yBase,restoreA11y})})
 });
