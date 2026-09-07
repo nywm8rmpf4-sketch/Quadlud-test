@@ -12,8 +12,8 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=3;
-const TOKEN='3.1.9-hf3.9-r5.1b';
+const VERSION=4;
+const TOKEN='3.1.9-hf3.9-r5.4';
 let previousGenerate=null;
 
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
@@ -28,6 +28,19 @@ function presenter(){try{return typeof tangoReasoningPresenter==='function'?tang
 function complete(){try{return typeof walkthroughComplete==='function'&&walkthroughComplete()}catch(_){return false}}
 function firstValueTarget(d){const c=(d?.conclusions||[]).find(x=>x?.type==='VALUE'&&Array.isArray(x.cell));return c?c.cell.slice():null}
 function isR5Continuation(plan){return !!(plan?.status==='move'&&plan?.recentDependencyContinuation===true&&plan?.localAttentionContinuation===true&&Array.isArray(plan?.target))}
+function isPendingConclusionContinuation(plan){return !!(plan?.status==='move'&&plan?.pendingConclusionContinuation===true&&Array.isArray(plan?.target))}
+function publicPuzzleFor(session){return {n:session.work?.n||session.base?.n||6,state:copy(session.work.state),edges:copy(session.work?.edges||session.base?.edges||[])}}
+
+function pendingConclusionContinuation(session){
+  const P=planner(),A=P?._attentionTest;
+  if(!P||!session?.work?.state||!A||typeof A.tutorRecentContext!=='function'||typeof A.contextualDirectPlan!=='function')return null;
+  try{
+    const context=A.tutorRecentContext();
+    if(!Array.isArray(context?.pendingConclusions)||!context.pendingConclusions.length)return null;
+    const engine=P.sessionFromPublicBoard(publicPuzzleFor(session),session.work.state),plan=A.contextualDirectPlan(engine,session.base?.diff,{},context);
+    return isPendingConclusionContinuation(plan)?{engine,plan,kind:'pending-conclusion'}:null
+  }catch(_){return null}
+}
 
 function needsDependencyProbe(context,localContext){
   if(!localContext?.localExpansionApplied)return false;
@@ -46,10 +59,9 @@ function dependencyProbeContext(session,P){
 function contextualContinuation(session){
   const P=planner();if(!P||!session?.work?.state)return null;
   const probe=dependencyProbeContext(session,P);if(!probe)return null;
-  const publicPuzzle={n:session.work?.n||session.base?.n||6,state:copy(session.work.state),edges:copy(session.work?.edges||session.base?.edges||[])};
   try{
-    const engine=P.sessionFromPublicBoard(publicPuzzle,session.work.state),plan=probe.A.contextualDependencyPlan(engine,session.base?.diff,{},probe.context,probe.localContext);
-    return isR5Continuation(plan)?{engine,plan}:null
+    const engine=P.sessionFromPublicBoard(publicPuzzleFor(session),session.work.state),plan=probe.A.contextualDependencyPlan(engine,session.base?.diff,{},probe.context,probe.localContext);
+    return isR5Continuation(plan)?{engine,plan,kind:'dependency'}:null
   }catch(_){return null}
 }
 
@@ -62,6 +74,8 @@ function materializeContinuation(session,engine,rawPlan){
   const [r,c]=plan.target||[],value=plan.value;
   if(!Number.isInteger(r)||!Number.isInteger(c)||(value!==0&&value!==1)||session.work?.state?.[r]?.[c]!==-1)return false;
 
+  const pendingContinuation=plan.pendingConclusionContinuation===true;
+  const dependencyContinuation=!pendingContinuation&&plan.recentDependencyContinuation===true&&plan.localAttentionContinuation===true;
   const beforeSnapshot=snapshot(session.work);
   session.work.state[r][c]=value;session.work.tangoDerivedRelations=[];session.tangoLogic=null;
   const finalSnapshot=snapshot(session.work);
@@ -85,7 +99,10 @@ function materializeContinuation(session,engine,rawPlan){
         humanCandidateCount:Number(plan.humanCandidateCount)||0,humanGlobalSelection:false,frontierComplete:plan.frontierComplete!==false,
         humanProofPolicy:H.POLICY||displayProof?.policy||null,humanProofKind:displayProof?.kind||'engine-proof',
         humanProofCostVector:Array.isArray(displayProof?.costVector)?displayProof.costVector.slice():null,
-        humanProofTraceCollapsed:!!displayProof?.traceCollapsed,localAttentionContinuation:true,recentDependencyContinuation:true,
+        humanProofTraceCollapsed:!!displayProof?.traceCollapsed,
+        pendingConclusionContinuation,
+        localAttentionContinuation:dependencyContinuation,
+        recentDependencyContinuation:dependencyContinuation,
         localAttentionAxis:copy(plan.localAttentionAxis||null),recentActionCells:copy(plan.recentActionCells||[])
       },
       beforeSnapshot:copy(beforeSnapshot)
@@ -103,11 +120,11 @@ function install(){
   previousGenerate=current;
   const wrapped=function(...args){
     const session=currentTutor();if(!session||session.base?.game!=='tango'||session.done||session.stalled)return previousGenerate(...args);
-    const selected=contextualContinuation(session);if(!selected)return previousGenerate(...args);
+    const selected=pendingConclusionContinuation(session)||contextualContinuation(session);if(!selected)return previousGenerate(...args);
     return materializeContinuation(session,selected.engine,selected.plan)||previousGenerate(...args)
   };
   wrapped.__quadludTutorAttentionOrchestratorR5=true;wrapped.__quadludPrevious=current;root.walkthroughGenerateTangoNext=wrapped;return true
 }
 
-return Object.freeze({VERSION,TOKEN,install,isR5Continuation,needsDependencyProbe,dependencyProbeContext,contextualContinuation,materializeContinuation,_test:Object.freeze({snapshot,fallbackSnapshot,firstValueTarget,isR5Continuation,needsDependencyProbe,dependencyProbeContext})});
+return Object.freeze({VERSION,TOKEN,install,isR5Continuation,isPendingConclusionContinuation,pendingConclusionContinuation,needsDependencyProbe,dependencyProbeContext,contextualContinuation,materializeContinuation,_test:Object.freeze({snapshot,fallbackSnapshot,firstValueTarget,isR5Continuation,isPendingConclusionContinuation,pendingConclusionContinuation,needsDependencyProbe,dependencyProbeContext})});
 });
