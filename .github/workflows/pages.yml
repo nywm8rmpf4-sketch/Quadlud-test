@@ -163,7 +163,7 @@ jobs:
               assert response and response.ok, response.status if response else None
               page.wait_for_function(
                   "expected => { const el=document.querySelector('#testBuildId'); return !!el && el.textContent.includes(expected); }",
-                  expected['candidate'],
+                  arg=expected['candidate'],
                   timeout=20000,
               )
               identity = page.locator('#testBuildId').inner_text()
