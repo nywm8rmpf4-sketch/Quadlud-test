@@ -11,7 +11,7 @@
   if(typeof document!=='undefined')api.install();
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
-const VERSION=2;
+const VERSION=4;
 const ROLE_CLASSES=Object.freeze([
   'walkthrough-causal-context','walkthrough-causal-focus','walkthrough-causal-hypothesis',
   'walkthrough-causal-hypothetical-move','walkthrough-causal-contradiction','walkthrough-causal-conclusion'
@@ -49,7 +49,6 @@ function currentEntry(){
 }
 function board(){return root?.document?.querySelector?.('.walkthrough-board')||null}
 function cellElement(boardNode,cell){return boardNode?.querySelector?.(`[data-r="${Number(cell?.[0])}"][data-c="${Number(cell?.[1])}"]`)||null}
-function semanticMarkerOwnerActive(){return root?.QuadludTangoSemanticCoherenceHF39?.OWNS_HYPOTHETICAL_MARKERS===true}
 function clear(boardNode){
   if(!boardNode)return;for(const cls of ROLE_CLASSES)boardNode.querySelectorAll?.(`.${cls}`).forEach(el=>el.classList.remove(cls));
   boardNode.querySelectorAll?.('.walkthrough-hypothetical-badge').forEach(el=>el.remove());
@@ -58,7 +57,7 @@ function clear(boardNode){
 function applyCells(boardNode,cells,cls){for(const c of cells||[]){const el=cellElement(boardNode,c);if(el)el.classList.add(cls)}}
 function addHypotheticalBadge(boardNode,item){
   const el=cellElement(boardNode,item?.cell);if(!el||!Number.isInteger(item?.sequenceIndex)||item.sequenceIndex<1)return;
-  let badge=el.querySelector?.(':scope > .walkthrough-hypothetical-badge');if(!badge){badge=root.document.createElement('span');badge.className='walkthrough-hypothetical-badge';badge.setAttribute('aria-hidden','true');el.appendChild(badge)}badge.textContent=String(item.sequenceIndex)
+  let badge=el.querySelector?.(':scope > .walkthrough-hypothetical-badge');if(!badge){badge=root.document.createElement('span');badge.className='walkthrough-hypothetical-badge hf39-marker-badge';badge.setAttribute('aria-hidden','true');el.appendChild(badge)}badge.textContent=String(item.sequenceIndex)
 }
 function decorate(){
   const boardNode=board();if(!boardNode)return false;clear(boardNode);
@@ -69,7 +68,7 @@ function decorate(){
   applyCells(boardNode,projection.hypotheticalMoves.map(x=>x.cell),'walkthrough-causal-hypothetical-move');
   applyCells(boardNode,projection.contradictionCells,'walkthrough-causal-contradiction');
   applyCells(boardNode,projection.conclusionCells,'walkthrough-causal-conclusion');
-  if(!semanticMarkerOwnerActive())for(const item of projection.hypotheticalMoves)addHypotheticalBadge(boardNode,item);
+  for(const item of projection.hypotheticalMoves)addHypotheticalBadge(boardNode,item);
   boardNode.dataset.causalProofKind=projection.kind;boardNode.dataset.causalProofStep=projection.stepId;
   return true
 }
@@ -80,5 +79,5 @@ function install(){
   if(typeof walkthroughNavigateProof==='function'){previousNavigate=walkthroughNavigateProof;const nav=function(delta){const result=previousNavigate(delta);decorate();return result};nav.__quadludCausalProofProjection=true;walkthroughNavigateProof=nav}
   installed=true;decorate();return true
 }
-return Object.freeze({VERSION,install,decorate,projectionForMove,_test:Object.freeze({causalStep,premiseCells,uniqueCells,projectionForMove,sameCell,semanticMarkerOwnerActive})});
+return Object.freeze({VERSION,install,decorate,projectionForMove,_test:Object.freeze({causalStep,premiseCells,uniqueCells,projectionForMove,sameCell})});
 });
