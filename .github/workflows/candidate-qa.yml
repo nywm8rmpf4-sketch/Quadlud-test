@@ -117,3 +117,12 @@ jobs:
             echo "OTHER PUBLIC QA PY: $test"
             python "$test"
           done < <(find tests -maxdepth 1 -type f -name '*.test.py' | sort)
+
+      - name: Preserve Tango Tutor semantic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v319-tango-tutor-semantic-evidence-${{ github.run_number }}
+          path: /tmp/quadlud-semantic-evidence/tango-expert-fr-mobile-v1
+          if-no-files-found: error
+          retention-days: 7
