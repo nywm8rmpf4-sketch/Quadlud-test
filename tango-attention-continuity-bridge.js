@@ -5,7 +5,7 @@
 (function(root){
 'use strict';
 
-const VERSION=5;
+const VERSION=6;
 const Planner=root.QuadludTangoPlayedMovePlanner;
 const Policy=root.QuadludPedagogyNextMovePolicy;
 if(!Planner||!Planner._test||typeof Planner.nextPlayedMove!=='function'||!Policy||typeof Policy.rank!=='function')return;
@@ -142,8 +142,7 @@ function nextPlayedMove(session,diff,options={}){
     const local=expandContextAlongAxis(context,session?.state,LOCAL_AXIS_RADIUS);
     if(local.localExpansionApplied){
       const contextual=contextualDirectPlan(session,diff,options,local);
-      if(contextual)return {...contextual,localAttentionContinuation:true,localAttentionAxis:copy(local.localAxis),localAttentionRadius:LOCAL_AXIS_RADIUS,humanRecentCellsOriginal:copy(context.recentCells)};
-      const dependency=contextualDependencyPlan(session,diff,options,context,local);if(dependency)return dependency
+      if(contextual)return {...contextual,localAttentionContinuation:true,localAttentionAxis:copy(local.localAxis),localAttentionRadius:LOCAL_AXIS_RADIUS,humanRecentCellsOriginal:copy(context.recentCells)}
     }
   }catch(_){/* fail safely to certified baseline planner */}
   return originalNextPlayedMove(session,diff,options)

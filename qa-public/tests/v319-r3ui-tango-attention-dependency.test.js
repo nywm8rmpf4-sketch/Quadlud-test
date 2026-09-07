@@ -3,6 +3,7 @@
  */
 'use strict';
 const assert=require('assert');
+const fs=require('fs');
 const path=require('path');
 const runtime=name=>path.join(__dirname,'..','GitHub',name);
 const Policy=require(runtime('pedagogy-next-move-policy.js'));
@@ -35,7 +36,7 @@ assert.equal(Orchestrator._test.needsDependencyProbe(context,local),true,'C6/C5 
 
 const d5Context={recentCells:[[3,4],[3,2],[3,3]],recentActionCells:[[3,4],[3,3]],pendingConclusions:[]};
 const d5Local={...d5Context,recentCells:[[3,4],[3,2],[3,3],[3,1]],localExpansionApplied:true,localAxis:{family:'row',id:3}};
-assert.equal(Orchestrator._test.needsDependencyProbe(d5Context,d5Local),false,'D5/D4 are already in current context: R5 must not launch a redundant planner before delegating to R4');
+assert.equal(Orchestrator._test.needsDependencyProbe(d5Context,d5Local),false,'D5/D4 are already in current context: R5 must not launch a redundant planner before delegating to the baseline selector');
 assert.equal(Orchestrator._test.needsDependencyProbe(context,{...local,localExpansionApplied:false}),false,'without a local attention extension there is no R5 dependency probe');
 
 const distant=candidate('RELATION_PROPAGATION',[0,0],[[1,3],[0,0]]);
@@ -50,4 +51,14 @@ assert.equal(T.localDependencyContinuationCandidate(rank1,context,local),false,'
 const abstract=candidate('LINE_DOMAIN_SUPPORT',[2,2],[[2,3],[2,4],[2,5],[2,2]],[0,1,1,5,6,2,1]);
 assert.equal(T.localDependencyContinuationCandidate(abstract,context,local),false,'abstract line-domain support must remain excluded');
 
-console.log('v319-r3ui-tango-attention-dependency.test.js: PASS — local target + recent demonstrated source only; redundant late probes are suppressed');
+const bridgeSource=fs.readFileSync(runtime('tango-attention-continuity-bridge.js'),'utf8');
+const nextStart=bridgeSource.indexOf('function nextPlayedMove('),nextEnd=bridgeSource.indexOf('\n\nroot.QuadludTangoPlayedMovePlanner=',nextStart);
+assert.ok(nextStart>=0&&nextEnd>nextStart,'attention bridge nextPlayedMove source must remain structurally identifiable');
+assert.equal(bridgeSource.slice(nextStart,nextEnd).includes('contextualDependencyPlan('),false,'baseline attention bridge must not run the specialized recent-dependency planner; R5 owns that probe');
+assert.equal(typeof T.contextualDependencyPlan,'function','specialized recent-dependency selector must remain exported for R5 orchestration');
+
+global.walkthroughGenerateTangoNext=function baselineGenerate(){return 'baseline'};
+assert.equal(Orchestrator.install(),true,'R5 orchestrator must install on the Tango Tutor generation hook');
+assert.equal(global.walkthroughGenerateTangoNext.__quadludTutorAttentionOrchestratorR5,true,'installed Tango Tutor hook must carry the R5 marker');
+
+console.log('v319-r3ui-tango-attention-dependency.test.js: PASS — local target + recent demonstrated source only; dependency probe owned by R5; redundant late probes suppressed');
