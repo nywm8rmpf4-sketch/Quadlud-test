@@ -3,7 +3,7 @@
 const assert=require('assert');
 const path=require('path');
 
-const Navigation=require(path.resolve(__dirname,'../../tutor-action-first-navigation.js'));
+const Navigation=require(path.resolve(__dirname,'../GitHub/tutor-action-first-navigation.js'));
 const T=Navigation._test;
 
 const multiConclusion={move:{
