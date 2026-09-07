@@ -5,7 +5,7 @@
 (function(root){
 'use strict';
 
-const VERSION=7;
+const VERSION=8;
 const Planner=root.QuadludTangoPlayedMovePlanner;
 const Policy=root.QuadludPedagogyNextMovePolicy;
 if(!Planner||!Planner._test||typeof Planner.nextPlayedMove!=='function'||!Policy||typeof Policy.rank!=='function')return;
@@ -125,6 +125,19 @@ function baselineDirectPlan(frontierData){
   if(!selected?.plan||!selected?.selection?.selected)return null;
   return {...copy(selected.plan),selectionStatus:selected.selection.status,selectedCostVector:copy(selected.selection.selected.costVector),candidateCount:selected.candidates.length,frontierComplete,budgetHit:!frontierComplete}
 }
+function baselineContinuationPlan(session,diff,options,frontierData){
+  const direct=baselineDirectPlan(frontierData);if(direct)return direct;
+  const evaluation=frontierData?.evaluation,tier=tierIndex(diff);
+  if(!evaluation||!Number.isInteger(tier)||typeof Planner._test.advancedDeductionsDetailed!=='function'||typeof Planner._test.evaluateStartingDeductions!=='function'||typeof Planner._test.selectPlans!=='function')return null;
+  let frontierComplete=!evaluation.truncated&&!evaluation.branchBudgetHit,advancedBudgetHit=false;
+  if(tier>=3){
+    const advanced=Planner._test.advancedDeductionsDetailed(session,tier)||{deductions:[],budgetHit:false};advancedBudgetHit=!!advanced.budgetHit;
+    const advancedEval=Planner._test.evaluateStartingDeductions(session,tier,advanced.deductions||[],options,true);
+    frontierComplete=frontierComplete&&!advancedBudgetHit&&!advancedEval.truncated&&!advancedEval.branchBudgetHit;
+    if(advancedEval.plans.length){const selected=Planner._test.selectPlans(advancedEval.plans,{frontierComplete});if(selected?.plan&&selected?.selection?.selected)return {...copy(selected.plan),selectionStatus:selected.selection.status,selectedCostVector:copy(selected.selection.selected.costVector),candidateCount:selected.candidates.length,frontierComplete,budgetHit:!frontierComplete}}
+  }
+  const budgetHit=!frontierComplete||advancedBudgetHit;return {status:budgetHit?'budget-exhausted':'blocked',budgetHit,tierIndex:tier,proofChain:[]}
+}
 function contextualDirectPlan(session,diff,options,context,frontierData=null){
   const contextCells=context?.recentCells||[],pending=context?.pendingConclusions||[],tier=tierIndex(diff);if(!Number.isInteger(tier)||(!contextCells.length&&!pending.length))return null;
   const {evaluation,frontier,policyCandidates}=frontierData||directFrontierCandidates(session,tier,options);if(!frontier.length)return null;
@@ -151,10 +164,10 @@ function nextPlayedMove(session,diff,options={}){
       const contextual=contextualDirectPlan(session,diff,options,local,frontierData);
       if(contextual)return {...contextual,localAttentionContinuation:true,localAttentionAxis:copy(local.localAxis),localAttentionRadius:LOCAL_AXIS_RADIUS,humanRecentCellsOriginal:copy(context.recentCells)}
     }
-    const baseline=baselineDirectPlan(frontierData);if(baseline)return baseline;
+    const baseline=baselineContinuationPlan(session,diff,options,frontierData);if(baseline)return baseline;
   }catch(_){/* fail safely to certified baseline planner */}
   return originalNextPlayedMove(session,diff,options)
 }
 
-root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,recentPlayedTargets,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,dominantAxis,expandContextAlongAxis,LOCAL_AXIS_RADIUS,RECENT_ACTION_GROUPS,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,localDependencyContinuationCandidate,directFrontierCandidates,baselineDirectPlan,contextualDirectPlan,contextualDependencyPlan,NON_SIMPLE_CONTINUATION_RULES})});
+root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,recentPlayedTargets,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,dominantAxis,expandContextAlongAxis,LOCAL_AXIS_RADIUS,RECENT_ACTION_GROUPS,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,localDependencyContinuationCandidate,directFrontierCandidates,baselineDirectPlan,baselineContinuationPlan,contextualDirectPlan,contextualDependencyPlan,NON_SIMPLE_CONTINUATION_RULES})});
 })(typeof globalThis!=='undefined'?globalThis:this);

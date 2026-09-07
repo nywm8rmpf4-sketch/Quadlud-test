@@ -8,10 +8,19 @@ const path=require('path');
 const runtime=name=>path.join(__dirname,'..','GitHub',name);
 const Policy=require(runtime('pedagogy-next-move-policy.js'));
 
+let originalBaselineCalls=0,directEvalCalls=0,advancedEvalCalls=0,advancedCalls=0;
 global.QuadludPedagogyNextMovePolicy=Policy;
 global.QuadludTangoPlayedMovePlanner={
-  nextPlayedMove(){return null},
+  nextPlayedMove(){originalBaselineCalls++;return {status:'legacy-baseline'}},
   _test:{
+    allowedDirectDeductions(){return []},
+    evaluateStartingDeductions(_session,_tier,_deductions,_options,advancedStart=false){
+      if(advancedStart)advancedEvalCalls++;else directEvalCalls++;
+      return {plans:[],truncated:false,branchBudgetHit:false,evaluated:0,total:0};
+    },
+    buildSelectorCandidates(){return []},
+    planCostVector(){return [0,1,1,2,2,0,0]},
+    advancedDeductionsDetailed(){advancedCalls++;return {deductions:[],budgetHit:false}},
     selectPlans(plans,{frontierComplete=true}={}){
       const plan=plans?.[0]||null;
       if(!plan)return {plan:null,selection:{status:'empty',selected:null},candidates:[]};
@@ -71,17 +80,26 @@ assert.equal(reused.selectionStatus,'human-proof-global-minimum','cached direct 
 assert.equal(reused.candidateCount,1,'cached direct frontier must preserve baseline candidate count');
 assert.equal(reused.frontierComplete,true,'cached direct frontier must preserve completeness');
 
+const beforeLate={originalBaselineCalls,directEvalCalls,advancedEvalCalls,advancedCalls};
+const late=global.QuadludTangoPlayedMovePlanner.nextPlayedMove({n:6,state:Array.from({length:6},()=>Array(6).fill(-1))},'expert',{});
+assert.equal(late.status,'blocked','empty cached direct + advanced frontier must preserve the baseline blocked result');
+assert.equal(directEvalCalls-beforeLate.directEvalCalls,1,'late Tutor fallback must evaluate the direct frontier exactly once');
+assert.equal(advancedCalls-beforeLate.advancedCalls,1,'late Tutor fallback must continue once into the advanced Expert frontier');
+assert.equal(advancedEvalCalls-beforeLate.advancedEvalCalls,1,'late Tutor fallback must evaluate the advanced frontier exactly once');
+assert.equal(originalBaselineCalls-beforeLate.originalBaselineCalls,0,'late Tutor fallback must not restart the original planner after a complete cached direct evaluation');
+
 const bridgeSource=fs.readFileSync(runtime('tango-attention-continuity-bridge.js'),'utf8');
 const nextStart=bridgeSource.indexOf('function nextPlayedMove('),nextEnd=bridgeSource.indexOf('\n\nroot.QuadludTangoPlayedMovePlanner=',nextStart);
 assert.ok(nextStart>=0&&nextEnd>nextStart,'attention bridge nextPlayedMove source must remain structurally identifiable');
 const nextSource=bridgeSource.slice(nextStart,nextEnd);
 assert.equal(nextSource.includes('contextualDependencyPlan('),false,'baseline attention bridge must not run the specialized recent-dependency planner; R5 owns that probe');
 assert.equal((nextSource.match(/directFrontierCandidates\(/g)||[]).length,1,'one Tutor move must build the reusable direct frontier at most once in the attention bridge');
-assert.equal(nextSource.includes('baselineDirectPlan(frontierData)'),true,'baseline direct fallback must reuse the already computed frontier instead of replanning it');
+assert.equal(nextSource.includes('baselineContinuationPlan(session,diff,options,frontierData)'),true,'baseline fallback must continue from the cached direct evaluation instead of restarting the planner');
 assert.equal(typeof T.contextualDependencyPlan,'function','specialized recent-dependency selector must remain exported for R5 orchestration');
+assert.equal(typeof T.baselineContinuationPlan,'function','cached baseline continuation must remain explicitly testable');
 
 global.walkthroughGenerateTangoNext=function baselineGenerate(){return 'baseline'};
 assert.equal(Orchestrator.install(),true,'R5 orchestrator must install on the Tango Tutor generation hook');
 assert.equal(global.walkthroughGenerateTangoNext.__quadludTutorAttentionOrchestratorR5,true,'installed Tango Tutor hook must carry the R5 marker');
 
-console.log('v319-r3ui-tango-attention-dependency.test.js: PASS — R5 dependency probe single-owner; direct Tutor frontier reused without changing baseline selection');
+console.log('v319-r3ui-tango-attention-dependency.test.js: PASS — R5 owns dependency probe; direct and advanced Tutor frontiers are evaluated once without baseline restart');
