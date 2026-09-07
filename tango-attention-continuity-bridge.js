@@ -5,13 +5,14 @@
 (function(root){
 'use strict';
 
-const VERSION=3;
+const VERSION=4;
 const Planner=root.QuadludTangoPlayedMovePlanner;
 const Policy=root.QuadludPedagogyNextMovePolicy;
 if(!Planner||!Planner._test||typeof Planner.nextPlayedMove!=='function'||!Policy||typeof Policy.rank!=='function')return;
 const originalNextPlayedMove=Planner.nextPlayedMove.bind(Planner);
 const DIFF_TO_TIER=Object.freeze({easy:0,medium:1,hard:2,expert:3,facile:0,moyen:1,difficile:2});
 const NON_SIMPLE_CONTINUATION_RULES=new Set(['ASSUMPTION_CONTRADICTION','COMMON_CONSEQUENCE','LINE_DOMAIN_SUPPORT']);
+const LOCAL_AXIS_RADIUS=2;
 
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function stateKey(state){return JSON.stringify(state||null)}
@@ -59,6 +60,24 @@ function tutorRecentContext(){
   return {recentCells:demonstratedCells,demonstratedCells,moveCells:Policy._test.uniqCells(moveCells),pendingConclusions}
 }
 function tutorRecentCells(){return tutorRecentContext().recentCells}
+function dominantAxis(cells){
+  const normalized=Policy._test.uniqCells(cells||[]);if(normalized.length<2)return null;
+  const rows=new Set(normalized.map(c=>Number(c[0]))),columns=new Set(normalized.map(c=>Number(c[1])));
+  if(rows.size===1)return {family:'row',id:Number(normalized[0][0])};
+  if(columns.size===1)return {family:'column',id:Number(normalized[0][1])};
+  return null
+}
+function expandContextAlongAxis(context,state,radius=LOCAL_AXIS_RADIUS){
+  const recent=Policy._test.uniqCells(context?.recentCells||[]),axis=dominantAxis(recent),rows=Array.isArray(state)?state.length:0;
+  if(!axis||!rows)return {...context,recentCells:recent,localAxis:null,localExpansionApplied:false};
+  const expanded=[...recent];
+  for(const cell of recent)for(let delta=-radius;delta<=radius;delta++){
+    const r=axis.family==='row'?axis.id:Number(cell[0])+delta,c=axis.family==='row'?Number(cell[1])+delta:axis.id;
+    if(r>=0&&r<rows&&c>=0&&c<(state?.[r]?.length||0))expanded.push([r,c]);
+  }
+  const unique=Policy._test.uniqCells(expanded);
+  return {...context,recentCells:unique,localAxis:axis,localExpansionApplied:unique.length>recent.length,localAttentionRadius:radius}
+}
 function planCells(plan){
   const premises=[],focus=[];for(const deduction of plan?.proofChain||[]){for(const p of deduction?.premises||[])collectCells(p,premises);for(const c of deduction?.focusCells||[])addCell(focus,c)}
   if(plan?.deduction){for(const p of plan.deduction.premises||[])collectCells(p,premises);for(const c of plan.deduction.focusCells||[])addCell(focus,c)}
@@ -88,9 +107,16 @@ function contextualDirectPlan(session,diff,options,context){
 }
 function nextPlayedMove(session,diff,options={}){
   const context=tutorRecentContext();if(!context.recentCells.length&&!context.pendingConclusions.length)return originalNextPlayedMove(session,diff,options);
-  try{const contextual=contextualDirectPlan(session,diff,options,context);if(contextual)return contextual}catch(_){/* fail safely to certified baseline planner */}
+  try{
+    const exact=contextualDirectPlan(session,diff,options,context);if(exact)return exact;
+    const local=expandContextAlongAxis(context,session?.work?.state,LOCAL_AXIS_RADIUS);
+    if(local.localExpansionApplied){
+      const contextual=contextualDirectPlan(session,diff,options,local);
+      if(contextual)return {...contextual,localAttentionContinuation:true,localAttentionAxis:copy(local.localAxis),localAttentionRadius:LOCAL_AXIS_RADIUS,humanRecentCellsOriginal:copy(context.recentCells)}
+    }
+  }catch(_){/* fail safely to certified baseline planner */}
   return originalNextPlayedMove(session,diff,options)
 }
 
-root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,contextualDirectPlan,NON_SIMPLE_CONTINUATION_RULES})});
+root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,dominantAxis,expandContextAlongAxis,LOCAL_AXIS_RADIUS,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,contextualDirectPlan,NON_SIMPLE_CONTINUATION_RULES})});
 })(typeof globalThis!=='undefined'?globalThis:this);
