@@ -12,7 +12,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=2;
+const VERSION=3;
 const ACTIVE_STAGE_KINDS=new Set(['hypothesis','reasoning','contradiction']);
 const copy=value=>value==null?value:JSON.parse(JSON.stringify(value));
 const sameCell=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1]);
@@ -79,6 +79,7 @@ function unitCells(unit,n=6){
 }
 function locale(){try{return String(typeof lang==='function'?lang():'en').toLowerCase().split('-')[0]}catch(_){return'en'}}
 function pieceWord(value){const fr=locale()==='fr';return Number(value)===1?(fr?'soleil':'sun'):(fr?'lune':'moon')}
+function semanticMarkerOwnerActive(){return root?.QuadludTangoSemanticCoherenceHF39?.OWNS_HYPOTHETICAL_MARKERS===true}
 function rememberA11yBase(cell){
   if(!cell||cell.hasAttribute?.('data-contradiction-a11y-base'))return;
   const had=cell.hasAttribute?.('aria-label'),base=String(cell.getAttribute?.('aria-label')||'');
@@ -115,10 +116,11 @@ function decorate(){
   clearVisuals(board,panel);
   const index=Math.max(0,Math.min(group.entries.length-1,Number(s.navigation?.proofStepIndex)||0)),state=proofVisualState(group,index);
   if(!state.active)return false;
-  const fr=locale()==='fr';
+  const fr=locale()==='fr',semanticOwner=semanticMarkerOwnerActive();
   for(const marker of state.markers){
     const [r,c]=marker.cell,cell=board.querySelector?.(`[data-r="${Number(r)}"][data-c="${Number(c)}"]`);if(!cell)continue;
-    cell.classList.add(marker.kind==='hypothesis'?'walkthrough-hypothesis-cell':'walkthrough-hypothetical-cell');cell.appendChild(markerElement(marker,doc));
+    cell.classList.add(marker.kind==='hypothesis'?'walkthrough-hypothesis-cell':'walkthrough-hypothetical-cell');
+    if(!semanticOwner)cell.appendChild(markerElement(marker,doc));
     const label=marker.kind==='hypothesis'?(fr?`Hypothèse : ${pieceWord(marker.value)}`:`Assumption: ${pieceWord(marker.value)}`):(fr?`Conséquence ${marker.sequence} : ${pieceWord(marker.value)}`:`Consequence ${marker.sequence}: ${pieceWord(marker.value)}`);appendA11y(cell,label)
   }
   if(state.stageKind==='contradiction'){
@@ -141,5 +143,5 @@ function scheduleInstall(){
   retry();if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true
 }
 
-return Object.freeze({VERSION,install,scheduleInstall,decorate,_test:Object.freeze({stageKind,assumptionOf,valueConclusions,contradictionWitness,proofVisualState,unitCells,sameCell,rememberA11yBase,restoreA11y})})
+return Object.freeze({VERSION,install,scheduleInstall,decorate,_test:Object.freeze({stageKind,assumptionOf,valueConclusions,contradictionWitness,proofVisualState,unitCells,sameCell,rememberA11yBase,restoreA11y,semanticMarkerOwnerActive})})
 });
