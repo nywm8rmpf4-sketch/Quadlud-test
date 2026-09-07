@@ -12,15 +12,16 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=2;
-const TOKEN='3.1.9-hf3.9-r5.1';
+const VERSION=3;
+const TOKEN='3.1.9-hf3.9-r5.1b';
 let previousGenerate=null;
 
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
+function cellKey(cell){return Array.isArray(cell)&&cell.length>=2?`${Number(cell[0])}:${Number(cell[1])}`:''}
 function fallbackSnapshot(work){return {state:copy(work?.state||[]),tangoDerivedRelations:copy(work?.tangoDerivedRelations||[])}}
 function snapshot(work){try{return typeof walkthroughSnapshot==='function'?copy(walkthroughSnapshot(work)):fallbackSnapshot(work)}catch(_){return fallbackSnapshot(work)}}
 function currentTutor(){try{return typeof walkthroughSession!=='undefined'?walkthroughSession:null}catch(_){return null}}
-function planner(){const p=root.QuadludTangoPlayedMovePlanner;return p&&typeof p.nextPlayedMove==='function'&&typeof p.sessionFromPublicBoard==='function'?p:null}
+function planner(){const p=root.QuadludTangoPlayedMovePlanner;return p&&typeof p.sessionFromPublicBoard==='function'?p:null}
 function runtime(){const r=root.QuadludTangoPlayedMoveRuntime;return r&&typeof r.selectDisplayProof==='function'?r:null}
 function human(){const h=root.QuadludTangoHumanPedagogyR4;return h&&typeof h.proofStagesForDeduction==='function'?h:null}
 function presenter(){try{return typeof tangoReasoningPresenter==='function'?tangoReasoningPresenter():null}catch(_){return null}}
@@ -28,11 +29,26 @@ function complete(){try{return typeof walkthroughComplete==='function'&&walkthro
 function firstValueTarget(d){const c=(d?.conclusions||[]).find(x=>x?.type==='VALUE'&&Array.isArray(x.cell));return c?c.cell.slice():null}
 function isR5Continuation(plan){return !!(plan?.status==='move'&&plan?.recentDependencyContinuation===true&&plan?.localAttentionContinuation===true&&Array.isArray(plan?.target))}
 
+function needsDependencyProbe(context,localContext){
+  if(!localContext?.localExpansionApplied)return false;
+  const recent=new Set((context?.recentCells||[]).map(cellKey).filter(Boolean));
+  return (context?.recentActionCells||[]).some(cell=>{const key=cellKey(cell);return !!key&&!recent.has(key)})
+}
+
+function dependencyProbeContext(session,P){
+  const A=P?._attentionTest;if(!A||typeof A.tutorRecentContext!=='function'||typeof A.expandContextAlongAxis!=='function'||typeof A.contextualDependencyPlan!=='function')return null;
+  try{
+    const context=A.tutorRecentContext(),localContext=A.expandContextAlongAxis(context,session?.work?.state,A.LOCAL_AXIS_RADIUS);
+    return needsDependencyProbe(context,localContext)?{A,context,localContext}:null
+  }catch(_){return null}
+}
+
 function contextualContinuation(session){
   const P=planner();if(!P||!session?.work?.state)return null;
+  const probe=dependencyProbeContext(session,P);if(!probe)return null;
   const publicPuzzle={n:session.work?.n||session.base?.n||6,state:copy(session.work.state),edges:copy(session.work?.edges||session.base?.edges||[])};
   try{
-    const engine=P.sessionFromPublicBoard(publicPuzzle,session.work.state),plan=P.nextPlayedMove(engine,session.base?.diff);
+    const engine=P.sessionFromPublicBoard(publicPuzzle,session.work.state),plan=probe.A.contextualDependencyPlan(engine,session.base?.diff,{},probe.context,probe.localContext);
     return isR5Continuation(plan)?{engine,plan}:null
   }catch(_){return null}
 }
@@ -93,5 +109,5 @@ function install(){
   wrapped.__quadludTutorAttentionOrchestratorR5=true;wrapped.__quadludPrevious=current;root.walkthroughGenerateTangoNext=wrapped;return true
 }
 
-return Object.freeze({VERSION,TOKEN,install,isR5Continuation,contextualContinuation,materializeContinuation,_test:Object.freeze({snapshot,fallbackSnapshot,firstValueTarget,isR5Continuation})});
+return Object.freeze({VERSION,TOKEN,install,isR5Continuation,needsDependencyProbe,dependencyProbeContext,contextualContinuation,materializeContinuation,_test:Object.freeze({snapshot,fallbackSnapshot,firstValueTarget,isR5Continuation,needsDependencyProbe,dependencyProbeContext})});
 });
