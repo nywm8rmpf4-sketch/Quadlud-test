@@ -54,14 +54,16 @@ def attention_diagnostics(page):
     return page.evaluate("""()=>{
       const P=QuadludTangoPlayedMovePlanner,A=P?._attentionTest,Q=QuadludPedagogyNextMovePolicy,s=walkthroughSession;
       const safe=(fn,fallback=null)=>{try{return fn()}catch(e){return {error:String(e?.stack||e)}}};
+      const publicPuzzle={n:s?.work?.n||s?.base?.n||6,state:JSON.parse(JSON.stringify(s?.work?.state||[])),edges:JSON.parse(JSON.stringify(s?.work?.edges||s?.base?.edges||[]))};
+      const logic=safe(()=>P.sessionFromPublicBoard(publicPuzzle,s.work.state),null);
       const summarizePlan=plan=>plan?{target:plan.target,value:plan.value,rule:plan.deduction?.rule||null,selectionStatus:plan.selectionStatus||null,selectedCostVector:plan.selectedCostVector||null,localAttentionContinuation:!!plan.localAttentionContinuation,localAttentionAxis:plan.localAttentionAxis||null,humanRecentCells:plan.humanRecentCells||null}:null;
       const ctx=safe(()=>A.tutorRecentContext(),{});
       const axis=safe(()=>A.dominantAxis(ctx.recentCells),null);
       const expanded=safe(()=>A.expandContextAlongAxis(ctx,s?.work?.state,A.LOCAL_AXIS_RADIUS),{});
-      const exact=safe(()=>A.contextualDirectPlan(s,'expert',{},ctx),null);
-      const local=safe(()=>A.contextualDirectPlan(s,'expert',{},expanded),null);
+      const exact=safe(()=>A.contextualDirectPlan(logic,'expert',{},ctx),null);
+      const local=safe(()=>A.contextualDirectPlan(logic,'expert',{},expanded),null);
       const candidates=safe(()=>{
-        const direct=P._test.allowedDirectDeductions(s,3),ev=P._test.evaluateStartingDeductions(s,3,direct,{},false),selectors=P._test.buildSelectorCandidates(ev.plans);
+        const direct=P._test.allowedDirectDeductions(logic,3),ev=P._test.evaluateStartingDeductions(logic,3,direct,{},false),selectors=P._test.buildSelectorCandidates(ev.plans);
         return selectors.map(c=>{
           const cells=A.planCells(c.plan),base=P._test.planCostVector(c.plan),target=c.plan?.target||null;
           const originalMetrics=Q.contextualMetrics({target:c.plan?.target,value:c.plan?.value,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan},{recentCells:ctx.recentCells||[],pendingConclusions:ctx.pendingConclusions||[]});
