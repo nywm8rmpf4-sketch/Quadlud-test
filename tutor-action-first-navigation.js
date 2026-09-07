@@ -103,8 +103,8 @@
   function groupUnits(group){const out=new Map();for(const entry of group?.entries||[])for(const unit of entryUnits(entry))out.set(unit.key,unit);return [...out.values()]}
   function actionCoords(entry){
     const out=new Set(),move=entry?.move||{},hasExplicitTarget=move.target!=null;
-    if(hasExplicitTarget){collectCoords(move.target,out);collectCoords(move.presentation?.action?.target,out)}
-    if(!hasExplicitTarget||!out.size){collectCoords(move.deduction?.conclusions,out);collectCoords(move.presentation?.action?.target,out);collectCoords(move.presentation?.action,out)}
+    if(hasExplicitTarget)collectCoords(move.target,out);
+    else{collectCoords(move.presentation?.action?.target,out);if(!out.size){collectCoords(move.deduction?.conclusions,out);collectCoords(move.presentation?.action,out)}}
     return [...out].map(key=>key.split(',').map(Number))
   }
   function focusItemsFrom(value,out=[]){
@@ -136,6 +136,10 @@
     const coords=actionCoords(entry),elements=[];for(const [r,c] of coords){const el=board.querySelector(`[data-r="${r}"][data-c="${c}"]`);if(el&&!elements.includes(el))elements.push(el)}
     if(!elements.length)for(const el of board.querySelectorAll('.walkthrough-target'))if(!elements.includes(el))elements.push(el);return elements
   }
+  function normalizeLegacyTargets(board,actionElements,showAction){
+    const keep=new Set(showAction?actionElements:[]);
+    for(const el of board.querySelectorAll('.walkthrough-target'))if(!keep.has(el))el.classList.remove('walkthrough-target')
+  }
   function decorateCurrentAction(){
     const group=currentGroup(),doc=root?.document;if(!group||!doc)return false;
     const chain=(group.entries?.length||0)>1,entry=actionEntry(group),board=doc.querySelector('.walkthrough-board'),showAction=!suppressProjectedAction(group);if(!board||!entry)return false;
@@ -143,9 +147,10 @@
     applyUnitClass(board,roles.unitContext,'walkthrough-unit-context');
     applyCoordClass(board,roles.context,'walkthrough-reasoning-context');applyEntityClass(scope,roles.contextEntities,'walkthrough-reasoning-context');
     applyCoordClass(board,roles.focus,'walkthrough-current-focus');applyEntityClass(scope,roles.focusEntities,'walkthrough-current-focus');
+    const actionElements=showAction?findActionElements(entry):[];normalizeLegacyTargets(board,actionElements,showAction);
     if(showAction){applyCoordClass(board,roles.action,'walkthrough-current-action');applyEntityClass(scope,roles.actionEntities,'walkthrough-current-action')}
     board.classList.toggle('walkthrough-proof-chain-active',chain);board.dataset.proofSteps=String(group.entries?.length||1);board.dataset.pedagogyHierarchy='unit-context-premise-focus-action';
-    if(showAction)for(const el of findActionElements(entry)){
+    if(showAction)for(const el of actionElements){
       el.classList.add('walkthrough-current-action');
       if(chain){el.classList.add('walkthrough-current-action-chain');if(!el.querySelector(':scope > .walkthrough-chain-badge')){const badge=doc.createElement('span');badge.className='walkthrough-chain-badge';badge.setAttribute('aria-hidden','true');badge.textContent='⋯';el.appendChild(badge)}}
     }
@@ -167,5 +172,5 @@
   }
   function install(){if(installed)return true;const ok=installBoardProjection()&&installRenderProjection()&&installProofNavigationProjection();installed=ok;if(ok)decorateCurrentAction();return ok}
 
-  return Object.freeze({install,actionEntry,actionCoords,decorateCurrentAction,_test:Object.freeze({isActionMove,pedagogicalStageKind,suppressProjectedAction,collectCoords,collectUnitCoords,collectDeductionUnits,collectPremiseCoords,collectDeductionCoords,currentEntry,entryReasoningCoords,groupReasoningCoords,entryUnits,groupUnits,semanticRoles,projectedAction})})
+  return Object.freeze({install,actionEntry,actionCoords,decorateCurrentAction,_test:Object.freeze({isActionMove,pedagogicalStageKind,suppressProjectedAction,collectCoords,collectUnitCoords,collectDeductionUnits,collectPremiseCoords,collectDeductionCoords,currentEntry,entryReasoningCoords,groupReasoningCoords,entryUnits,groupUnits,semanticRoles,projectedAction,normalizeLegacyTargets})})
 });
