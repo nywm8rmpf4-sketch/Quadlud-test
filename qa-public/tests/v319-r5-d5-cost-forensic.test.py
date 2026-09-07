@@ -1,0 +1,92 @@
+from pathlib import Path
+import importlib.util
+import json
+from playwright.sync_api import sync_playwright
+
+HERE = Path(__file__).resolve().parent
+JOURNEY = HERE / 'v319-semantic-tango-tutor-journey-browser.test.py'
+spec = importlib.util.spec_from_file_location('v319_semantic_journey', JOURNEY)
+journey = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+spec.loader.exec_module(journey)
+
+
+def current_action(page):
+    return page.evaluate("""()=>{const el=document.querySelector('.walkthrough-current-action');if(!el)return null;const r=Number(el.dataset.r),c=Number(el.dataset.c);return Number.isInteger(r)&&Number.isInteger(c)?`${String.fromCharCode(65+r)}${c+1}`:null}""")
+
+
+def main():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
+        context = browser.new_context(viewport=journey.VIEWPORT, locale='fr-FR', has_touch=True, is_mobile=True)
+        page = context.new_page()
+        journey.load_runtime(page)
+        journey.open_real_tango_expert(page)
+        page.locator('#walkthroughBtn').click()
+        page.wait_for_selector('.walkthrough-panel')
+        page.wait_for_timeout(120)
+
+        seen = []
+        for _ in range(24):
+            action = current_action(page)
+            if action:
+                seen.append(action)
+            if action == 'D5':
+                break
+            proof_next = page.locator('#walkthroughProofNext')
+            if proof_next.count() and proof_next.is_visible() and not proof_next.is_disabled():
+                proof_next.click(timeout=10000)
+            else:
+                nxt = page.locator('#walkthroughNext')
+                assert nxt.count() and nxt.is_visible() and not nxt.is_disabled(), {'seen': seen, 'action': action}
+                nxt.click(timeout=10000)
+            page.wait_for_timeout(120)
+
+        assert current_action(page) == 'D5', {'seen': seen, 'current': current_action(page)}
+
+        profile = page.evaluate("""()=>{
+          const s=typeof walkthroughSession!=='undefined'?walkthroughSession:null;
+          const P=globalThis.QuadludTangoPlayedMovePlanner;
+          const A=P?._attentionTest;
+          if(!s||!P||!A)throw new Error('missing Tango Tutor forensic runtime');
+          const copy=x=>x==null?x:JSON.parse(JSON.stringify(x));
+          const puzzle={n:s.work?.n||s.base?.n||6,state:copy(s.work?.state),edges:copy(s.work?.edges||s.base?.edges||[])};
+          const engine=P.sessionFromPublicBoard(puzzle,s.work.state);
+          const tier=3, options={};
+          const now=()=>performance.now();
+          let t=now();
+          const direct=A.directFrontierCandidates(engine,tier,options);
+          const directMs=now()-t;
+          t=now();
+          const advanced=P._test.advancedDeductionsDetailed(engine,tier)||{deductions:[],budgetHit:false};
+          const advancedDiscoveryMs=now()-t;
+          t=now();
+          const advancedEval=P._test.evaluateStartingDeductions(engine,tier,advanced.deductions||[],options,true);
+          const advancedEvalMs=now()-t;
+          return {
+            attentionVersion:P.attentionContinuityVersion||null,
+            orchestratorMarker:!!globalThis.walkthroughGenerateTangoNext?.__quadludTutorAttentionOrchestratorR5,
+            directMs,
+            directPlans:direct?.evaluation?.plans?.length||0,
+            directEvaluated:direct?.evaluation?.evaluated||0,
+            directTotal:direct?.evaluation?.total||0,
+            directBudgetHit:!!direct?.evaluation?.branchBudgetHit,
+            advancedDiscoveryMs,
+            advancedDeductionCount:(advanced.deductions||[]).length,
+            advancedDiscoveryBudgetHit:!!advanced.budgetHit,
+            advancedEvalMs,
+            advancedPlans:advancedEval?.plans?.length||0,
+            advancedEvaluated:advancedEval?.evaluated||0,
+            advancedTotal:advancedEval?.total||0,
+            advancedEvalBudgetHit:!!advancedEval?.branchBudgetHit,
+            totalProfileMs:directMs+advancedDiscoveryMs+advancedEvalMs
+          };
+        }""")
+        print('R5_D5_COST_PROFILE ' + json.dumps(profile, sort_keys=True), flush=True)
+        assert profile['attentionVersion'] == 8, profile
+        context.close()
+        browser.close()
+
+
+if __name__ == '__main__':
+    main()
