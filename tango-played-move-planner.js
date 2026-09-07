@@ -290,7 +290,7 @@ function solveByPlayedMoves(puzzle,diff,options={}){
 }
 
 return Object.freeze({
-  VERSION:5,
+  VERSION:4,
   COST_MODEL,
   tierIndexForDifficulty,
   stateDiff,
