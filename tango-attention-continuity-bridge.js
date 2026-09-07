@@ -5,7 +5,7 @@
 (function(root){
 'use strict';
 
-const VERSION=4;
+const VERSION=5;
 const Planner=root.QuadludTangoPlayedMovePlanner;
 const Policy=root.QuadludPedagogyNextMovePolicy;
 if(!Planner||!Planner._test||typeof Planner.nextPlayedMove!=='function'||!Policy||typeof Policy.rank!=='function')return;
@@ -13,9 +13,12 @@ const originalNextPlayedMove=Planner.nextPlayedMove.bind(Planner);
 const DIFF_TO_TIER=Object.freeze({easy:0,medium:1,hard:2,expert:3,facile:0,moyen:1,difficile:2});
 const NON_SIMPLE_CONTINUATION_RULES=new Set(['ASSUMPTION_CONTRADICTION','COMMON_CONSEQUENCE','LINE_DOMAIN_SUPPORT']);
 const LOCAL_AXIS_RADIUS=2;
+const RECENT_ACTION_GROUPS=2;
 
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function stateKey(state){return JSON.stringify(state||null)}
+function cellKey(cell){return Array.isArray(cell)&&cell.length>=2?`${Number(cell[0])}:${Number(cell[1])}`:''}
+function sameCell(a,b){return !!a&&!!b&&cellKey(a)===cellKey(b)}
 function changedVisibleCells(before,after){
   const out=[];if(!Array.isArray(before)||!Array.isArray(after)||before.length!==after.length)return out;
   for(let r=0;r<before.length;r++)for(let c=0;c<(before[r]?.length||0);c++)if(before[r]?.[c]!==after[r]?.[c]&&(after[r]?.[c]===0||after[r]?.[c]===1))out.push([r,c]);
@@ -27,6 +30,12 @@ function currentMoveGroup(session){
   const last=moves[moves.length-1],beforeKey=stateKey(last?.beforeSnapshot?.state);const out=[];
   for(let i=moves.length-1;i>=0;i--){const move=moves[i];if(beforeKey&&stateKey(move?.beforeSnapshot?.state)!==beforeKey)break;out.unshift(move)}
   return out.length?out:[last]
+}
+function recentPlayedTargets(session,maxGroups=RECENT_ACTION_GROUPS){
+  const moves=Array.isArray(session?.moves)?session.moves:[],out=[];
+  for(let i=moves.length-1;i>=0&&out.length<maxGroups;i--){const move=moves[i],kind=String(move?.pedagogyStageKind||move?.proofStage?.kind||'');if(kind!=='action')continue;addCell(out,move?.target)}
+  if(out.length<maxGroups){const seen=new Set();for(let i=moves.length-1;i>=0&&out.length<maxGroups;i--){const move=moves[i],key=stateKey(move?.beforeSnapshot?.state)||`move:${i}`;if(seen.has(key))continue;seen.add(key);addCell(out,move?.target)}}
+  return Policy._test.uniqCells(out).slice(0,maxGroups)
 }
 function tierIndex(diff){if(Number.isInteger(diff)&&diff>=0&&diff<=3)return diff;return DIFF_TO_TIER[String(diff||'').trim().toLowerCase()]}
 function addCell(out,cell){if(Array.isArray(cell)&&cell.length>=2&&Number.isInteger(Number(cell[0]))&&Number.isInteger(Number(cell[1])))out.push([Number(cell[0]),Number(cell[1])])}
@@ -50,14 +59,14 @@ function pendingConclusionsForGroup(session,group){
   return unique.filter(c=>{const v=state?.[c.cell[0]]?.[c.cell[1]];return v!==0&&v!==1})
 }
 function tutorRecentContext(){
-  const s=walkthrough();if(!s||s.base?.game!=='tango'||!Array.isArray(s.work?.state))return {recentCells:[],demonstratedCells:[],moveCells:[],pendingConclusions:[]};
+  const s=walkthrough();if(!s||s.base?.game!=='tango'||!Array.isArray(s.work?.state))return {recentCells:[],demonstratedCells:[],moveCells:[],recentActionCells:[],pendingConclusions:[]};
   const current=s.work.state,currentKey=stateKey(current),moves=Array.isArray(s.moves)?s.moves:[];let previous=null;
   for(let i=moves.length-1;i>=0;i--){const candidate=moves[i]?.snapshot?.state;if(Array.isArray(candidate)&&stateKey(candidate)!==currentKey){previous=candidate;break}}
   if(!previous&&Array.isArray(s.initial?.state))previous=s.initial.state;
   const changed=changedVisibleCells(previous,current),moveCells=[];if(changed.length)moveCells.push(...changed);else for(let i=moves.length-1;i>=0&&moveCells.length<4;i--)addCell(moveCells,moves[i]?.target);
   const group=currentMoveGroup(s),demonstrated=[];for(const move of group){addCell(demonstrated,move?.target);collectCells(move?.presentation,demonstrated);collectCells(move?.deduction,demonstrated)}
-  const demonstratedCells=Policy._test.uniqCells([...demonstrated,...moveCells]),pendingConclusions=pendingConclusionsForGroup(s,group);
-  return {recentCells:demonstratedCells,demonstratedCells,moveCells:Policy._test.uniqCells(moveCells),pendingConclusions}
+  const demonstratedCells=Policy._test.uniqCells([...demonstrated,...moveCells]),recentActionCells=recentPlayedTargets(s),pendingConclusions=pendingConclusionsForGroup(s,group);
+  return {recentCells:demonstratedCells,demonstratedCells,moveCells:Policy._test.uniqCells(moveCells),recentActionCells,pendingConclusions}
 }
 function tutorRecentCells(){return tutorRecentContext().recentCells}
 function dominantAxis(cells){
@@ -94,16 +103,37 @@ function simpleDirectContinuationCandidate(candidate,contextCells){
   const metrics=Policy.contextualMetrics(candidate,{recentCells:contextCells});
   return metrics.reusedPremiseCount>0&&metrics.novelPremiseCount===0
 }
+function localDependencyContinuationCandidate(candidate,context,localContext){
+  const base=(candidate?.baseCost||[]).map(x=>Math.max(0,Number(x)||0)),plan=candidate?.payload||candidate?.plan||null,rule=String(plan?.deduction?.rule||'');
+  if(base[0]!==0||base[1]!==1||base[2]!==1||rule!=='RELATION_PROPAGATION')return false;
+  if(!Array.isArray(candidate?.target))return false;
+  const localKeys=new Set(Policy._test.uniqCells(localContext?.recentCells||[]).map(cellKey));if(!localKeys.has(cellKey(candidate.target)))return false;
+  const knownKeys=new Set(Policy._test.uniqCells([...(context?.recentCells||[]),...(context?.recentActionCells||[])]).map(cellKey));
+  const realPremises=Policy._test.uniqCells(candidate?.premiseCells||[]).filter(cell=>!sameCell(cell,candidate.target));
+  return realPremises.length>0&&realPremises.every(cell=>knownKeys.has(cellKey(cell)))
+}
+function directFrontierCandidates(session,tier,options){
+  const direct=Planner._test.allowedDirectDeductions(session,tier),evaluation=Planner._test.evaluateStartingDeductions(session,tier,direct,options,false);if(!evaluation.plans.length)return {evaluation,frontier:[],policyCandidates:[]};
+  const selectorCandidates=Planner._test.buildSelectorCandidates(evaluation.plans),activeIds=new Set(selectorCandidates.map(c=>c.id)),blocked=new Set(selectorCandidates.filter(c=>(c.blockedBy||[]).some(id=>activeIds.has(id))).map(c=>c.id));
+  const frontier=selectorCandidates.filter(c=>!blocked.has(c.id));
+  const policyCandidates=frontier.map(c=>{const cells=planCells(c.plan);return {id:c.id,stableKey:c.stableKey,baseCost:Planner._test.planCostVector(c.plan),target:c.plan.target,value:c.plan.value,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan}});
+  return {evaluation,frontier,policyCandidates}
+}
 function contextualDirectPlan(session,diff,options,context){
   const contextCells=context?.recentCells||[],pending=context?.pendingConclusions||[],tier=tierIndex(diff);if(!Number.isInteger(tier)||(!contextCells.length&&!pending.length))return null;
-  const direct=Planner._test.allowedDirectDeductions(session,tier),evaluation=Planner._test.evaluateStartingDeductions(session,tier,direct,options,false);if(!evaluation.plans.length)return null;
-  const selectorCandidates=Planner._test.buildSelectorCandidates(evaluation.plans),activeIds=new Set(selectorCandidates.map(c=>c.id)),blocked=new Set(selectorCandidates.filter(c=>(c.blockedBy||[]).some(id=>activeIds.has(id))).map(c=>c.id));
-  const frontier=selectorCandidates.filter(c=>!blocked.has(c.id));if(!frontier.length)return null;
-  const policyCandidates=frontier.map(c=>{const cells=planCells(c.plan);return {id:c.id,stableKey:c.stableKey,baseCost:Planner._test.planCostVector(c.plan),target:c.plan.target,value:c.plan.value,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan}});
+  const {evaluation,frontier,policyCandidates}=directFrontierCandidates(session,tier,options);if(!frontier.length)return null;
   const eligible=policyCandidates.filter(c=>pendingConclusionMatch(c,pending)||simpleDirectContinuationCandidate(c,contextCells));if(!eligible.length)return null;
   const ranked=Policy.rank(eligible,{recentCells:contextCells,pendingConclusions:pending}),selected=ranked.selected;if(!selected?.payload)return null;
   const frontierComplete=!evaluation.truncated&&!evaluation.branchBudgetHit;
   return {...copy(selected.payload),selectionStatus:frontierComplete?'PROVEN_MINIMUM_PEDAGOGICAL_CONTINUATION':'BEST_AVAILABLE_PEDAGOGICAL_CONTINUATION_BUDGET_LIMITED',selectedCostVector:selected.costVector.slice(),candidateCount:frontier.length,causalContinuationCandidateCount:eligible.length,frontierComplete,budgetHit:!frontierComplete,humanNextMovePolicy:ranked.costModel,humanNextMoveMetrics:copy(selected.metrics),humanRecentCells:copy(contextCells),humanPendingConclusions:copy(pending),simpleCausalContinuation:!selected.metrics.pendingConclusionMatch,pendingConclusionContinuation:!!selected.metrics.pendingConclusionMatch}
+}
+function contextualDependencyPlan(session,diff,options,context,localContext){
+  const tier=tierIndex(diff);if(!Number.isInteger(tier)||!localContext?.localExpansionApplied)return null;
+  const {evaluation,frontier,policyCandidates}=directFrontierCandidates(session,tier,options);if(!frontier.length)return null;
+  const eligible=policyCandidates.filter(c=>localDependencyContinuationCandidate(c,context,localContext));if(!eligible.length)return null;
+  const dependencyCells=Policy._test.uniqCells([...(localContext.recentCells||[]),...(context?.recentActionCells||[])]),ranked=Policy.rank(eligible,{recentCells:dependencyCells,pendingConclusions:context?.pendingConclusions||[]}),selected=ranked.selected;if(!selected?.payload)return null;
+  const frontierComplete=!evaluation.truncated&&!evaluation.branchBudgetHit;
+  return {...copy(selected.payload),selectionStatus:frontierComplete?'PROVEN_MINIMUM_RECENT_DEPENDENCY_CONTINUATION':'BEST_AVAILABLE_RECENT_DEPENDENCY_CONTINUATION_BUDGET_LIMITED',selectedCostVector:selected.costVector.slice(),candidateCount:frontier.length,causalContinuationCandidateCount:eligible.length,frontierComplete,budgetHit:!frontierComplete,humanNextMovePolicy:ranked.costModel,humanNextMoveMetrics:copy(selected.metrics),humanRecentCells:copy(dependencyCells),humanPendingConclusions:copy(context?.pendingConclusions||[]),localAttentionContinuation:true,recentDependencyContinuation:true,localAttentionAxis:copy(localContext.localAxis),localAttentionRadius:LOCAL_AXIS_RADIUS,recentActionCells:copy(context?.recentActionCells||[])}
 }
 function nextPlayedMove(session,diff,options={}){
   const context=tutorRecentContext();if(!context.recentCells.length&&!context.pendingConclusions.length)return originalNextPlayedMove(session,diff,options);
@@ -112,11 +142,12 @@ function nextPlayedMove(session,diff,options={}){
     const local=expandContextAlongAxis(context,session?.state,LOCAL_AXIS_RADIUS);
     if(local.localExpansionApplied){
       const contextual=contextualDirectPlan(session,diff,options,local);
-      if(contextual)return {...contextual,localAttentionContinuation:true,localAttentionAxis:copy(local.localAxis),localAttentionRadius:LOCAL_AXIS_RADIUS,humanRecentCellsOriginal:copy(context.recentCells)}
+      if(contextual)return {...contextual,localAttentionContinuation:true,localAttentionAxis:copy(local.localAxis),localAttentionRadius:LOCAL_AXIS_RADIUS,humanRecentCellsOriginal:copy(context.recentCells)};
+      const dependency=contextualDependencyPlan(session,diff,options,context,local);if(dependency)return dependency
     }
   }catch(_){/* fail safely to certified baseline planner */}
   return originalNextPlayedMove(session,diff,options)
 }
 
-root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,dominantAxis,expandContextAlongAxis,LOCAL_AXIS_RADIUS,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,contextualDirectPlan,NON_SIMPLE_CONTINUATION_RULES})});
+root.QuadludTangoPlayedMovePlanner=Object.freeze({...Planner,nextPlayedMove,attentionContinuityVersion:VERSION,_attentionTest:Object.freeze({tutorRecentContext,tutorRecentCells,currentMoveGroup,recentPlayedTargets,changedVisibleCells,moveValueConclusions,pendingConclusionsForGroup,dominantAxis,expandContextAlongAxis,LOCAL_AXIS_RADIUS,RECENT_ACTION_GROUPS,planCells,pendingConclusionMatch,simpleDirectContinuationCandidate,localDependencyContinuationCandidate,directFrontierCandidates,contextualDirectPlan,contextualDependencyPlan,NON_SIMPLE_CONTINUATION_RULES})});
 })(typeof globalThis!=='undefined'?globalThis:this);
