@@ -1,6 +1,7 @@
 # QUADLUD — Soleil/Lune Tutor attention continuity regression
 # Copyright © 2026 Serge Benoliel. All rights reserved.
 from pathlib import Path
+import json
 import re
 from playwright.sync_api import sync_playwright
 from qa_runtime_loader import runtime_sources, runtime_styles
@@ -49,6 +50,30 @@ def advance_logical(page):
     return current_action(page)
 
 
+def attention_diagnostics(page):
+    return page.evaluate("""()=>{
+      const P=QuadludTangoPlayedMovePlanner,A=P?._attentionTest,Q=QuadludPedagogyNextMovePolicy,s=walkthroughSession;
+      const safe=(fn,fallback=null)=>{try{return fn()}catch(e){return {error:String(e?.stack||e)}}};
+      const summarizePlan=plan=>plan?{target:plan.target,value:plan.value,rule:plan.deduction?.rule||null,selectionStatus:plan.selectionStatus||null,selectedCostVector:plan.selectedCostVector||null,localAttentionContinuation:!!plan.localAttentionContinuation,localAttentionAxis:plan.localAttentionAxis||null,humanRecentCells:plan.humanRecentCells||null}:null;
+      const ctx=safe(()=>A.tutorRecentContext(),{});
+      const axis=safe(()=>A.dominantAxis(ctx.recentCells),null);
+      const expanded=safe(()=>A.expandContextAlongAxis(ctx,s?.work?.state,A.LOCAL_AXIS_RADIUS),{});
+      const exact=safe(()=>A.contextualDirectPlan(s,'expert',{},ctx),null);
+      const local=safe(()=>A.contextualDirectPlan(s,'expert',{},expanded),null);
+      const candidates=safe(()=>{
+        const direct=P._test.allowedDirectDeductions(s,3),ev=P._test.evaluateStartingDeductions(s,3,direct,{},false),selectors=P._test.buildSelectorCandidates(ev.plans);
+        return selectors.map(c=>{
+          const cells=A.planCells(c.plan),base=P._test.planCostVector(c.plan),target=c.plan?.target||null;
+          const originalMetrics=Q.contextualMetrics({target:c.plan?.target,value:c.plan?.value,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan},{recentCells:ctx.recentCells||[],pendingConclusions:ctx.pendingConclusions||[]});
+          const expandedMetrics=Q.contextualMetrics({target:c.plan?.target,value:c.plan?.value,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan},{recentCells:expanded.recentCells||[],pendingConclusions:ctx.pendingConclusions||[]});
+          const human=target?`${String.fromCharCode(65+Number(target[0]))}${Number(target[1])+1}`:'';
+          return {human,target,value:c.plan?.value,rule:c.plan?.deduction?.rule||null,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,originalMetrics,expandedMetrics,eligibleOriginal:A.simpleDirectContinuationCandidate({target:c.plan?.target,value:c.plan?.value,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan},ctx.recentCells||[]),eligibleExpanded:A.simpleDirectContinuationCandidate({target:c.plan?.target,value:c.plan?.value,baseCost:base,premiseCells:cells.premiseCells,focusCells:cells.focusCells,payload:c.plan},expanded.recentCells||[])};
+        }).filter(x=>x.human==='C3'||x.human==='C1'||x.eligibleOriginal||x.eligibleExpanded);
+      },[]);
+      return {attentionVersion:P.attentionContinuityVersion,ctx,axis,expanded,exact:summarizePlan(exact),local:summarizePlan(local),candidates};
+    }""")
+
+
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
     ctx = browser.new_context(viewport=VIEWPORT, locale='fr-FR', has_touch=True, is_mobile=True)
@@ -56,9 +81,17 @@ with sync_playwright() as p:
     page.on('pageerror', lambda e: errors.append('pageerror:'+str(e)))
     page.on('console', lambda m: errors.append('console:'+m.text) if m.type=='error' else None)
     load(page); start_expert(page)
-    observed = [advance_logical(page) for _ in range(3)]
-    assert observed[:2] == ['B4', 'C6'], observed
-    assert observed[2] == 'C3', f'Attention continuity regression: expected C3 after B4,C6; observed={observed}'
+
+    observed = [advance_logical(page), advance_logical(page)]
+    assert observed == ['B4', 'C6'], observed
+    diagnostics = attention_diagnostics(page)
+    third = advance_logical(page)
+    observed.append(third)
+    assert third == 'C3', (
+        'Attention continuity regression: after B4 then C6, the directly visible R0 '
+        f'propagation C3 must be preferred before changing zone; observed={observed}; '
+        f'diagnostics={json.dumps(diagnostics, ensure_ascii=False, sort_keys=True)}'
+    )
     assert not errors, errors
     ctx.close(); browser.close()
 
