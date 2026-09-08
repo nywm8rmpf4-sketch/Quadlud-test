@@ -30,7 +30,7 @@ jobs:
         run: cd "$RUNNER_TEMP/q" && node tests/v319-hf39-r55-causal-atomic-contract.test.js && node tests/v319-hf39-r55-stage-order.test.js
       - name: R5.4 human browser regression
         run: cd "$RUNNER_TEMP/q" && PYTHONPATH="$PWD/tests" python tests/v319-hf39-r54-human-regression-browser.test.py
-      - name: R5.4 presentation browser regression
-        run: cd "$RUNNER_TEMP/q" && PYTHONPATH="$PWD/tests" python tests/v319-hf39-r54-tutor-presentation-browser.test.py
-      - name: R5.4 relation fit browser regression
-        run: cd "$RUNNER_TEMP/q" && PYTHONPATH="$PWD/tests" python tests/v319-hf39-r54-relation-message-fit-browser.test.py
+      - name: R5.4 Tutor presentation contract
+        run: cd "$RUNNER_TEMP/q" && node tests/v319-hf39-r54-tutor-presentation.test.js
+      - name: R5.4 E2 browser diagnostic
+        run: cd "$RUNNER_TEMP/q" && PYTHONPATH="$PWD/tests" python tests/v319-hf39-r54-e2-diagnostic-browser.test.py
