@@ -65,6 +65,12 @@ jobs:
           cp -a qa-public/tests/. "$QA_ROOT/tests/"
           test -f "$QA_ROOT/GitHub/index.html"
 
+      - name: Gate ADR-018 cognitive batch contract
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          node tests/v319-adr18-cognitive-conclusion-batch.test.js
+
       - name: Gate R5.4 Tutor projection and language regression
         run: |
           set -euo pipefail
@@ -77,6 +83,13 @@ jobs:
           cd "$RUNNER_TEMP/quadlud-public-qa"
           export PYTHONPATH="$PWD/tests"
           python3 tests/v319-hf39-r54-e2-diagnostic-browser.test.py
+
+      - name: Gate ADR-018 zero-cost Tutor batch consumption
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python3 tests/v319-adr18-cognitive-batch-browser.test.py
 
       - name: Gate B4 to C6 to C3 attention continuity
         run: |
