@@ -85,6 +85,15 @@ jobs:
           export PYTHONPATH="$PWD/tests"
           python3 tests/v319-hf39-r54-human-regression-browser.test.py
 
+      - name: Execute exact A3 R5.5 causal proof journey
+        env:
+          QUADLUD_A3_R55_EVIDENCE_DIR: ${{ runner.temp }}/semantic-evidence/tango-expert-human-a3-r55
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python3 tests/v319-hf39-r55-human-causal-proof-browser.test.py
+
       - name: Upload semantic evidence
         if: always()
         uses: actions/upload-artifact@v4
