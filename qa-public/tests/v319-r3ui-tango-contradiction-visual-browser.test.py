@@ -40,6 +40,10 @@ with sync_playwright() as p:
         move('contradiction',{premises:[],focusCells:[[2,2],[3,2]],focusUnits:[{family:'column',id:2}],explanationData:{witness:{cells:[[2,2],[3,2]],family:'column',id:2}},conclusions:[]}),
         move('action',{premises:[],focusCells:[[0,2]],conclusions:[{type:'VALUE',cell:[0,2],value:1}]})
       ];
+      for(const [i,id] of [[1,'s1'],[2,'s2'],[3,'s3']]){
+        moves[i].causalProof={steps:[{id,kind:'deduction',hypothetical:true,sequenceIndex:i}]};
+        moves[i].causalStepId=id;
+      }
       walkthroughSession={base:{game:'tango',n:6},initial:{state:blank()},moves,pedagogyNavigationByMove:moves.map((_,i)=>nav(i)),navigation:nav(0),atStart:false,index:1,done:false,stalled:false};
       window.__setProofStep=i=>{
         walkthroughSession.navigation=nav(i);walkthroughSession.index=i+1;
