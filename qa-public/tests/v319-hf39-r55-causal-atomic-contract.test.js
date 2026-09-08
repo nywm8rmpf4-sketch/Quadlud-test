@@ -7,4 +7,10 @@ const a4=rel([1,2],[0,3],1,0,[{a:[1,2],b:[1,3],parity:1,explicit:true},{a:[1,3],
 const b5=rel([1,2],[1,4],0,0,[{a:[1,2],b:[1,3],parity:1,explicit:true},{a:[1,3],b:[1,4],parity:1,explicit:true}],3),b5Atoms=T.atomizeRelationEntry(b5,known,null);assert.equal(b5Atoms.length,1);assert.deepEqual(T.valueFacts(T.deduction(b5Atoms[0]))[0],{cell:[1,4],value:0});
 const e5=rel([0,2],[4,4],1,1,[{a:[0,2],b:[4,2],parity:1,explicit:false,support},{a:[4,2],b:[4,4],parity:1,explicit:true}],4),e5Atoms=T.atomizeRelationEntry(e5,known,null);assert.equal(e5Atoms.length,2);assert.deepEqual(e5Atoms.map(m=>T.valueFacts(T.deduction(m))[0]),[{cell:[4,2],value:0},{cell:[4,4],value:1}]);assert.deepEqual(T.deduction(e5Atoms[1]).premises.find(p=>p.kind==='VALUE').cell,[4,2]);
 const unsupportedKnown=new Map([['0,5',0]]),unsupported=rel([0,5],[0,2],0,0,[{a:[0,5],b:[0,3],parity:1,explicit:false},{a:[0,3],b:[0,2],parity:1,explicit:false}],1),untouched=T.atomizeRelationEntry(unsupported,unsupportedKnown,null);assert.equal(untouched.length,1);assert.equal(untouched[0],unsupported);assert.equal(unsupportedKnown.size,1);
-console.log('PASS HF3.9-R5.5 causal atomization: B4/E3 require local proof; unsupported paths remain intact.');
+// Hidden-only preservation: if a path intermediate is already produced by
+// another original proof entry, it is part of the planner's causal order and
+// must not be materialized again by atomization.
+const plannedB4=rel([2,3],[1,3],1,0,[{a:[2,3],b:[1,3],parity:1,explicit:true}],5);
+const reserved=T.otherProducedCells([a4,plannedB4],0);assert(reserved.has('1,3'));
+const preserveKnown=new Map([['1,2',0]]),preserved=T.atomizeRelationEntry(a4,preserveKnown,null,reserved);assert.equal(preserved.length,1);assert.equal(preserved[0],a4);assert.deepEqual([...preserveKnown],[['1,2',0]]);
+console.log('PASS HF3.9-R5.5 causal atomization: B4/E3 hidden nodes exposed, unsupported or already-planned intermediates preserved.');
