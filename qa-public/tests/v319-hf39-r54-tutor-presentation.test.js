@@ -53,6 +53,8 @@ const text=[detail.where,...detail.steps].join(' ').toLowerCase();
 for(const token of ['d4','e4','colonne 4','f4','soleil','lune'])assert(text.includes(token),token);
 assert(text.includes('2 soleils')&&text.includes('3 lunes'));
 assert(text.includes('f4 doit être soleil'));
+assert.equal(detail.steps.length,2,'ordinary relation-balance proof must stay compact enough for iPhone');
+assert(!text.includes('apporte donc exactement'),'compact proof must avoid the former redundant long phrasing');
 const english=R._test.relationBalanceDetail(step18,'en');
 assert(english);
 const englishText=[english.where,...english.steps].join(' ').toLowerCase();
