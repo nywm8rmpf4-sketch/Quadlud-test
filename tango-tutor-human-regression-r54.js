@@ -12,8 +12,8 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=2;
-const TOKEN='3.1.9-hf3.9-r5.4b';
+const VERSION=3;
+const TOKEN='3.1.9-hf3.9-r5.4c';
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
 const sameCell=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1]);
 const cellKey=cell=>Array.isArray(cell)&&cell.length>=2?`${Number(cell[0])},${Number(cell[1])}`:'';
@@ -33,26 +33,30 @@ function unitName(unit,loc=locale()){if(!unit)return'';if(unit.family==='row')re
 function valuePremises(d){return (d?.premises||[]).filter(p=>p?.kind==='VALUE'&&Array.isArray(p.cell)&&(Number(p.value)===0||Number(p.value)===1))}
 function visibleValue(move,cell){if(!Array.isArray(cell))return undefined;const r=Number(cell[0]),c=Number(cell[1]),before=move?.beforeSnapshot?.state?.[r]?.[c];if(before!==undefined)return before;return move?.snapshot?.state?.[r]?.[c]}
 
-/* Tutor-only tie-break: after consuming a demonstrated sibling conclusion, do not
- * alter the proof. If the cheapest direct RELATION_BALANCE proof itself exposes
- * several equal conclusions, prefer the conclusion spatially closest to the
- * explicit relation that drives that proof. This removes the old row-order
- * artefact (A2 before E2) without coordinate-specific knowledge. */
+/* Tutor-only tie-break: after consuming a demonstrated sibling conclusion, keep
+ * the certified proof family intact. If the same direct RELATION_BALANCE deduction
+ * has several playable conclusion plans, prefer the plan whose conclusion is
+ * spatially closest to the explicit relation driving that deduction. */
 function lastActionMove(session){for(let i=(session?.moves?.length||0)-1;i>=0;i--){const move=session.moves[i];if(stageKind(move)==='action')return move}return null}
 function manhattan(a,b){return Math.abs(Number(a?.[0])-Number(b?.[0]))+Math.abs(Number(a?.[1])-Number(b?.[1]))}
 function relationDistance(cell,rel){return Math.min(manhattan(cell,rel?.a),manhattan(cell,rel?.b))}
+function deductionKey(d){return String(d?.signature||d?.id||'')}
+function sourceDeduction(plan){return plan?.startingDeduction||plan?.deduction||null}
+function sameProofFamily(plan,d){const pd=sourceDeduction(plan),a=deductionKey(pd),b=deductionKey(d);if(a&&b)return a===b;const pr=relationPremise(pd),dr=relationPremise(d);return String(pd?.rule||'')===String(d?.rule||'')&&!!pr&&!!dr&&relationParity(pr)===relationParity(dr)&&((sameCell(pr.a,dr.a)&&sameCell(pr.b,dr.b))||(sameCell(pr.a,dr.b)&&sameCell(pr.b,dr.a)))}
 function relationLocalityAlternative(session){
   const last=lastActionMove(session);if(last?.metrics?.pendingConclusionContinuation!==true)return null;
   const P=root.QuadludTangoPlayedMovePlanner,A=P?._attentionTest,O=root.QuadludTangoTutorAttentionOrchestratorR5;if(!P||!A?.directFrontierCandidates||!A?.baselineDirectPlan||!O?.materializeContinuation)return null;
   const state=session?.work?.state;if(!Array.isArray(state))return null;
   const puzzle={n:session.work?.n||session.base?.n||6,state:copy(state),edges:copy(session.work?.edges||session.base?.edges||[])};let engine;try{engine=P.sessionFromPublicBoard(puzzle,state)}catch(_){return null}
   const diff=String(session.base?.diff||'expert'),tier=typeof P.tierIndexForDifficulty==='function'?P.tierIndexForDifficulty(diff):({easy:0,medium:1,hard:2,expert:3}[diff]);if(!Number.isInteger(tier))return null;
-  let frontier,baseline;try{frontier=A.directFrontierCandidates(engine,tier,{});baseline=A.baselineDirectPlan(frontier)}catch(_){return null}
-  if(baseline?.status!=='move')return null;const d=baseline.deduction||baseline.startingDeduction;if(String(d?.rule||'')!=='RELATION_BALANCE')return null;const rel=relationPremise(d);if(!rel)return null;
+  let frontierData,baseline;try{frontierData=A.directFrontierCandidates(engine,tier,{});baseline=A.baselineDirectPlan(frontierData)}catch(_){return null}
+  if(baseline?.status!=='move')return null;const d=sourceDeduction(baseline);if(String(d?.rule||'')!=='RELATION_BALANCE')return null;const rel=relationPremise(d);if(!rel)return null;
   const conclusions=valueConclusions(d).filter(c=>state?.[Number(c.cell[0])]?.[Number(c.cell[1])]===-1);if(conclusions.length<2)return null;
-  const baselineConclusion=conclusions.find(c=>sameCell(c.cell,baseline.target)&&Number(c.value)===Number(baseline.value));if(!baselineConclusion)return null;const baseDistance=relationDistance(baselineConclusion.cell,rel);
-  const ranked=conclusions.map((c,index)=>({c,index,distance:relationDistance(c.cell,rel)})).sort((a,b)=>a.distance-b.distance||a.index-b.index),chosen=ranked[0];if(!chosen||chosen.distance>=baseDistance)return null;
-  const plan={...copy(baseline),target:copy(chosen.c.cell),value:Number(chosen.c.value),selectionStatus:'PROVEN_MINIMUM_RELATION_LOCALITY_TIEBREAK',relationLocalityTieBreak:true,relationLocalityDistance:chosen.distance};return {engine,plan}
+  const valid=new Map(conclusions.map(c=>[`${cellKey(c.cell)}:${Number(c.value)}`,c]));
+  const siblings=(frontierData?.frontier||[]).map(entry=>entry?.plan).filter(plan=>plan?.status==='move'&&Array.isArray(plan.target)&&sameProofFamily(plan,d)&&valid.has(`${cellKey(plan.target)}:${Number(plan.value)}`));
+  if(siblings.length<2)return null;
+  const baseDistance=relationDistance(baseline.target,rel),ranked=siblings.map((plan,index)=>({plan,index,distance:relationDistance(plan.target,rel)})).sort((a,b)=>a.distance-b.distance||a.index-b.index),chosen=ranked[0];if(!chosen||chosen.distance>=baseDistance)return null;
+  const plan={...copy(chosen.plan),selectionStatus:'PROVEN_MINIMUM_RELATION_LOCALITY_TIEBREAK',relationLocalityTieBreak:true,relationLocalityDistance:chosen.distance};return {engine,plan}
 }
 function installGeneration(){const previous=root.walkthroughGenerateTangoNext;if(typeof previous!=='function')return false;if(previous.__quadludTutorHumanRegressionR54===true)return true;const wrapped=function(...args){const s=currentSession();if(s?.base?.game==='tango'){const alternative=relationLocalityAlternative(s);if(alternative){try{if(root.QuadludTangoTutorAttentionOrchestratorR5.materializeContinuation(s,alternative.engine,alternative.plan))return true}catch(_){}}}return previous(...args)};wrapped.__quadludTutorHumanRegressionR54=true;wrapped.__quadludPrevious=previous;root.walkthroughGenerateTangoNext=wrapped;return true}
 
@@ -85,5 +89,5 @@ function installRender(){const previous=root.renderWalkthrough;if(typeof previou
 function installNavigation(){const previous=root.walkthroughNavigateProof;if(typeof previous!=='function')return false;if(previous.__quadludTutorHumanRegressionR54===true)return true;const wrapped=function(...args){const result=previous(...args);decorate();return result};wrapped.__quadludTutorHumanRegressionR54=true;wrapped.__quadludPrevious=previous;root.walkthroughNavigateProof=wrapped;return true}
 function install(){return installGeneration()&&installRender()&&installNavigation()}
 function scheduleInstall(){let tries=320,timer=null;const retry=()=>{const ok=install();if(ok){if(timer!=null)clearTimeout(timer);decorate();return true}if(tries--<=0)return false;timer=setTimeout(retry,10);return true};retry();if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true}
-return Object.freeze({VERSION,TOKEN,install,scheduleInstall,decorate,_test:Object.freeze({sameCell,cellKey,stageKind,entryDeduction,causalStep,valueConclusions,relationPremise,relationParity,cellsOfDeduction,inferUnit,unitName,valuePremises,visibleValue,lastActionMove,manhattan,relationDistance,relationLocalityAlternative,explicitRelationsFromCausalStep,projectedConsequencesForMove,projectedMarkers,shiftedSequence,relationBalanceDetail})});
+return Object.freeze({VERSION,TOKEN,install,scheduleInstall,decorate,_test:Object.freeze({sameCell,cellKey,stageKind,entryDeduction,causalStep,valueConclusions,relationPremise,relationParity,cellsOfDeduction,inferUnit,unitName,valuePremises,visibleValue,lastActionMove,manhattan,relationDistance,deductionKey,sourceDeduction,sameProofFamily,relationLocalityAlternative,explicitRelationsFromCausalStep,projectedConsequencesForMove,projectedMarkers,shiftedSequence,relationBalanceDetail})});
 });
