@@ -33,46 +33,48 @@ def main() -> None:
             """()=>{
               const clone=x=>x==null?x:JSON.parse(JSON.stringify(x));
               const s=typeof walkthroughSession!=='undefined'?walkthroughSession:null;
-              const P=globalThis.QuadludTangoPlayedMovePlanner;
-              const A=P?._attentionTest;
               const R=globalThis.QuadludTangoTutorHumanRegressionR54;
               const stageKind=m=>String(m?.pedagogyStageKind||m?.proofStage?.kind||'');
               const last=[...(s?.moves||[])].reverse().find(m=>stageKind(m)==='action')||null;
               const human=cell=>Array.isArray(cell)?`${String.fromCharCode(65+Number(cell[0]))}${Number(cell[1])+1}`:null;
-              const planSummary=plan=>{
-                if(!plan)return null;
-                const d=R?._test?.sourceDeduction?.(plan)||plan?.startingDeduction||plan?.deduction||null;
-                return {
-                  target:human(plan?.target),value:plan?.value,status:plan?.status||null,
-                  selectionStatus:plan?.selectionStatus||null,
-                  rule:String(d?.rule||''),deductionId:d?.id||null,deductionSignature:d?.signature||null,
-                  conclusions:(d?.conclusions||[]).filter(c=>c?.type==='VALUE').map(c=>({cell:human(c.cell),value:c.value}))
-                };
-              };
               const result={
-                humanRegressionVersion:R?.VERSION||null,humanRegressionToken:R?.TOKEN||null,
+                humanRegressionVersion:R?.VERSION||null,
+                humanRegressionToken:R?.TOKEN||null,
                 generationWrapperInstalled:typeof walkthroughGenerateTangoNext==='function'&&walkthroughGenerateTangoNext.__quadludTutorHumanRegressionR54===true,
                 lastAction:{target:human(last?.target),kind:stageKind(last),metrics:clone(last?.metrics||null)},
-                alternative:null,baseline:null,evaluationPlans:[],frontierPlans:[],error:null
+                alternative:null,
+                error:null
               };
               try{
-                const puzzle={n:s.work?.n||s.base?.n||6,state:clone(s.work?.state),edges:clone(s.work?.edges||s.base?.edges||[])};
-                const engine=P.sessionFromPublicBoard(puzzle,s.work.state);
-                const tier=typeof P.tierIndexForDifficulty==='function'?P.tierIndexForDifficulty(String(s.base?.diff||'expert')):3;
-                const fd=A.directFrontierCandidates(engine,tier,{});
-                const baseline=A.baselineDirectPlan(fd);
                 const alternative=R?._test?.relationLocalityAlternative?.(s)||null;
-                result.baseline=planSummary(baseline);
-                result.evaluationPlans=(fd?.evaluation?.plans||[]).map(planSummary);
-                result.frontierPlans=(fd?.frontier||[]).map(entry=>planSummary(entry?.plan));
-                result.alternative=planSummary(alternative?.plan||null);
+                const plan=alternative?.plan||null;
+                const d=plan?.startingDeduction||plan?.deduction||null;
+                result.alternative=plan?{
+                  target:human(plan.target),
+                  value:plan.value,
+                  status:plan.status||null,
+                  selectionStatus:plan.selectionStatus||null,
+                  siblingConclusionProjection:plan.siblingConclusionProjection===true,
+                  relationLocalityTieBreak:plan.relationLocalityTieBreak===true,
+                  relationLocalityDistance:plan.relationLocalityDistance,
+                  rule:String(d?.rule||''),
+                  conclusions:(d?.conclusions||[]).filter(c=>c?.type==='VALUE').map(c=>({cell:human(c.cell),value:c.value}))
+                }:null;
               }catch(error){result.error=String(error?.stack||error)}
               return result;
             }"""
         )
         print('R54_E2_DIAGNOSTIC ' + json.dumps(diagnostic, ensure_ascii=False, sort_keys=True), flush=True)
         assert diagnostic['lastAction']['target'] == 'B3', diagnostic
-        assert diagnostic['humanRegressionVersion'] == 4, diagnostic
+        assert diagnostic['humanRegressionVersion'] == 5, diagnostic
+        assert diagnostic['humanRegressionToken'] == '3.1.9-hf3.9-r5.4e', diagnostic
+        assert diagnostic['alternative'] is not None, diagnostic
+        assert diagnostic['alternative']['target'] == 'E2', diagnostic
+        assert diagnostic['alternative']['rule'] == 'RELATION_BALANCE', diagnostic
+        assert diagnostic['alternative']['siblingConclusionProjection'] is True, diagnostic
+        assert diagnostic['alternative']['relationLocalityTieBreak'] is True, diagnostic
+        assert {'cell': 'A2', 'value': 1} in diagnostic['alternative']['conclusions'], diagnostic
+        assert {'cell': 'E2', 'value': 1} in diagnostic['alternative']['conclusions'], diagnostic
         context.close()
         browser.close()
 
