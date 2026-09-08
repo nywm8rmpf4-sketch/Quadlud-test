@@ -4,9 +4,9 @@
 'use strict';
 const assert=require('assert');
 const path=require('path');
-const Batch=require(path.join(__dirname,'..','..','pedagogy-conclusion-batch.js'));
+const Batch=require(path.join(__dirname,'..','GitHub','pedagogy-conclusion-batch.js'));
 globalThis.QuadludPedagogyConclusionBatch=Batch;
-const R6=require(path.join(__dirname,'..','..','tango-tutor-conclusion-batch-r6.js'));
+const R6=require(path.join(__dirname,'..','GitHub','tango-tutor-conclusion-batch-r6.js'));
 
 assert.equal(Batch.VERSION,1);
 const generic=Batch.create({sourceKey:'proof:C2xD2',items:[{key:'A2',target:[0,1],value:1},{key:'E2',target:[4,1],value:1}],primaryKey:'E2'});
