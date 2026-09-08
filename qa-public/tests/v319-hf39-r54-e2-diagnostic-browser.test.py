@@ -66,8 +66,8 @@ def main() -> None:
         )
         print('R54_E2_DIAGNOSTIC ' + json.dumps(diagnostic, ensure_ascii=False, sort_keys=True), flush=True)
         assert diagnostic['lastAction']['target'] == 'B3', diagnostic
-        assert diagnostic['humanRegressionVersion'] == 6, diagnostic
-        assert diagnostic['humanRegressionToken'] == '3.1.9-hf3.9-r5.4f', diagnostic
+        assert diagnostic['humanRegressionVersion'] == 7, diagnostic
+        assert diagnostic['humanRegressionToken'] == '3.1.9-hf3.9-r5.4g', diagnostic
         assert diagnostic['alternative'] is not None, diagnostic
         assert diagnostic['alternative']['target'] == 'E2', diagnostic
         assert diagnostic['alternative']['rule'] == 'RELATION_BALANCE', diagnostic
