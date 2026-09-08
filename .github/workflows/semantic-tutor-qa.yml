@@ -60,6 +60,13 @@ jobs:
           cp -a qa-public/tests/. "$QA_ROOT/tests/"
           test -f "$QA_ROOT/GitHub/index.html"
 
+      - name: Diagnose R5.4 E2 pre-frontier selection
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python3 tests/v319-hf39-r54-e2-diagnostic-browser.test.py
+
       - name: Execute real Soleil-Lune Expert Tutor journey
         env:
           QUADLUD_SEMANTIC_EVIDENCE_DIR: ${{ runner.temp }}/semantic-evidence/tango-expert-fr-mobile-v1
