@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('assert');
 const fs=require('fs'),pathUtil=require('path');
+globalThis.QuadludTangoCausalProofModel=require('../GitHub/tango-causal-proof-model.js');
 const R=require('../GitHub/tango-tutor-causal-atomic-r55.js');
 const T=R._test;
 
@@ -53,6 +54,9 @@ const closure=T.planRelationProofs(propagation,new Set());
 assert.deepEqual(closure.map(m=>T.deduction(m).rule),['LINE_DOMAIN_SUPPORT','RELATION_PROPAGATION']);
 assert.equal(T.isRelationProofMove(closure[0]),true);
 assert.equal(T.isRelationProofMove(closure[1]),false);
+const hypothesis={pedagogyStageKind:'hypothesis',deduction:{rule:'ASSUMPTION_CONTRADICTION',premises:[{kind:'ASSUMPTION',cell:A3,value:1,hypothesis:true}],conclusions:[]}};
+const attached=T.attachCausalProof([hypothesis,...closure]),proofSteps=attached.map(m=>m.causalProof.steps.find(s=>s.id===m.causalStepId));
+assert.deepEqual(proofSteps.map(s=>s.sequenceIndex),[0,0,1],'relation proof screen must not consume a numbered move badge');
 
 const available=new Set([T.relationKey(A3,B3,1)]);
 assert.deepEqual(T.planRelationProofs(propagation,available).map(m=>T.deduction(m).rule),['RELATION_PROPAGATION']);
