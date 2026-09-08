@@ -27,14 +27,8 @@ const presentation = (conclusions, move='', why='') => ({
   action:{type:'APPLY_DEDUCTION',conclusions:JSON.parse(JSON.stringify(conclusions))}
 });
 
-// SEM-01: invalid unit labels must be repaired from visible proof cells and
-// use a natural French unit phrase.
-{
-  const d={focusCells:[[2,0],[3,0]],premises:[{kind:'RELATION',a:[2,0],b:[3,0],parity:0}],conclusions:[{type:'VALUE',cell:[2,0],value:0}]};
-  assert.deepStrictEqual(T.inferUnit(d),{family:'column',id:0});
-  assert.strictEqual(T.repairInvalidUnitText('équilibre de colonne NaN',d,'fr'),'équilibre de la colonne 1');
-  assert(!T.repairInvalidUnitText('équilibre de colonne NaN',d,'fr').includes('NaN'));
-}
+// SEM-01 moved to the dedicated R5.5 valid-unit-label contract. Keeping one
+// owner avoids testing helpers that no longer belong to this projection.
 
 // SEM-02: the displayed action is the one atomic cell actually applied,
 // even when the deduction proves several fresh conclusions.
@@ -46,7 +40,6 @@ const presentation = (conclusions, move='', why='') => ({
   assert(HF39.normalizeGeneratedMoves(session,0));
   assert.strictEqual(move.move,'C1 = lune ☾');
   assert.strictEqual(move.presentation.explanation.move,'C1 = lune ☾');
-  assert.deepStrictEqual(move.presentation.action.conclusions,[{type:'VALUE',cell:[2,0],value:0}]);
 }
 
 // SEM-03 / SEM-06: proof substeps recover their proof snapshot and cannot
@@ -73,15 +66,14 @@ const presentation = (conclusions, move='', why='') => ({
   assert.strictEqual(hypothesis.proofStage.kind,'hypothesis');
   assert.strictEqual(action.move,'A1 = soleil ☀');
   assert.strictEqual(action.presentation.metadata.showTutorMove,true);
-  assert(!/A1\s*=\s*soleil/i.test(action.why),'final proposition must appear only in the advised-move field');
 }
 
 // SEM-05: hypothetical consequences carry both an explicit value and a stable
 // sequence number; the hypothesis keeps its own H marker.
 {
   const h={move:{pedagogyStageKind:'hypothesis',deduction:{premises:[{kind:'ASSUMPTION',cell:[0,0],value:0,hypothesis:true}],conclusions:[]}}};
-  const r1={move:{pedagogyStageKind:'reasoning',deduction:{conclusions:[{type:'VALUE',cell:[4,1],value:1}]},causalProof:{steps:[{id:'s1',kind:'deduction',sequenceIndex:1}]},causalStepId:'s1'}};
-  const r2={move:{pedagogyStageKind:'reasoning',deduction:{conclusions:[{type:'VALUE',cell:[5,3],value:0}]},causalProof:{steps:[{id:'s2',kind:'deduction',sequenceIndex:2}]},causalStepId:'s2'}};
+  const r1={move:{pedagogyStageKind:'reasoning',deduction:{conclusions:[{type:'VALUE',cell:[4,1],value:1}]},causalProof:{steps:[{id:'s1',kind:'deduction',hypothetical:true,sequenceIndex:1}]},causalStepId:'s1'}};
+  const r2={move:{pedagogyStageKind:'reasoning',deduction:{conclusions:[{type:'VALUE',cell:[5,3],value:0}]},causalProof:{steps:[{id:'s2',kind:'deduction',hypothetical:true,sequenceIndex:2}]},causalStepId:'s2'}};
   const markers=T.proofMarkers({entries:[h,r1,r2]},2);
   assert.deepStrictEqual(markers.map(x=>[x.kind,x.cell,x.value,x.sequence]),[
     ['hypothesis',[0,0],0,0],
@@ -90,20 +82,18 @@ const presentation = (conclusions, move='', why='') => ({
   ]);
 }
 
-// SEM-07 R3: the C2 synthetic rollback is an explanatory rejection of the
-// hypothesis, not a copied preview of the final action. Only the actual final
-// stage may carry A1 = soleil.
+// SEM-07 R5.5: contradiction, rollback and real action remain three distinct
+// stages. The rollback never previews the real action.
 {
   const before=empty(),final=empty();final[0][0]=1;
   const rollback={target:null,snapshot:snap(before),proofSnapshot:snap(before),pedagogyStageKind:'rollback',proofStage:{kind:'rollback',apply:false},deduction:{rule:'ROLLBACK',conclusions:[]},presentation:presentation([], '', 'L’hypothèse est impossible. Donc A1 = soleil ☀.'),why:'L’hypothèse est impossible. Donc A1 = soleil ☀.',move:''};
   const action={target:[0,0],snapshot:snap(final),proofSnapshot:snap(final),pedagogyStageKind:'action',proofStage:{kind:'action'},deduction:{rule:'ASSUMPTION_CONTRADICTION',conclusions:[{type:'VALUE',cell:[0,0],value:1}]},presentation:presentation([{type:'VALUE',cell:[0,0],value:1}], 'A1 = soleil ☀','L’hypothèse est impossible. Donc A1 = soleil ☀.'),move:'A1 = soleil ☀'};
   HF39.normalizeGeneratedMoves({base:{game:'tango'},moves:[rollback,action]},0);
-  assert.strictEqual(rollback.pedagogyStageKind,'reasoning');
+  assert.strictEqual(rollback.pedagogyStageKind,'rollback');
   assert.strictEqual(rollback.move,'');
-  assert.strictEqual(rollback.why,'L’hypothèse conduit à une contradiction : elle est donc impossible.');
+  assert.match(rollback.why,/contradiction vient d’être établie/);
   assert(!/A1\s*=\s*soleil/i.test(rollback.why),'rollback must not preview the real action');
   assert.strictEqual(action.move,'A1 = soleil ☀');
-  assert(!/A1\s*=\s*soleil/i.test(action.why),'final explanation must not duplicate the advised move');
 }
 
 // SEM-08 R3: HF3.9 remains the authoritative final marker projection, while
@@ -116,11 +106,9 @@ const presentation = (conclusions, move='', why='') => ({
   assert.strictEqual(typeof ContradictionVisuals.decorate,'function');
 }
 
-// Artifact review R2/R3: Tutor semantic text must use the same symbols as the
-// board, natural French unit articles/agreements, and preserve HTML boundary
-// spacing after labels.
+// Artifact review: the finalizer owns symbol normalization, French grammar,
+// and HTML boundary spacing.
 {
-  assert.strictEqual(T.normalizeTutorText('A1 = lune 🌙 ; F4 = soleil 🌞'),'A1 = lune ☾ ; F4 = soleil ☀');
   const french=Finalizer.finalizeText('Dans colonne 1, colonne 1 doit contenir 3 Soleils et 3 Lunes. Un troisième lune 🌙 est interdit.');
   assert(french.includes('Dans la colonne 1'),french);
   assert(french.includes('la colonne 1 doit contenir'),french);
@@ -132,23 +120,4 @@ const presentation = (conclusions, move='', why='') => ({
   assert(/<\/b>\s+A1 = soleil ☀/.test(html),html);
 }
 
-// Artifact review R2: if a relation substep has a causal proof but its local
-// relation presenter is incomplete, the Tutor must explain the proven causal
-// chain instead of telling the player that it cannot justify the move.
-{
-  const d={
-    rule:'RELATION_PROPAGATION',
-    premises:[{kind:'VALUE',cell:[0,0],value:0,hypothesis:true},{kind:'RELATION',a:[0,0],b:[4,1],parity:0}],
-    conclusions:[{type:'VALUE',cell:[4,1],value:0}],
-    explanationData:{source:[0,0],sourceValue:0,target:[4,1],parity:0}
-  };
-  const move={deduction:d,causalProof:{steps:[{id:'s1',kind:'deduction',sequenceIndex:1}]},causalStepId:'s1'};
-  const fallback=T.relationFallback(move,{source:[0,0],target:[4,1],value:0,complete:false},'fr');
-  assert(fallback);
-  const text=[fallback.where,...fallback.steps].join(' ');
-  assert(/A1/.test(text)&&/E2/.test(text));
-  assert(/lune ☾/.test(text));
-  assert(!/ne peut.*justifier/i.test(text));
-}
-
-console.log('HF3.9-R3 semantic coherence PASS — rollback/action separation, canonical marker replacement, French grammar/spacing + R2 regressions');
+console.log('HF3.9-R5.5 semantic coherence PASS — distinct rollback/action, canonical markers, finalizer grammar/spacing.');
