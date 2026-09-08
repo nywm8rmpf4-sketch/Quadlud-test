@@ -12,8 +12,8 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=5;
-const TOKEN='3.1.9-hf3.9-r5.4e';
+const VERSION=6;
+const TOKEN='3.1.9-hf3.9-r5.4f';
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
 const sameCell=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1]);
 const cellKey=cell=>Array.isArray(cell)&&cell.length>=2?`${Number(cell[0])},${Number(cell[1])}`:'';
@@ -34,11 +34,11 @@ function valuePremises(d){return (d?.premises||[]).filter(p=>p?.kind==='VALUE'&&
 function visibleValue(move,cell){if(!Array.isArray(cell))return undefined;const r=Number(cell[0]),c=Number(cell[1]),before=move?.beforeSnapshot?.state?.[r]?.[c];if(before!==undefined)return before;return move?.snapshot?.state?.[r]?.[c]}
 
 /* Tutor-only action projection.
- * A certified direct proof may demonstrate several VALUE conclusions at once.
- * After the Tutor has just followed a pedagogical continuation, keep the exact
- * same proof but choose which already-demonstrated conclusion to play by local
- * attention: the conclusion closest to the explicit relation driving a
- * RELATION_BALANCE deduction. No coordinate and no hidden solution is used. */
+ * After a demonstrated sibling continuation, inspect only the engine's cheap
+ * direct visible deductions. If a RELATION_BALANCE deduction proves several
+ * playable VALUE conclusions at once, keep that exact proof and play the
+ * conclusion nearest to its explicit relation. This avoids a speculative
+ * second planner pass in deep states such as D5. */
 function lastActionMove(session){for(let i=(session?.moves?.length||0)-1;i>=0;i--){const move=session.moves[i];if(stageKind(move)==='action')return move}return null}
 function manhattan(a,b){return Math.abs(Number(a?.[0])-Number(b?.[0]))+Math.abs(Number(a?.[1])-Number(b?.[1]))}
 function relationDistance(cell,rel){return Math.min(manhattan(cell,rel?.a),manhattan(cell,rel?.b))}
@@ -49,15 +49,21 @@ function projectedRelationBalancePlan(plan,state){
   const playable=valueConclusions(d).filter(c=>state?.[Number(c.cell[0])]?.[Number(c.cell[1])]===-1);if(playable.length<2)return null;
   const ranked=playable.map((conclusion,index)=>({conclusion,index,distance:relationDistance(conclusion.cell,rel)})).sort((a,b)=>a.distance-b.distance||a.index-b.index),chosen=ranked[0];if(!chosen)return null;
   if(sameCell(chosen.conclusion.cell,plan.target)&&Number(chosen.conclusion.value)===Number(plan.value))return null;
-  return {...copy(plan),target:copy(chosen.conclusion.cell),value:Number(chosen.conclusion.value),startingDeduction:copy(d),deduction:copy(d),displayDeduction:copy(d),displayProof:null,selectionStatus:'PROVEN_MINIMUM_RELATION_LOCALITY_TIEBREAK',relationLocalityTieBreak:true,relationLocalityDistance:chosen.distance,siblingConclusionProjection:true}
+  return {...copy(plan),target:copy(chosen.conclusion.cell),value:Number(chosen.conclusion.value),startingDeduction:copy(d),deduction:copy(d),displayDeduction:copy(d),displayProof:null,selectionStatus:'PROVEN_MINIMUM_RELATION_LOCALITY_TIEBREAK',pendingConclusionContinuation:false,recentDependencyContinuation:false,localAttentionContinuation:false,relationLocalityTieBreak:true,relationLocalityDistance:chosen.distance,siblingConclusionProjection:true}
+}
+function directRelationBalancePlan(d,state,tierIndex){
+  const first=valueConclusions(d)[0];if(!first)return null;
+  return projectedRelationBalancePlan({status:'move',tierIndex,target:copy(first.cell),value:Number(first.value),startingDeduction:copy(d),deduction:copy(d),proofChain:[copy(d)],candidateCount:1,frontierComplete:true},state)
 }
 function relationLocalityAlternative(session){
-  const last=lastActionMove(session);if(!pedagogicalContinuation(last))return null;
-  const P=root.QuadludTangoPlayedMovePlanner,S=root.QuadludTangoTutorSinglePlannerR5,O=root.QuadludTangoTutorAttentionOrchestratorR5;if(!P?.sessionFromPublicBoard||typeof S?.humanizeTutorPlan!=='function'||typeof O?.materializeContinuation!=='function')return null;
+  const last=lastActionMove(session),lastDeduction=entryDeduction(last);if(!pedagogicalContinuation(last)||String(lastDeduction?.rule||'')!=='BALANCE_QUOTA')return null;
+  const P=root.QuadludTangoPlayedMovePlanner,O=root.QuadludTangoTutorAttentionOrchestratorR5;if(!P?.sessionFromPublicBoard||typeof P?._test?.allowedDirectDeductions!=='function'||typeof O?.materializeContinuation!=='function')return null;
   const state=session?.work?.state;if(!Array.isArray(state))return null;
-  const puzzle={n:session.work?.n||session.base?.n||6,state:copy(state),edges:copy(session.work?.edges||session.base?.edges||[])},diff=String(session.base?.diff||'expert');let engine,base;
-  try{engine=P.sessionFromPublicBoard(puzzle,state);base=S.humanizeTutorPlan(engine,diff,{})}catch(_){return null}
-  const plan=projectedRelationBalancePlan(base,state);return plan?{engine,plan}:null
+  const puzzle={n:session.work?.n||session.base?.n||6,state:copy(state),edges:copy(session.work?.edges||session.base?.edges||[])},diff=String(session.base?.diff||'expert');let engine,tier;
+  try{engine=P.sessionFromPublicBoard(puzzle,state);tier=P.tierIndexForDifficulty(diff)}catch(_){return null}
+  let direct;try{direct=P._test.allowedDirectDeductions(engine,tier)||[]}catch(_){return null}
+  for(const d of direct){const plan=directRelationBalancePlan(d,state,tier);if(plan)return {engine,plan}}
+  return null
 }
 function installGeneration(){const previous=root.walkthroughGenerateTangoNext;if(typeof previous!=='function')return false;if(previous.__quadludTutorHumanRegressionR54===true)return true;const wrapped=function(...args){const s=currentSession();if(s?.base?.game==='tango'){const alternative=relationLocalityAlternative(s);if(alternative){try{if(root.QuadludTangoTutorAttentionOrchestratorR5.materializeContinuation(s,alternative.engine,alternative.plan))return true}catch(_){}}}return previous(...args)};wrapped.__quadludTutorHumanRegressionR54=true;wrapped.__quadludPrevious=previous;root.walkthroughGenerateTangoNext=wrapped;return true}
 
@@ -79,7 +85,7 @@ function relationBalanceDetail(move,loc=locale()){
   const suns=sunCells.length+1,moons=moonCells.length+1,total=suns+moons+1;if(total%2!==0)return null;const quota=total/2,targetValue=Number(target.value);if(!((targetValue===0&&suns===quota&&moons===quota-1)||(targetValue===1&&moons===quota&&suns===quota-1)))return null;
   const a=humanCell(rel.a),b=humanCell(rel.b),t=humanCell(target.cell),unitText=unitName(unit,loc),symbol='×';
   if(loc==='fr'){const known=[];if(sunCells.length)known.push(`${sunCells.join(' et ')} ${sunCells.length===1?'est déjà un soleil':'sont déjà des soleils'}`);if(moonCells.length)known.push(`${moonCells.join(' et ')} ${moonCells.length===1?'est déjà une lune':'sont déjà des lunes'}`);return {where:`Regarde l’indice ${a} ${symbol} ${b} et l’équilibre de ${unitText}.`,steps:[`L’indice ${a} ${symbol} ${b} impose que ${a} et ${b} soient opposées : ce couple apporte donc exactement un soleil et une lune à ${unitText}.`,`${known.join(' ; ')}. Avec le couple ${a}/${b}, ${unitText} compte donc ${suns} soleil${suns>1?'s':''} et ${moons} lune${moons>1?'s':''} avant ${t}.`,`Pour obtenir ${quota} soleils et ${quota} lunes, ${t} doit être ${targetValue===1?'soleil ☀':'lune ☾'}.`]}}
-  const known=[];if(sunCells.length)known.push(`${sunCells.join(' and ')} ${sunCells.length===1?'is already a sun':'are already suns'}`);if(moonCells.length)known.push(`${moonCells.join(' and ')} ${moonCells.length===1?'is already a moon':'are already moons'}`);return {where:`Look at the ${a} ${symbol} ${b} clue and the balance of ${unitText}.`,steps:[`The ${a} ${symbol} ${b} clue makes ${a} and ${b} opposite, so this pair contributes exactly one sun and one moon to ${unitText}.`,`${known.join('; ')}. With the ${a}/${b} pair, ${unitText} therefore has ${suns} sun${suns===1?'':'s'} and ${moons} moon${moons===1?'s':''} before ${t}.`,`To reach ${quota} suns and ${quota} moons, ${t} must be ${targetValue===1?'sun ☀':'moon ☾'}.`]}
+  const known=[];if(sunCells.length)known.push(`${sunCells.join(' and ')} ${sunCells.length===1?'is already a sun':'are already suns'}`);if(moonCells.length)known.push(`${moonCells.join(' and ')} ${moonCells.length===1?'is already a moon':'are already moons'}`);return {where:`Look at the ${a} ${symbol} ${b} clue and the balance of ${unitText}.`,steps:[`The ${a} ${symbol} ${b} clue makes ${a} and ${b} opposite, so this pair contributes exactly one sun and one moon to ${unitText}.`,`${known.join('; ')}. With the ${a}/${b} pair, ${unitText} therefore has ${suns} sun${suns===1?'':'s'} and ${moons} moon${moons===1?'':'s'} before ${t}.`,`To reach ${quota} suns and ${quota} moons, ${t} must be ${targetValue===1?'sun ☀':'moon ☾'}.`]}
 }
 function escapeHtml(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function addProjectedMarker(board,marker){const cell=board?.querySelector?.(`[data-r="${Number(marker.cell?.[0])}"][data-c="${Number(marker.cell?.[1])}"]`);if(!cell||!root.document?.createElement)return false;cell.classList.add('hf39-hypothetical-cell');const wrapper=root.document.createElement('span');wrapper.className=`walkthrough-hypothetical-piece hf39-hypothetical-piece is-consequence${marker.current?' is-current':''}`;wrapper.dataset.hf39R54Projection='true';wrapper.setAttribute('aria-hidden','true');const symbol=root.document.createElement('span');symbol.className='walkthrough-hypothetical-symbol tango-symbol';symbol.textContent=Number(marker.value)===1?'☀':'☾';wrapper.appendChild(symbol);const badge=root.document.createElement('span');badge.className='hf39-marker-badge';badge.dataset.hf39R54Projection='true';badge.setAttribute('aria-hidden','true');badge.textContent=String(marker.sequence);cell.append(wrapper,badge);const loc=locale(),label=loc==='fr'?`Conséquence ${marker.sequence} : ${Number(marker.value)===1?'soleil ☀':'lune ☾'}`:`Consequence ${marker.sequence}: ${Number(marker.value)===1?'sun ☀':'moon ☾'}`,aria=String(cell.getAttribute('aria-label')||'');if(!aria.includes(label))cell.setAttribute('aria-label',aria?`${aria}, ${label}`:label);return true}
@@ -90,5 +96,5 @@ function installRender(){const previous=root.renderWalkthrough;if(typeof previou
 function installNavigation(){const previous=root.walkthroughNavigateProof;if(typeof previous!=='function')return false;if(previous.__quadludTutorHumanRegressionR54===true)return true;const wrapped=function(...args){const result=previous(...args);decorate();return result};wrapped.__quadludTutorHumanRegressionR54=true;wrapped.__quadludPrevious=previous;root.walkthroughNavigateProof=wrapped;return true}
 function install(){return installGeneration()&&installRender()&&installNavigation()}
 function scheduleInstall(){let tries=320,timer=null;const retry=()=>{const ok=install();if(ok){if(timer!=null)clearTimeout(timer);decorate();return true}if(tries--<=0)return false;timer=setTimeout(retry,10);return true};retry();if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true}
-return Object.freeze({VERSION,TOKEN,install,scheduleInstall,decorate,_test:Object.freeze({sameCell,cellKey,stageKind,entryDeduction,causalStep,valueConclusions,relationPremise,relationParity,cellsOfDeduction,inferUnit,unitName,valuePremises,visibleValue,lastActionMove,manhattan,relationDistance,pedagogicalContinuation,multiConclusionRelationDeduction,projectedRelationBalancePlan,relationLocalityAlternative,explicitRelationsFromCausalStep,projectedConsequencesForMove,projectedMarkers,shiftedSequence,relationBalanceDetail})});
+return Object.freeze({VERSION,TOKEN,install,scheduleInstall,decorate,_test:Object.freeze({sameCell,cellKey,stageKind,entryDeduction,causalStep,valueConclusions,relationPremise,relationParity,cellsOfDeduction,inferUnit,unitName,valuePremises,visibleValue,lastActionMove,manhattan,relationDistance,pedagogicalContinuation,multiConclusionRelationDeduction,projectedRelationBalancePlan,directRelationBalancePlan,relationLocalityAlternative,explicitRelationsFromCausalStep,projectedConsequencesForMove,projectedMarkers,shiftedSequence,relationBalanceDetail})});
 });
