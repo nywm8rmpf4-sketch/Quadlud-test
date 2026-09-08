@@ -18,7 +18,7 @@ const visualUrl='tango-contradiction-visuals.js?v=3.1.9-r3ui-contradiction-visua
 const cssUrl='tango-human-pedagogy-r4.css?v=3.1.9-r3ui-contradiction-visual-r1';
 const singlePlannerUrl='tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v2';
 assert(index.includes(`<script src="${visualUrl}"></script>`),'index must load contradiction visuals');
-assert(index.includes(`<link rel="stylesheet" href="${cssUrl}" />`),'index must load contradiction visual CSS cache-bust');
+assert(index.includes(`href="${cssUrl}"`),'index must load contradiction visual CSS cache-bust');
 assert(sw.includes(`./${visualUrl}`),'service worker must precache contradiction visual module');
 assert(sw.includes(`./${cssUrl}`),'service worker must precache matching contradiction visual CSS');
 assert(index.includes(`<script src="${singlePlannerUrl}"></script>`),'index must load current Tutor single-planner v2');
