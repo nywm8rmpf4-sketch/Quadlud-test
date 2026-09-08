@@ -4,6 +4,9 @@ on:
     branches: [candidate/v3.1.9-hf3.9-r5.5]
   workflow_dispatch:
 permissions: {contents: read}
+concurrency:
+  group: quadlud-v319-hf39-r55
+  cancel-in-progress: true
 jobs:
   qa:
     runs-on: ubuntu-latest
@@ -28,6 +31,8 @@ jobs:
           Q="$RUNNER_TEMP/q"; mkdir -p "$Q/GitHub" "$Q/tests"; rsync -a ./ "$Q/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='qa-public/' --exclude='qa-release/'; cp -a qa-public/tests/. "$Q/tests/"
       - name: R5.5 targeted contracts
         run: cd "$RUNNER_TEMP/q" && node tests/v319-hf39-r55-causal-atomic-contract.test.js && node tests/v319-hf39-r55-stage-order.test.js
+      - name: R5.5 causal proof browser regression
+        run: cd "$RUNNER_TEMP/q" && PYTHONPATH="$PWD/tests" python tests/v319-hf39-r55-human-causal-proof-browser.test.py
       - name: R5.4 human browser regression
         run: cd "$RUNNER_TEMP/q" && PYTHONPATH="$PWD/tests" python tests/v319-hf39-r54-human-regression-browser.test.py
       - name: R5.4 Tutor presentation contract
