@@ -12,8 +12,8 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=3;
-const TOKEN='3.1.9-hf3.9-r5.4c';
+const VERSION=4;
+const TOKEN='3.1.9-hf3.9-r5.4d';
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
 const sameCell=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1]);
 const cellKey=cell=>Array.isArray(cell)&&cell.length>=2?`${Number(cell[0])},${Number(cell[1])}`:'';
@@ -53,7 +53,7 @@ function relationLocalityAlternative(session){
   if(baseline?.status!=='move')return null;const d=sourceDeduction(baseline);if(String(d?.rule||'')!=='RELATION_BALANCE')return null;const rel=relationPremise(d);if(!rel)return null;
   const conclusions=valueConclusions(d).filter(c=>state?.[Number(c.cell[0])]?.[Number(c.cell[1])]===-1);if(conclusions.length<2)return null;
   const valid=new Map(conclusions.map(c=>[`${cellKey(c.cell)}:${Number(c.value)}`,c]));
-  const siblings=(frontierData?.frontier||[]).map(entry=>entry?.plan).filter(plan=>plan?.status==='move'&&Array.isArray(plan.target)&&sameProofFamily(plan,d)&&valid.has(`${cellKey(plan.target)}:${Number(plan.value)}`));
+  const siblings=(frontierData?.evaluation?.plans||[]).filter(plan=>plan?.status==='move'&&Array.isArray(plan.target)&&sameProofFamily(plan,d)&&valid.has(`${cellKey(plan.target)}:${Number(plan.value)}`));
   if(siblings.length<2)return null;
   const baseDistance=relationDistance(baseline.target,rel),ranked=siblings.map((plan,index)=>({plan,index,distance:relationDistance(plan.target,rel)})).sort((a,b)=>a.distance-b.distance||a.index-b.index),chosen=ranked[0];if(!chosen||chosen.distance>=baseDistance)return null;
   const plan={...copy(chosen.plan),selectionStatus:'PROVEN_MINIMUM_RELATION_LOCALITY_TIEBREAK',relationLocalityTieBreak:true,relationLocalityDistance:chosen.distance};return {engine,plan}
