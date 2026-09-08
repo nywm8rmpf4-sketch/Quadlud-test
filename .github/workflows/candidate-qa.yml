@@ -1,5 +1,4 @@
-# HF3.9 R5.5 targeted candidate gate
-name: QUADLUD v3.1.9 HF3.9 R5.5 targeted QA
+name: QUADLUD v3.1.9 HF3.9 R5.5 regression QA
 on:
   push:
     branches: [candidate/v3.1.9-hf3.9-r5.5]
@@ -8,14 +7,32 @@ permissions: {contents: read}
 jobs:
   qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v5
         with: {node-version: '22'}
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.13'}
+      - name: Install browser QA
+        run: |
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+          CHROMIUM_PATH="$(python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p: print(p.chromium.executable_path)
+          PY
+          )"
+          sudo ln -sf "$CHROMIUM_PATH" /usr/bin/chromium
+      - name: Materialize QA layout
+        run: |
+          Q="$RUNNER_TEMP/q"; mkdir -p "$Q/GitHub" "$Q/tests"; rsync -a ./ "$Q/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='qa-public/' --exclude='qa-release/'; cp -a qa-public/tests/. "$Q/tests/"
       - name: Runtime JavaScript syntax
-        run: find . -maxdepth 1 -type f -name '*.js' -print0 | xargs -0 -n1 node --check
-      - name: HF3.9 R5.5 causal atomic contract
-        run: node qa-public/tests/v319-hf39-r55-causal-atomic-contract.test.js
-      - name: HF3.9 R5.5 contradiction stage order
-        run: node qa-public/tests/v319-hf39-r55-stage-order.test.js
+        run: find "$RUNNER_TEMP/q/GitHub" -maxdepth 1 -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: R5.5 targeted contracts
+        run: |
+          cd "$RUNNER_TEMP/q"; node tests/v319-hf39-r55-causal-atomic-contract.test.js; node tests/v319-hf39-r55-stage-order.test.js
+      - name: Selected HF3.9 legacy regressions
+        run: |
+          cd "$RUNNER_TEMP/q"; export PYTHONPATH="$PWD/tests"
+          for t in tests/v319-hf39-r54-*.test.py tests/v319-hf39-r53-*.test.py; do [ -f "$t" ] || continue; echo "PY $t"; python "$t"; done
