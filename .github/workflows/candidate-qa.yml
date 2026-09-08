@@ -29,12 +29,13 @@ jobs:
       - name: Materialize QA layout
         run: |
           Q="$RUNNER_TEMP/q"; mkdir -p "$Q/GitHub" "$Q/tests"; rsync -a ./ "$Q/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='qa-public/' --exclude='qa-release/'; cp -a qa-public/tests/. "$Q/tests/"
-      - name: R5.5 targeted contracts
+      - name: R5.5/R5.6 targeted contracts
         run: |
           cd "$RUNNER_TEMP/q"
           node tests/v319-hf39-r55-causal-atomic-contract.test.js
           node tests/v319-hf39-r55-stage-order.test.js
           node tests/v319-hf39-r55-valid-unit-label.test.js
+          node tests/v319-hf39-r56-causal-closure.test.js
       - name: R5.5 causal proof browser regression
         run: cd "$RUNNER_TEMP/q" && PYTHONPATH="$PWD/tests" python tests/v319-hf39-r55-human-causal-proof-browser.test.py
       - name: R5.4 human browser regression

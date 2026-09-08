@@ -61,9 +61,15 @@ assert.deepEqual(proofSteps.map(s=>s.sequenceIndex),[0,0,1],'relation proof scre
 const available=new Set([T.relationKey(A3,B3,1)]);
 assert.deepEqual(T.planRelationProofs(propagation,available).map(m=>T.deduction(m).rule),['RELATION_PROPAGATION']);
 
+globalThis.document={documentElement:{lang:'fr'}};
+const tripleText=T.atomicText({rule:'TRIPLE_CONSTRAINT',deduction:{rule:'TRIPLE_CONSTRAINT',premises:[{kind:'VALUE',cell:A3,value:1},{kind:'VALUE',cell:[0,3],value:1}]},current:{cell:[0,4],value:0}});
+assert.match(tripleText.why,/A3 et A4 portent tous deux le symbole soleil/);
+assert.match(tripleText.why,/Trois symboles identiques consécutifs sont interdits/);
+assert.doesNotMatch(tripleText.why,/TRIPLE CONSTRAINT/,'the Tutor must explain the rule, not expose its internal identifier');
+
 const root=pathUtil.resolve(__dirname,'../GitHub'),index=fs.readFileSync(pathUtil.join(root,'index.html'),'utf8'),sw=fs.readFileSync(pathUtil.join(root,'sw.js'),'utf8');
 const asset=`tango-tutor-causal-atomic-r55.js?v=${R.TOKEN}`;
 assert(index.includes(asset),'iPhone page must request the new causal-closure asset');
 assert(sw.includes(`./${asset}`),'service worker must precache that exact asset URL');
 
-console.log('PASS HF3.9-R5.6 causal closure rejects opaque supports and inserts a self-contained relation proof before propagation.');
+console.log('PASS HF3.9-R5.6 causal closure rejects opaque supports, inserts relation proofs, and explains the triple rule concretely.');
