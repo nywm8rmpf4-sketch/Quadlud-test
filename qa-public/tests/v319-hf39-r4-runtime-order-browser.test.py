@@ -28,13 +28,15 @@ with sync_playwright() as p:
       return {navigation:chain(walkthroughNavigateProof),render:chain(renderWalkthrough)};
     }""")
     nav=chains['navigation'];render=chains['render']
-    assert nav and nav[0]['r4'],nav
+    r4_nav_indexes=[i for i,x in enumerate(nav) if x['r4']]
+    assert r4_nav_indexes,nav
     causal_indexes=[i for i,x in enumerate(nav) if x['causal']]
-    assert causal_indexes and causal_indexes[0]>0,nav
-    assert render and render[0]['r4'],render
+    assert causal_indexes and causal_indexes[0]>r4_nav_indexes[0],nav
+    r4_render_indexes=[i for i,x in enumerate(render) if x['r4']]
+    assert r4_render_indexes,render
     hf39_indexes=[i for i,x in enumerate(render) if x['hf39']]
-    assert hf39_indexes and hf39_indexes[0]>0,render
+    assert hf39_indexes and hf39_indexes[0]>r4_render_indexes[0],render
     assert not errors,errors
     ctx.close();browser.close()
 
-print('v319-hf39-r4-runtime-order-browser.test.py: PASS — R4 is final navigation/render stabilizer')
+print('v319-hf39-r4-runtime-order-browser.test.py: PASS — R4 remains above its causal/HF39 lower-level wrappers; newer delivery wrappers may be outermost')
