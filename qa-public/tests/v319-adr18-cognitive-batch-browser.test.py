@@ -69,6 +69,20 @@ def proof_marker_states(page) -> list[list[dict]]:
     return out
 
 
+def synthetic_multiconclusion_labels(page) -> list[str]:
+    return page.evaluate(
+        """()=>{
+          const R=globalThis.QuadludTangoTutorConclusionBatchR6;
+          const B=globalThis.QuadludPedagogyConclusionBatch;
+          if(!R||!B)throw new Error('ADR-018 runtimes missing');
+          const proof={steps:[{id:'cp7',kind:'deduction',hypothetical:true,sequenceIndex:7,producedCells:[[0,0],[0,1]]}]};
+          const hierarchy=R._test.hierarchyItems({entries:[{move:{causalProof:proof,causalStepId:'cp7'}}]},0);
+          const items=hierarchy.get(7)||[];
+          return items.map((_,index)=>B.label(7,index,items.length));
+        }"""
+    )
+
+
 def main() -> None:
     with sync_playwright() as p:
         browser=p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
@@ -100,8 +114,9 @@ def main() -> None:
         journey.next_logical_move(page,6)
         step6=action_state(page)
         markers=proof_marker_states(page)
+        synthetic_labels=synthetic_multiconclusion_labels(page)
 
-        print('ADR18_STEPS', {'s1':step1,'s2':step2,'s3':step3,'s4':step4,'s5':step5,'s6':step6,'d23':d23,'d34':d34,'d45':d45,'markers':markers}, flush=True)
+        print('ADR18_STEPS', {'s1':step1,'s2':step2,'s3':step3,'s4':step4,'s5':step5,'s6':step6,'d23':d23,'d34':d34,'d45':d45,'markers':markers,'syntheticMultiLabels':synthetic_labels}, flush=True)
 
         assert step2['target']=='B2', (step1,step2,step3)
         assert step3['target']=='B3', (step1,step2,step3)
@@ -119,16 +134,16 @@ def main() -> None:
         assert d45['sessionCalls']==0 and d45['nextCalls']==0, d45
         assert step5['batchRuntimeToken']=='3.1.9-hf3.9-r6-cognitive-batch-v1', step5
 
+        # The existing step-6 contradiction chain is genuinely mono-conclusion per reasoning step.
+        # It must therefore keep simple integer labels; ADR-018 must not invent x.y grouping.
         flat=[m for state in markers for m in state]
-        labels={m['label'] for m in flat}
-        assert '3.1' in labels and '3.2' in labels, flat
-        a5=[m for m in flat if m['cell']=='A5' and m['label'].startswith('3.')]
-        assert a5, flat
-        assert all(m['label']=='3.2' for m in a5), a5
+        a5=[m for m in flat if m['cell']=='A5']
+        assert a5 and all(m['label']=='3' for m in a5), a5
+        assert synthetic_labels==['7.1','7.2'], synthetic_labels
 
         context.close();browser.close()
 
-    print('PASS ADR-018 browser: B2→B3 and E2→A2 consume same-proof batches with zero planner calls; hypothetical multi-conclusions use x.y labels.')
+    print('PASS ADR-018 browser: B2→B3 and E2→A2 consume same-proof batches with zero planner calls; x.y is reserved for genuine hypothetical multi-conclusions.')
 
 
 if __name__=='__main__':
