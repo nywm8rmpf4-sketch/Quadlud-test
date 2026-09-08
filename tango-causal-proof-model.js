@@ -39,7 +39,7 @@ function fromEntries(entries){
   source.forEach((entry,index)=>{
     const d=deductionOf(entry)||{},kind=canonicalKind(entry);
     if(kind==='hypothesis'){hypothetical=true;hypothesisSequence=0;contradictionSeen=false}
-    if(kind==='deduction'){hasExplicitDeduction=true;hypothesisSequence+=hypothetical?1:0}
+    if(kind==='deduction'){hasExplicitDeduction=true;if(entry?.causalRelationProof!==true)hypothesisSequence+=hypothetical?1:0}
     if(kind==='contradiction'){contradictionSeen=true;hypothesisSequence+=hypothetical?1:0}
     if(kind==='conclusion'&&contradictionSeen){const rollback=semanticStep('rollback',{rule:d?.rule,premises:[],focusCells:[],conclusions:[]},{synthetic:true,hypothetical:true,sequenceIndex:hypothesisSequence+1});steps.push(rollback);hypothetical=false}
     if(kind==='conclusion'&&source.length===1&&!hasExplicitDeduction){const deduction=semanticStep('deduction',d,{sourceEntryIndex:index,hypothetical:false});steps.push(deduction)}

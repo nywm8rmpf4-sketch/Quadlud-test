@@ -77,5 +77,5 @@ assert(index.includes(`tango-pedagogy-unit-focus.js?v=${unitToken}`));assert(sw.
 assert(index.includes(`tango-progressive-proof-bridge.js?v=${bridgeToken}`));assert(sw.includes(`./tango-progressive-proof-bridge.js?v=${bridgeToken}`));
 assert(index.includes(`tango-played-move-runtime.js?v=${playedToken}`));assert(sw.includes(`./tango-played-move-runtime.js?v=${playedToken}`));
 assert(index.includes(`tango-tutor-single-planner-r5.js?v=${singlePlannerToken}`));assert(sw.includes(`./tango-tutor-single-planner-r5.js?v=${singlePlannerToken}`));
-const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-hf39r5b-v17');
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-hf39r56-v19');
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');

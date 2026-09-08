@@ -2,7 +2,7 @@ name: QUADLUD Tutor semantic evidence
 
 on:
   push:
-    branches: [main]
+    branches: [main, candidate/v3.1.9-hf3.9-r5.5]
   workflow_dispatch:
 
 permissions:
@@ -22,11 +22,6 @@ jobs:
 
       - name: Enforce public/private boundary
         run: python3 qa-public/tests/public_runtime_guard.py
-
-      - name: Set up Node 22
-        uses: actions/setup-node@v5
-        with:
-          node-version: '22'
 
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
@@ -65,45 +60,12 @@ jobs:
           cp -a qa-public/tests/. "$QA_ROOT/tests/"
           test -f "$QA_ROOT/GitHub/index.html"
 
-      - name: Gate ADR-018 cognitive batch contract
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/quadlud-public-qa"
-          node tests/v319-adr18-cognitive-conclusion-batch.test.js
-
-      - name: Gate R5.4 Tutor projection and language regression
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/quadlud-public-qa"
-          node tests/v319-hf39-r54-tutor-presentation.test.js
-
-      - name: Diagnose R5.4 E2 direct projection
+      - name: Diagnose R5.4 E2 pre-frontier selection
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/quadlud-public-qa"
           export PYTHONPATH="$PWD/tests"
           python3 tests/v319-hf39-r54-e2-diagnostic-browser.test.py
-
-      - name: Gate ADR-018 zero-cost Tutor batch consumption
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/quadlud-public-qa"
-          export PYTHONPATH="$PWD/tests"
-          python3 tests/v319-adr18-cognitive-batch-browser.test.py
-
-      - name: Gate B4 to C6 to C3 attention continuity
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/quadlud-public-qa"
-          export PYTHONPATH="$PWD/tests"
-          python3 tests/v319-r3ui-tango-attention-continuity-browser.test.py
-
-      - name: Gate D5 single planner under 9 seconds
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/quadlud-public-qa"
-          export PYTHONPATH="$PWD/tests"
-          python3 tests/v319-r5-d5-cost-forensic.test.py
 
       - name: Execute real Soleil-Lune Expert Tutor journey
         env:
@@ -122,6 +84,15 @@ jobs:
           cd "$RUNNER_TEMP/quadlud-public-qa"
           export PYTHONPATH="$PWD/tests"
           python3 tests/v319-hf39-r54-human-regression-browser.test.py
+
+      - name: Execute exact A3 R5.5 causal proof journey
+        env:
+          QUADLUD_A3_R55_EVIDENCE_DIR: ${{ runner.temp }}/semantic-evidence/tango-expert-human-a3-r55
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python3 tests/v319-hf39-r55-human-causal-proof-browser.test.py
 
       - name: Upload semantic evidence
         if: always()

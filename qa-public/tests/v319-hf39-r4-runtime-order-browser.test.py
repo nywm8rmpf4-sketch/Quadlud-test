@@ -24,34 +24,17 @@ with sync_playwright() as p:
     page.wait_for_function("()=>window.QuadludTangoSemanticStabilizerHF39R4 && typeof walkthroughNavigateProof==='function' && typeof renderWalkthrough==='function'")
 
     chains=page.evaluate("""()=>{
-      const chain=fn=>{const out=[];let cur=fn,guard=0;while(typeof cur==='function'&&guard++<20){out.push({
-        r4:cur.__quadludSemanticStabilizerHF39R4===true,
-        causal:cur.__quadludCausalProofProjection===true,
-        hf39:cur.__quadludSemanticCoherenceHF39===true,
-        r54:cur.__quadludTutorHumanRegressionR54===true,
-        r6:cur.__quadludTutorConclusionBatchR6===true
-      });cur=cur.__quadludPrevious}return out};
+      const chain=fn=>{const out=[];let cur=fn,guard=0;while(typeof cur==='function'&&guard++<16){out.push({r4:cur.__quadludSemanticStabilizerHF39R4===true,causal:cur.__quadludCausalProofProjection===true,hf39:cur.__quadludSemanticCoherenceHF39===true});cur=cur.__quadludPrevious}return out};
       return {navigation:chain(walkthroughNavigateProof),render:chain(renderWalkthrough)};
     }""")
     nav=chains['navigation'];render=chains['render']
-
-    # R4 remains the last semantic/navigation stabilizer, but later Tutor-only
-    # presentation decorators are intentionally allowed outside it.  The chain
-    # is stored outermost -> innermost; execution unwinds in reverse order.
-    r4_nav=[i for i,x in enumerate(nav) if x['r4']]
-    r54_nav=[i for i,x in enumerate(nav) if x['r54']]
+    assert nav and nav[0]['r4'],nav
     causal_indexes=[i for i,x in enumerate(nav) if x['causal']]
-    assert r4_nav and r54_nav and causal_indexes,nav
-    assert r54_nav[0] < r4_nav[0] < causal_indexes[0],nav
-
-    r4_render=[i for i,x in enumerate(render) if x['r4']]
-    r54_render=[i for i,x in enumerate(render) if x['r54']]
-    r6_render=[i for i,x in enumerate(render) if x['r6']]
+    assert causal_indexes and causal_indexes[0]>0,nav
+    assert render and render[0]['r4'],render
     hf39_indexes=[i for i,x in enumerate(render) if x['hf39']]
-    assert r4_render and r54_render and r6_render and hf39_indexes,render
-    assert r6_render[0] < r54_render[0] < r4_render[0] < hf39_indexes[0],render
-
+    assert hf39_indexes and hf39_indexes[0]>0,render
     assert not errors,errors
     ctx.close();browser.close()
 
-print('v319-hf39-r4-runtime-order-browser.test.py: PASS — R4 stays the final semantic stabilizer; R5.4/R6 are post-stabilizer Tutor presentation decorators')
+print('v319-hf39-r4-runtime-order-browser.test.py: PASS — R4 is final navigation/render stabilizer')

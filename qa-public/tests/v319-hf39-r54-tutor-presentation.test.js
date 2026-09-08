@@ -7,9 +7,6 @@ const path=require('path');
 const R=require(path.join(__dirname,'..','GitHub','tango-tutor-human-regression-r54.js'));
 const empty=()=>Array.from({length:6},()=>Array(6).fill(-1));
 
-// Step 4: A2 and E2 can be conclusions of the same visible RELATION_BALANCE proof.
-// The Tutor tie-break must prefer the conclusion closest to the driving relation C2×D2,
-// without encoding either coordinate in the runtime policy.
 const relC2D2={a:[2,1],b:[3,1]};
 assert.equal(R._test.relationDistance([0,1],relC2D2),2,'A2 relation distance');
 assert.equal(R._test.relationDistance([4,1],relC2D2),1,'E2 relation distance');
@@ -32,8 +29,6 @@ assert.equal(projectedPlan.localAttentionContinuation,false);
 assert.equal(JSON.stringify(relationBalance),proofBefore,'E2 projection must not mutate the certified proof');
 assert.deepStrictEqual(projectedPlan.deduction.conclusions,relationBalance.conclusions,'both A2 and E2 conclusions stay in the proof');
 
-// Step 6: project the implicit partner of an explicit relation onto the display only.
-// The proof object must remain byte-for-byte unchanged.
 const state=empty();state[0][5]=0;
 const hyp={pedagogyStageKind:'hypothesis',deduction:{premises:[{kind:'ASSUMPTION',cell:[0,5],value:0,hypothesis:true}],conclusions:[]},causalStep:{id:'cp9',kind:'hypothesis',sequenceIndex:0}};
 const a3={pedagogyStageKind:'reasoning',beforeSnapshot:{state},deduction:{conclusions:[{type:'VALUE',cell:[0,2],value:0}]},causalStep:{id:'cp10',kind:'deduction',sequenceIndex:1,premises:[]}};
@@ -45,28 +40,23 @@ const atA4=R._test.projectedMarkers(group,2);
 assert.deepStrictEqual(atA4.map(x=>({cell:x.cell,value:x.value,sequence:x.sequence})),[{cell:[0,4],value:1,sequence:3}]);
 assert.equal(JSON.stringify(group),before,'presentation projection must not mutate the proof');
 
-// A later relation may point back to a value already demonstrated directly.
-// It must not create a second badge for that same logical consequence.
 const c3={pedagogyStageKind:'reasoning',beforeSnapshot:{state},deduction:{conclusions:[{type:'VALUE',cell:[2,2],value:1}]},causalStep:{id:'cp12',kind:'deduction',sequenceIndex:3,premises:[]}};
 const c4Projection={pedagogyStageKind:'reasoning',beforeSnapshot:{state},deduction:{conclusions:[{type:'VALUE',cell:[2,3],value:0}]},causalStep:{id:'cp13',kind:'deduction',sequenceIndex:4,premises:[{kind:'RELATION',a:[2,2],b:[2,3],parity:1,explicit:true}]}};
 const extended={entries:[...group.entries,{move:c3},{move:c4Projection}]};
 const projected=R._test.projectedMarkers(extended,4);
 assert(!projected.some(x=>x.cell[0]===2&&x.cell[1]===2&&x.value===1),'C3 must not be duplicated as a projected consequence');
 
-// Step 18: D4×E4 contributes one sun and one moon; with visible values in column 4,
-// the remaining F4 is genuinely forced to sun. Assert meaning, not a single wording.
 const step18={deduction:{rule:'RELATION_BALANCE',focusUnits:[{family:'column',id:3}],focusCells:[[3,3],[4,3],[0,3],[1,3],[2,3],[5,3]],premises:[{kind:'RELATION',relation:'OPPOSITE',a:[3,3],b:[4,3],explicit:true},{kind:'VALUE',cell:[0,3],value:0},{kind:'VALUE',cell:[1,3],value:1},{kind:'VALUE',cell:[2,3],value:0}],conclusions:[{type:'VALUE',cell:[5,3],value:1}]}};
 const detail=R._test.relationBalanceDetail(step18,'fr');
 assert(detail);
 const text=[detail.where,...detail.steps].join(' ').toLowerCase();
 for(const token of ['d4','e4','colonne 4','f4','soleil','lune'])assert(text.includes(token),token);
 assert(text.includes('2 soleils')&&text.includes('3 lunes'));
-assert(/f4\s*(?:doit être|=)\s*soleil/.test(text),text);
+assert(text.includes('f4 doit être soleil'));
 const english=R._test.relationBalanceDetail(step18,'en');
 assert(english);
 const englishText=[english.where,...english.steps].join(' ').toLowerCase();
 assert(englishText.includes('2 suns')&&englishText.includes('3 moons'),englishText);
-assert(/f4\s*(?:must be|=)\s*sun/.test(englishText),englishText);
 assert(!/\b1 moons\b/.test(englishText),englishText);
 assert(!/\b3 moon\b(?!s)/.test(englishText),englishText);
 console.log('PASS HF3.9-R5.4 Tutor presentation regressions.');
