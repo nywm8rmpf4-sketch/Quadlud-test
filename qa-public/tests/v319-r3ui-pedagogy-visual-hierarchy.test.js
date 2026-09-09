@@ -77,5 +77,13 @@ assert(index.includes(`tango-pedagogy-unit-focus.js?v=${unitToken}`));assert(sw.
 assert(index.includes(`tango-progressive-proof-bridge.js?v=${bridgeToken}`));assert(sw.includes(`./tango-progressive-proof-bridge.js?v=${bridgeToken}`));
 assert(index.includes(`tango-played-move-runtime.js?v=${playedToken}`));assert(sw.includes(`./tango-played-move-runtime.js?v=${playedToken}`));
 assert(index.includes(`tango-tutor-single-planner-r5.js?v=${singlePlannerToken}`));assert(sw.includes(`./tango-tutor-single-planner-r5.js?v=${singlePlannerToken}`));
-const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-tango-diversity-pilot-v6');
+const tangoCss=fs.readFileSync(path.join(ROOT,'GitHub','tango-human-pedagogy-r4.css'),'utf8'),humanRegression=fs.readFileSync(path.join(ROOT,'GitHub','tango-tutor-human-regression-r54.js'),'utf8');
+assert(tangoCss.includes('.walkthrough-panel.tango-relation-balance-detail .walkthrough-explanation'),'relation-balance mobile layout selector missing');
+assert(tangoCss.includes('@media(max-width:520px) and (orientation:portrait)'),'relation-balance compact layout must be phone-portrait scoped');
+assert(humanRegression.includes("classList?.toggle?.('tango-relation-balance-detail',relationBalanceRendered)"),'relation-balance layout class must follow the rendered proof step');
+assert(!humanRegression.includes("</b><br>${detail.steps"),'relation-balance proof must not waste a forced phone line before its causal clauses');
+const relationCssToken='3.1.9-r3ui-relation-balance-mobile-layout-v1',humanRegressionToken='3.1.9-hf3.9-r5.4-mobile-layout-v2';
+assert(index.includes(`tango-human-pedagogy-r4.css?v=${relationCssToken}`));assert(sw.includes(`./tango-human-pedagogy-r4.css?v=${relationCssToken}`));
+assert(index.includes(`tango-tutor-human-regression-r54.js?v=${humanRegressionToken}`));
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-tango-diversity-pilot-v7');
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
