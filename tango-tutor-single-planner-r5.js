@@ -33,8 +33,16 @@ function attachHumanProof(session,plan,H,R,mode){
     humanSignature:`${plan.target?.join(',')||''}:${plan.value}|${plan.startingDeduction?.signature||plan.deduction?.signature||plan.deduction?.id||''}|${displayProof?.kind||'engine-proof'}|tutor-r5`
   }
 }
+function precomputedTutorPlan(session,diff,options={}){
+  if(options.usePrecomputedCache===false)return null;
+  const C=root.QuadludTangoTutorPrecomputedCache;
+  if(!C||typeof C.tryPlan!=='function')return null;
+  try{return C.tryPlan(session,diff)||null}catch(_){return null}
+}
 function humanizeTutorPlan(session,diff,options={}){
-  const P=planner(),R=runtime(),H=pedagogy(),directVisible=hasDirectVisibleDeduction(session,diff);
+  const P=planner(),R=runtime(),H=pedagogy(),cached=precomputedTutorPlan(session,diff,options);
+  if(cached)return attachHumanProof(session,cached,H,R,'precomputed-seed-cache');
+  const directVisible=hasDirectVisibleDeduction(session,diff);
   // Preserve the validated human-global ordering while a directly playable
   // visible deduction exists. This is the cheap frontier that yields the
   // natural B4 -> C6 progression. If only invisible relation starts remain,
@@ -90,7 +98,7 @@ function install(){
   root.walkthroughGenerateTangoNext=walkthroughGenerateTutorPlannerNext;
   return true
 }
-const api=Object.freeze({VERSION,TOKEN,install,humanizeTutorPlan,walkthroughGenerateTutorPlannerNext,_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,attachHumanProof,humanizeTutorPlan})});
+const api=Object.freeze({VERSION,TOKEN,install,humanizeTutorPlan,walkthroughGenerateTutorPlannerNext,_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,attachHumanProof,precomputedTutorPlan,humanizeTutorPlan})});
 root.QuadludTangoTutorSinglePlannerR5=api;
 if(typeof document!=='undefined')install();
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
