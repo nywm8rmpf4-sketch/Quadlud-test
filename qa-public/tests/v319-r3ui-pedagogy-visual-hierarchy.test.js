@@ -81,9 +81,11 @@ const tangoCss=fs.readFileSync(path.join(ROOT,'GitHub','tango-human-pedagogy-r4.
 assert(tangoCss.includes('.walkthrough-panel.tango-relation-balance-detail .walkthrough-explanation'),'relation-balance mobile layout selector missing');
 assert(tangoCss.includes('@media(max-width:520px) and (orientation:portrait)'),'relation-balance compact layout must be phone-portrait scoped');
 assert(humanRegression.includes("classList?.toggle?.('tango-relation-balance-detail',relationBalanceRendered)"),'relation-balance layout class must follow the rendered proof step');
+assert(humanRegression.includes("classList?.toggle?.('tango-walkthrough-complete',!!panel.querySelector?.('.walkthrough-complete'))"),'completed Tango walkthrough class must follow the rendered completion state');
+assert(tangoCss.includes('.walkthrough-panel.tango-walkthrough-complete .walkthrough-help-note'),'completed Tango walkthrough must reclaim the already-read help-note space on phone');
 assert(!humanRegression.includes("</b><br>${detail.steps"),'relation-balance proof must not waste a forced phone line before its causal clauses');
-const relationCssToken='3.1.9-r3ui-relation-balance-mobile-layout-v1',humanRegressionToken='3.1.9-hf3.9-r5.4-mobile-layout-v2';
+const relationCssToken='3.1.9-r3ui-relation-balance-mobile-layout-v2',humanRegressionToken='3.1.9-hf3.9-r5.4-mobile-layout-v3';
 assert(index.includes(`tango-human-pedagogy-r4.css?v=${relationCssToken}`));assert(sw.includes(`./tango-human-pedagogy-r4.css?v=${relationCssToken}`));
 assert(index.includes(`tango-tutor-human-regression-r54.js?v=${humanRegressionToken}`));
-const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-tango-diversity-pilot-v7');
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-tango-diversity-pilot-v8');
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
