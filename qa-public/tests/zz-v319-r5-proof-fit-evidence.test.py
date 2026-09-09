@@ -38,7 +38,7 @@ for path in sorted(EVIDENCE.glob('*.json')):
         # residue is accepted only with scrollTop=0; #283 screenshots confirmed
         # that such 3 px residues do not hide any useful text or require a gesture.
         assert overflow <= ORDINARY_RENDER_TOLERANCE_PX, (
-            f'{path.name}: ordinary Tutor explanation requires visible scrolling: {scroll}'
+            f'{path.name}: ordinary Tutor explanation requires visible scrolling: {scroll}; classes={classes}; full={full!r}'
         )
         assert top == 0, f'{path.name}: ordinary Tutor explanation must remain at scrollTop 0: {scroll}'
         if any('walkthrough-help-note' in value for value in classes):
