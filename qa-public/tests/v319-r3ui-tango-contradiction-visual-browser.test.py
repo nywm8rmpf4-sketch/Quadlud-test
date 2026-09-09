@@ -24,7 +24,7 @@ with sync_playwright() as p:
     page.on('pageerror',lambda e:errors.append('pageerror:'+str(e)))
     page.on('console',lambda m:errors.append('console:'+m.text) if m.type=='error' else None)
     load(page)
-    page.wait_for_function("()=>window.QuadludTangoContradictionVisuals && window.QuadludTutorActionFirstNavigation && window.QuadludTangoSemanticCoherenceHF39 && window.QuadludTangoSemanticStabilizerHF39R4")
+    page.wait_for_function("()=>window.QuadludTangoContradictionVisuals && window.QuadludTutorActionFirstNavigation && window.QuadludTangoSemanticCoherenceHF39 && window.QuadludTangoSemanticStabilizerHF39R4 && window.QuadludTangoCausalProofModel")
 
     page.evaluate("""()=>{
       const cell=(r,c)=>`<div class="cell walkthrough-cell" data-r="${r}" data-c="${c}" aria-label="${String.fromCharCode(65+r)}${c+1}"></div>`;
@@ -40,6 +40,8 @@ with sync_playwright() as p:
         move('contradiction',{premises:[],focusCells:[[2,2],[3,2]],focusUnits:[{family:'column',id:2}],explanationData:{witness:{cells:[[2,2],[3,2]],family:'column',id:2}},conclusions:[]}),
         move('action',{premises:[],focusCells:[[0,2]],conclusions:[{type:'VALUE',cell:[0,2],value:1}]})
       ];
+      const causalProof=QuadludTangoCausalProofModel.fromEntries(moves);
+      moves.forEach((entry,index)=>{entry.causalProof=causalProof;entry.causalStepId=causalProof.entryStepIds[index]||null});
       walkthroughSession={base:{game:'tango',n:6},initial:{state:blank()},moves,pedagogyNavigationByMove:moves.map((_,i)=>nav(i)),navigation:nav(0),atStart:false,index:1,done:false,stalled:false};
       window.__setProofStep=i=>{
         walkthroughSession.navigation=nav(i);walkthroughSession.index=i+1;
