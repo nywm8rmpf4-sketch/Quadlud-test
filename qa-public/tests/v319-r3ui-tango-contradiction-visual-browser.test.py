@@ -24,7 +24,7 @@ with sync_playwright() as p:
     page.on('pageerror',lambda e:errors.append('pageerror:'+str(e)))
     page.on('console',lambda m:errors.append('console:'+m.text) if m.type=='error' else None)
     load(page)
-    page.wait_for_function("()=>window.QuadludTangoContradictionVisuals && window.QuadludTutorActionFirstNavigation && window.QuadludTangoSemanticCoherenceHF39")
+    page.wait_for_function("()=>window.QuadludTangoContradictionVisuals && window.QuadludTutorActionFirstNavigation && window.QuadludTangoSemanticCoherenceHF39 && window.QuadludTangoSemanticStabilizerHF39R4")
 
     page.evaluate("""()=>{
       const cell=(r,c)=>`<div class="cell walkthrough-cell" data-r="${r}" data-c="${c}" aria-label="${String.fromCharCode(65+r)}${c+1}"></div>`;
@@ -45,9 +45,11 @@ with sync_playwright() as p:
         walkthroughSession.navigation=nav(i);walkthroughSession.index=i+1;
         QuadludTutorActionFirstNavigation.decorateCurrentAction();
         // Production order: contradiction layer keeps semantic classes/red witness;
-        // HF3.9 then owns the single persistent H/1/2/3 marker set.
+        // The final R4 stabilizer restores the projected causal H/1/2/3 set
+        // after the canonical HF3.9 overlay rebuild, as in production.
         QuadludTangoContradictionVisuals.decorate();
         QuadludTangoSemanticCoherenceHF39.decorate();
+        QuadludTangoSemanticStabilizerHF39R4.decorate();
       };
       window.__setProofStep(0);
     }""")
