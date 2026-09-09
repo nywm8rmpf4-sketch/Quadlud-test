@@ -1,4 +1,4 @@
-name: QUADLUD Tango Tutor cache encoding audits R7-R8
+name: QUADLUD Tango Tutor cache encoding audits R7-R9
 on:
   push:
     branches: ["qa/tango-cache-target-unique-r7"]
@@ -9,7 +9,7 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     defaults:
       run:
         shell: bash
@@ -57,11 +57,20 @@ jobs:
         run: |
           set -euo pipefail
           node qa-public/tests/tango-cache-ordinal-r8.test.js "$RUNNER_TEMP/pool/tango-diversity-pool.js" "$RUNNER_TEMP/cache" | tee "$RUNNER_TEMP/tango-cache-ordinal-r8-report.json"
+      - name: Build guarded packed Tutor cache R9
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/packed-r9"
+          node qa-public/tools/build_tango_tutor_packed_r9.js "$RUNNER_TEMP/pool/tango-diversity-pool.js" "$RUNNER_TEMP/cache" "$RUNNER_TEMP/packed-r9" | tee "$RUNNER_TEMP/tango-cache-packed-r9-build.json"
+          test -s "$RUNNER_TEMP/packed-r9/tango-tutor-precomputed-manifest.js"
+          test "$(find "$RUNNER_TEMP/packed-r9" -name 'tango-tutor-precomputed-*-*.js' | wc -l)" -eq 8
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tango-cache-encoding-audits-r8
+          name: tango-cache-encoding-audits-r9
           path: |
             ${{ runner.temp }}/tango-cache-target-uniqueness-r7-report.json
             ${{ runner.temp }}/tango-cache-ordinal-r8-report.json
+            ${{ runner.temp }}/tango-cache-packed-r9-build.json
+            ${{ runner.temp }}/packed-r9/
           if-no-files-found: warn
