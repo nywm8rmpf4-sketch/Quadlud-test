@@ -1,0 +1,43 @@
+name: QUADLUD Tango target-only Tutor cache audit R7
+on:
+  push:
+    branches: ["qa/tango-cache-target-unique-r7"]
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Download certified 120x4 pool artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/pool"
+          gh run download 34328652161 -n tango-precompute-pool-r1 -D "$RUNNER_TEMP/pool"
+      - name: Download certified Tutor cache artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/cache"
+          gh run download 34330141819 -n tango-tutor-cache-r4-complete -D "$RUNNER_TEMP/cache"
+      - name: Verify source artifact integrity files exist
+        run: |
+          test -s "$RUNNER_TEMP/pool/tango-diversity-pool.js"
+          test -s "$RUNNER_TEMP/cache/tango-tutor-cache-easy.json"
+          test -s "$RUNNER_TEMP/cache/tango-tutor-cache-medium.json"
+          test -s "$RUNNER_TEMP/cache/tango-tutor-cache-hard.json"
+          test -s "$RUNNER_TEMP/cache/tango-tutor-cache-expert.json"
+      - name: Audit target-value uniqueness over all cached states
+        run: node qa-public/tests/tango-cache-target-uniqueness-r7.test.js "$RUNNER_TEMP/pool/tango-diversity-pool.js" "$RUNNER_TEMP/cache" | tee "$RUNNER_TEMP/tango-cache-target-uniqueness-r7-report.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-cache-target-uniqueness-r7
+          path: ${{ runner.temp }}/tango-cache-target-uniqueness-r7-report.json
+          if-no-files-found: error
