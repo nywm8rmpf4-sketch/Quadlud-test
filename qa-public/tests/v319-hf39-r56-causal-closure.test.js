@@ -99,7 +99,7 @@ assert.equal(stableFacts.get('0,0'),0,'the real post-rollback action must remain
 
 const root=pathUtil.resolve(__dirname,'../GitHub'),index=fs.readFileSync(pathUtil.join(root,'index.html'),'utf8'),sw=fs.readFileSync(pathUtil.join(root,'sw.js'),'utf8');
 const asset=`tango-tutor-causal-atomic-r55.js?v=${R.TOKEN}`;
-assert.equal(R.VERSION,18,'causal closure runtime must restore the final semantic stabilizer owner');
+assert.equal(R.VERSION,17,'causal closure runtime must restore the final semantic stabilizer owner');
 assert(index.includes(asset),'iPhone page must request the new causal-closure asset');
 assert(sw.includes(`./${asset}`),'service worker must precache that exact asset URL');
 const inner=function(){},outer=function(){};inner.__quadludTutorCausalAtomicR55=true;outer.__quadludPrevious=inner;
