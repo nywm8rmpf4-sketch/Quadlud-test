@@ -12,7 +12,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=2;
+const VERSION=3;
 const CONCLUSION_CLASS='walkthrough-substep-conclusion';
 const CONCLUSION_BADGE_CLASS='walkthrough-substep-conclusion-badge';
 const STYLE_ID='quadlud-tango-tutor-clarity-style';
@@ -63,14 +63,14 @@ function relationPathCells(source,target,path){
 function escapeHtml(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function unsupportedRelationLine(a,b,loc=locale()){return loc==='fr'?`La provenance nécessaire pour démontrer ${humanCell(a)} ${relationSymbol(1)} ${humanCell(b)} n’est pas disponible dans cette preuve.`:`The provenance required to prove the relation between ${humanCell(a)} and ${humanCell(b)} is missing from this proof.`}
 function premiseRelationLines(p,loc=locale(),depth=0){
-  if(!p||!Array.isArray(p.a)||!Array.isArray(p.b)||depth>4)return {lines:[],complete:false};
+  if(!p||!Array.isArray(p.a)||!Array.isArray(p.b)||depth>12)return {lines:[],complete:false};
   const ordered=orderedRelationPath(p.a,p.b,p.path);
   if(ordered.length){let lines=[],complete=true;for(const edge of ordered){const detail=edgeProofLines(edge,loc,depth+1);lines.push(...detail.lines);complete=complete&&detail.complete}if(ordered.length>1)lines.push(loc==='fr'?`En combinant ces relations, ${humanCell(p.a)} et ${humanCell(p.b)} sont ${relationWord(p.parity,loc)}.`:`Combining these relations, ${humanCell(p.a)} and ${humanCell(p.b)} are ${relationWord(p.parity,loc)}.`);return {lines,complete}}
   if(p.explicit===true)return {lines:[loc==='fr'?`L’indice visible ${relationStatement(p.a,p.b,p.parity,loc)}`:`Visible clue: ${relationStatement(p.a,p.b,p.parity,loc)}`],complete:true};
   return {lines:[unsupportedRelationLine(p.a,p.b,loc)],complete:false}
 }
 function supportRelationLines(support,edge,loc=locale(),depth=0){
-  if(!support||depth>4)return {lines:[unsupportedRelationLine(edge.from,edge.to,loc)],complete:false};
+  if(!support||depth>12)return {lines:[unsupportedRelationLine(edge.from,edge.to,loc)],complete:false};
   const x=support.explanationData||{},rule=String(support.rule||''),conclusion=(support.conclusions||[]).find(c=>c?.type==='RELATION'&&((sameCell(c.a,edge.from)&&sameCell(c.b,edge.to))||(sameCell(c.a,edge.to)&&sameCell(c.b,edge.from))))||(support.conclusions||[]).find(c=>c?.type==='RELATION');
   if(rule==='TRIPLE_CONSTRAINT'&&x.mode==='RELATION'){
     const lines=[];let complete=true,rel=relationPremise(support);if(rel){const proof=premiseRelationLines(rel,loc,depth+1);lines.push(...proof.lines);complete=complete&&proof.complete}
