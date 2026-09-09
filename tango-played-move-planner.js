@@ -174,6 +174,11 @@ function advancedDeductionsDetailed(session,tierIndex){
   if(typeof session?.findAssumptionContradictionsDetailed==='function'){
     const result=session.findAssumptionContradictionsDetailed()||{};budgetHit=budgetHit||!!result.budgetHit;out.push(...(result.deductions||[]));
   }
+  // ASSUMPTION_CONTRADICTION is the first certified advanced family and its
+  // candidates outrank COMMON_CONSEQUENCE. Once it has produced a real proof,
+  // scanning the same hypothesis branches again cannot improve this frontier;
+  // it only blocks the interactive Tutor thread.
+  if(out.length)return {deductions:uniqDeductions(out).sort(TL.deductionComparator),budgetHit};
   if(typeof session?.findCommonConsequencesDetailed==='function'){
     const result=session.findCommonConsequencesDetailed()||{};budgetHit=budgetHit||!!result.budgetHit;out.push(...(result.deductions||[]));
   }

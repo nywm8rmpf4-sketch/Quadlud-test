@@ -20,7 +20,7 @@ const registry=sandbox.QuadludGameRegistry;
 assert.strictEqual(typeof generator.generationIdentity,'function','Soleil-Lune must expose a public-state generation identity');
 assert.strictEqual(registry.hasCapability('tango','generationIdentity'),true,'Soleil-Lune must participate in session anti-repeat');
 assert(sandbox.QuadludTangoDiversityPool,'the certified diversity pool must be loaded');
-assert.strictEqual(sandbox.QuadludTangoDiversityPool.version,'tango-diversity-pilot-v3','the contextual Tutor-qualified pool must be loaded');
+assert.strictEqual(sandbox.QuadludTangoDiversityPool.version,'tango-diversity-pilot-v4','the contextual Tutor-qualified pool must be loaded');
 assert.strictEqual(sandbox.QuadludTangoDiversityPool.certification?.expertTutor,'full-contextual-tutor-journey-v2-fastest-portfolio','expert certification policy mismatch');
 
 const expectedMinimumFamilies={medium:20,hard:28,expert:16};
@@ -36,7 +36,7 @@ for(const diff of Object.keys(expectedMinimumFamilies)){
       assert.strictEqual(entry.tutorProfile?.status,'solved','expert entry Tutor journey must solve');
       assert.strictEqual(entry.tutorProfile?.policy,'full-contextual-tutor-journey-v2','expert entry Tutor policy mismatch');
       assert(entry.tutorProfile.moves>0&&entry.tutorProfile.moves<=36,'expert Tutor journey move count must stay bounded');
-      assert(entry.tutorProfile.maxMoveMs<=3000,`expert entry exceeded the contextual offline Tutor interaction budget: ${entry.tutorProfile.maxMoveMs} ms`);
+      assert(entry.tutorProfile.maxMoveMs<=1500,`expert entry exceeded the contextual offline Tutor interaction budget: ${entry.tutorProfile.maxMoveMs} ms`);
     }
     const candidate=generator.fromDiversityEntry(diff,entry);
     const publicPuzzle=generator.publicPuzzleFromCandidate(candidate);

@@ -81,12 +81,11 @@ function relationChainLowerBound(session,tier,firstDeduction,options,advancedCac
     if(!lightApplyRelationDeduction(fork,deduction))return null;
     const direct=Previous._test.allowedDirectDeductions(fork,tier)||[];
     if(direct.length){deduction=copy(direct[0]);continue}
-    const advanced=advancedAvailabilityLowerBound(fork,tier,advancedCache);
-    if(!advanced?.hasDeduction)return null;
-    // Whatever advanced proof is selected from this logical state, a real move
-    // cannot occur before applying at least one more engine deduction. This is a
-    // lower bound, not a synthetic proof; survivors are fully recomputed below.
-    return {lowerBoundSteps:step+1,kind:'advanced-lower-bound',advancedStateKey:advanced.key}
+    // Whatever advanced proof may be selected from this logical state, a real
+    // move cannot occur before at least one more engine deduction. Availability
+    // is deliberately verified only by certified hydration below: probing it
+    // here would solve every discarded branch before the lower bound can prune.
+    return {lowerBoundSteps:step+1,kind:'advanced-lower-bound'}
   }
   return null
 }
@@ -108,6 +107,7 @@ function evaluateRelationFrontier(session,tier,deductions,options={}){
     if(bound>bestActual)break;
     for(const item of estimates.filter(x=>x.lowerBoundSteps===bound)){
       const plan=Previous._test.planFromFirstDeduction(session,tier,copy(item.deduction),{...options,advancedStart:false,initialStateValidated:true});hydrated++;
+      if(plan?.status==='blocked')continue;
       if(plan?.status!=='move')return null;
       const actual=Math.max(1,Number(plan.engineStepCount)||1);
       if(actual<bound)return null;

@@ -30,9 +30,9 @@ class FakeSession{
   rebuildRelationClosure(){}
 }
 
-let previousCalls=0,pending=false;const hydrated=[];
+let previousCalls=0,pending=false,advancedProbeCalls=0;const hydrated=[];
 global.TangoDifficulty={
-  nextAllowedDeduction(){return {deduction:{id:'advanced',rule:'ASSUMPTION_CONTRADICTION',rank:3,techniqueLevel:3,conclusions:[{type:'VALUE',cell:[0,0],value:1}]},budgetHit:false}}
+  nextAllowedDeduction(){advancedProbeCalls++;return {deduction:{id:'advanced',rule:'ASSUMPTION_CONTRADICTION',rank:3,techniqueLevel:3,conclusions:[{type:'VALUE',cell:[0,0],value:1}]},budgetHit:false}}
 };
 global.QuadludTangoPlayedMovePlanner={
   VERSION:4,
@@ -79,6 +79,7 @@ assert.strictEqual(selected.relationFrontierHydratedCandidateCount,2,'only candi
 assert.strictEqual(selected.relationFrontierPrunedCandidateCount,1);
 assert.strictEqual(selected.relationFrontierMinimumEngineStepCount,2);
 assert.deepStrictEqual(hydrated.sort(),['fast-a','fast-c'],'the strictly longer lower-bound branch must never invoke the certified full planner');
+assert.strictEqual(advancedProbeCalls,0,'lower-bound estimation must not solve every advanced branch before certified hydration');
 assert.strictEqual(previousCalls,0,'successful exact pruning must not restart the v10 baseline path');
 assert.deepStrictEqual(selected.proofChain,[{id:'full-a-proof'}],'the returned proof must come from a fully hydrated certified plan, never from the lightweight estimate');
 

@@ -103,7 +103,7 @@ for(const diff of Object.keys(targets)){
   if(diff==='expert')entries[diff]=entries[diff].sort((a,b)=>a.tutorProfile.maxMoveMs-b.tutorProfile.maxMoveMs||a.tutorProfile.totalMs-b.tutorProfile.totalMs||a.difficultyProfile.fingerprint.localeCompare(b.difficultyProfile.fingerprint)).slice(0,targets.expert);
 }
 
-const payload={schema:2,version:'tango-diversity-pilot-v3',generatedBy:'qa-public/tools/build_tango_diversity_pool.js',targets,generationTargets,attempts,certification:{difficulty:'exact-current-engine-tier',families:'dihedral-and-inversion-canonical',expertTutor:'full-contextual-tutor-journey-v2-fastest-portfolio'},entries};
+const payload={schema:2,version:'tango-diversity-pilot-v4',generatedBy:'qa-public/tools/build_tango_diversity_pool.js',targets,generationTargets,attempts,certification:{difficulty:'exact-current-engine-tier',families:'dihedral-and-inversion-canonical',expertTutor:'full-contextual-tutor-journey-v2-fastest-portfolio'},entries};
 const output=`/* QUADLUD — generated certified Soleil-Lune diversity pool. */\n(function(root,factory){const api=factory();if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root)root.QuadludTangoDiversityPool=api})(typeof globalThis!=='undefined'?globalThis:this,function(){'use strict';return Object.freeze(${JSON.stringify(payload)});});\n`;
 const outputIndex=process.argv.indexOf('--output');
 if(outputIndex>=0){const outputPath=process.argv[outputIndex+1];if(!outputPath)throw new Error('--output requires a file path');fs.writeFileSync(path.resolve(outputPath),output)}else process.stdout.write(output);
