@@ -3,6 +3,9 @@ name: QUADLUD Tango Tutor exact cache R8
 on:
   push:
     branches: [qa/tango-tutor-cache-exact-r8]
+    paths-ignore:
+      - 'tango-runtime-pool-data.js'
+      - 'tango-tutor-cache-data-r8.js'
   workflow_dispatch:
 
 permissions:
