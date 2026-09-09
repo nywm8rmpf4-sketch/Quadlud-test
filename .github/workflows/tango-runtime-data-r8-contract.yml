@@ -1,0 +1,40 @@
+name: QUADLUD Tango runtime data R8 contract
+
+on:
+  push:
+    branches: [qa/tango-cache-target-unique-r7]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Download certified artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/tango-pool /tmp/tango-cache /tmp/runtime
+          gh run download 34328652161 -n tango-precompute-pool-r1 -D /tmp/tango-pool
+          gh run download 34330141819 -n tango-tutor-cache-r4-complete -D /tmp/tango-cache
+      - name: Materialize
+        run: node qa-public/tools/materialize_tango_runtime_r8.js /tmp/tango-pool/tango-diversity-pool.js /tmp/tango-cache /tmp/runtime
+      - name: Static contract
+        run: node qa-public/tests/tango-runtime-data-r8-static-contract.test.js /tmp/runtime
+      - name: Integrity
+        run: |
+          sha256sum /tmp/runtime/* | sort | tee /tmp/runtime/runtime-data.sha256
+          cat /tmp/runtime/runtime-data-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-runtime-data-r8-certified
+          path: /tmp/runtime
+          retention-days: 7
