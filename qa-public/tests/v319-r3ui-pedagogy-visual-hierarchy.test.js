@@ -87,5 +87,5 @@ assert(!humanRegression.includes("</b><br>${detail.steps"),'relation-balance pro
 const relationCssToken='3.1.9-r3ui-relation-balance-mobile-layout-v2',humanRegressionToken='3.1.9-hf3.9-r5.4-mobile-layout-v3';
 assert(index.includes(`tango-human-pedagogy-r4.css?v=${relationCssToken}`));assert(sw.includes(`./tango-human-pedagogy-r4.css?v=${relationCssToken}`));
 assert(index.includes(`tango-tutor-human-regression-r54.js?v=${humanRegressionToken}`));
-const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-tango-diversity-pilot-v9');
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-tango-diversity-pilot-v10');
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
