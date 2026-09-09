@@ -20,7 +20,7 @@ def main():
         browser = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
         context = browser.new_context(viewport=journey.VIEWPORT, locale='fr-FR', has_touch=True, is_mobile=True)
         page = context.new_page()
-        journey.load_runtime(page)
+        journey.load_runtime(page, use_diversity_pool=False)
         journey.open_real_tango_expert(page)
         page.locator('#walkthroughBtn').click()
         page.wait_for_selector('.walkthrough-panel')
