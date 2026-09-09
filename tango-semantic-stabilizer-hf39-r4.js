@@ -12,8 +12,8 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=2;
-const TOKEN='3.1.9-hf3.9-r4-marker-projection-v2';
+const VERSION=3;
+const TOKEN='3.1.9-hf3.9-r4-marker-projection-v3-causal-closure';
 
 function locale(){
   try{return String(typeof lang==='function'?lang():root.document?.documentElement?.lang||'en').toLowerCase().split('-')[0]}
@@ -61,6 +61,49 @@ function ensureActionVisible(panel){
   return true
 }
 
+function entryDeduction(entry){return entry?.deduction||entry?.presentation?.evidence?.primary||null}
+function stageKind(entry){return String(entry?.pedagogyStageKind||entry?.proofStage?.kind||'')}
+function causalAtomicTest(){return root.QuadludTangoTutorCausalAtomicR55?._test||null}
+function presenter(){try{return typeof tangoReasoningPresenter==='function'?tangoReasoningPresenter():null}catch(_){return null}}
+function addAvailableRelations(entry,available,test){
+  const d=entryDeduction(entry);if(!d||!available||typeof test?.relationKey!=='function')return false;let changed=false;
+  for(const c of d.conclusions||[]){if(c?.type!=='RELATION'||!Array.isArray(c.a)||!Array.isArray(c.b))continue;const parity=typeof test.relationParity==='function'?test.relationParity(c):Number(c.parity);if(parity!==0&&parity!==1)continue;const key=test.relationKey(c.a,c.b,parity);if(!available.has(key)){available.add(key);changed=true}}
+  return changed
+}
+function refreshSupportedPropagation(entry,p,test){
+  const d=entryDeduction(entry);if(stageKind(entry)!=='reasoning'||String(d?.rule||'')!=='RELATION_PROPAGATION'||!p)return entry;
+  let complete=null;try{complete=typeof test?.clarityComplete==='function'?test.clarityComplete(d):null}catch(_){complete=false}if(complete!==true)return entry;
+  let presentation=null,reasoning=d;try{presentation=p.presentation?.(d)||entry.presentation}catch(_){presentation=entry.presentation}try{reasoning=p.legacyReasoning?.(d)||d}catch(_){reasoning=d}
+  const next={...entry,deduction:reasoning,presentation:JSON.parse(JSON.stringify(presentation||entry.presentation||{})),proofCompleteness:'complete-derived-relation-provenance'};
+  next.presentation.metadata={...(next.presentation.metadata||{}),proofCompleteness:'complete-derived-relation-provenance',localProvenanceComplete:true};
+  next.where=next.presentation?.explanation?.where||entry.where||'';next.why=next.presentation?.explanation?.why||entry.why||'';
+  return next
+}
+function closeSupportedDerivedRelations(s,start){
+  if(!s||s.base?.game!=='tango'||!Array.isArray(s.moves)||start<0||start>=s.moves.length)return false;
+  const test=causalAtomicTest(),p=presenter();if(typeof test?.planRelationProofs!=='function'||typeof test?.attachCausalProof!=='function'||!p)return false;
+  const prefix=s.moves.slice(0,start),raw=s.moves.slice(start),available=new Set();for(const entry of prefix)addAvailableRelations(entry,available,test);
+  const out=[];let changed=false;
+  for(const original of raw){
+    const d=entryDeduction(original);let expanded=[original];
+    if(stageKind(original)==='reasoning'&&String(d?.rule||'')==='RELATION_PROPAGATION'){
+      try{expanded=test.planRelationProofs(original,available,p)||[original]}catch(_){expanded=[original]}
+      if(expanded.length!==1||expanded[0]!==original)changed=true;
+    }
+    for(let i=0;i<expanded.length;i++){
+      let entry=expanded[i];if(i===expanded.length-1){const refreshed=refreshSupportedPropagation(entry,p,test);if(refreshed!==entry){entry=refreshed;changed=true}}
+      out.push(entry);addAvailableRelations(entry,available,test)
+    }
+  }
+  if(!changed)return false;let rebuilt=out;try{rebuilt=test.attachCausalProof(out)}catch(_){rebuilt=out}s.moves.splice(start,raw.length,...rebuilt);if(s.done)s.total=s.moves.length;return true
+}
+function chainHas(fn,marker){let current=fn,guard=0;while(typeof current==='function'&&guard++<40){if(current[marker]===true)return true;current=current.__quadludPrevious}return false}
+function installCausalClosure(){
+  const previous=root.walkthroughGenerateTangoNext;if(typeof previous!=='function'||!root.QuadludTangoTutorCausalAtomicR55)return false;if(chainHas(previous,'__quadludSemanticCausalClosureHF39R4'))return true;if(!chainHas(previous,'__quadludTutorCausalAtomicR55'))return false;
+  const wrapped=function(...args){let s=null;try{s=typeof walkthroughSession!=='undefined'?walkthroughSession:null}catch(_){s=null}const start=Array.isArray(s?.moves)?s.moves.length:0,result=previous(...args);if(result&&s?.base?.game==='tango')closeSupportedDerivedRelations(s,start);return result};
+  wrapped.__quadludSemanticCausalClosureHF39R4=true;wrapped.__quadludPrevious=previous;root.walkthroughGenerateTangoNext=wrapped;return true
+}
+
 function stabilize(){
   if(!isTangoTutor())return false;
   try{root.QuadludTangoSemanticCoherenceHF39?.decorate?.()}catch(_){ }
@@ -89,7 +132,7 @@ function installNavigation(){
   wrapped.__quadludSemanticStabilizerHF39R4=true;wrapped.__quadludPrevious=previous;root.walkthroughNavigateProof=wrapped;return true
 }
 
-function install(){return installRender()&&installNavigation()}
+function install(){const stable=installRender()&&installNavigation();installCausalClosure();return stable}
 
 function scheduleInstall(){
   let tries=320,timer=null;
@@ -97,5 +140,5 @@ function scheduleInstall(){
   retry();if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true
 }
 
-return Object.freeze({VERSION,TOKEN,install,installRender,installNavigation,scheduleInstall,stabilize,_test:Object.freeze({locale,isTangoTutor,normalizeLateText,finalizePanelText,ensureActionVisible})});
+return Object.freeze({VERSION,TOKEN,install,installRender,installNavigation,installCausalClosure,scheduleInstall,stabilize,closeSupportedDerivedRelations,_test:Object.freeze({locale,isTangoTutor,normalizeLateText,finalizePanelText,ensureActionVisible,entryDeduction,stageKind,addAvailableRelations,refreshSupportedPropagation,closeSupportedDerivedRelations,chainHas})});
 });
