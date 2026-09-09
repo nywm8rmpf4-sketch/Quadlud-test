@@ -24,30 +24,32 @@ require(path.join(ROOT,'tango-tutor-frontier-pruner-r5.js'));
 require(path.join(ROOT,'tango-played-move-runtime.js'));
 require(path.join(ROOT,'tango-human-pedagogy-r4.js'));
 require(path.join(ROOT,'tango-tutor-single-planner-r5.js'));
-require(path.join(ROOT,'generation-common.js'));
+const Pool=require(path.join(ROOT,'tango-diversity-pool.js'));
 const Generator=require(path.join(ROOT,'tango-generator.js'));
 const Cache=require(path.join(ROOT,'tango-tutor-precomputed-cache.js'));
 const Tutor=global.QuadludTangoTutorSinglePlannerR5;
 const Human=global.QuadludTangoHumanPedagogyR4;
 const Runtime=global.QuadludTangoPlayedMoveRuntime;
-const Common=global.QuadludGenerationCommon;
 
 function clone(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function targetIndex(target){return target[0]*6+target[1]}
 function selectionMeta(plan){return [plan.selectionStatus||'',Number(plan.candidateCount)||0,Number(plan.humanCandidateCount)||0,plan.humanGlobalSelection?1:0,plan.frontierComplete===false?0:1,plan.displayProof?.kind||'',Array.isArray(plan.displayProof?.costVector)?plan.displayProof.costVector.slice():null,plan.displayProof?.traceCollapsed?1:0]}
 
-const candidate=Common.withSeed('tango-tutor-cache-runtime-contract',()=>Generator.generateTangoPuzzle('easy'));
+const difficulty='medium',sourceEntry=Pool.entries?.medium?.[0];
+assert(sourceEntry,'certified medium pool fixture missing');
+const candidate=Generator.fromDiversityEntry(difficulty,sourceEntry);
+assert(candidate,'certified medium pool fixture invalid');
 const puzzle=Generator.publicPuzzleFromCandidate(candidate),state=puzzle.state.map(row=>row.slice());
-global.walkthroughSession={base:{game:'tango',diff:'easy'},work:{n:6,state,edges:puzzle.edges},initial:{state:state.map(row=>row.slice())},moves:[],navigation:{}};
-const engine=Planner.sessionFromPublicBoard(puzzle,state),original=Tutor._test.humanizeTutorPlan(engine,'easy');
-assert.strictEqual(original.status,'move','canonical easy Tutor must produce a move');
+global.walkthroughSession={base:{game:'tango',diff:difficulty},work:{n:6,state,edges:puzzle.edges},initial:{state:state.map(row=>row.slice())},moves:[],navigation:{}};
+const engine=Planner.sessionFromPublicBoard(puzzle,state),original=Tutor._test.humanizeTutorPlan(engine,difficulty);
+assert.strictEqual(original.status,'move','canonical medium Tutor must produce a move');
 assert.strictEqual(original.advancedStart,false,'runtime contract fixture must use a direct starting deduction');
 const starting=original.startingDeduction||original.deduction;
 assert(starting?.signature,'canonical direct Tutor move must expose a stable starting signature');
 const fingerprint=DifficultyRating.fingerprintPublicPuzzle(puzzle),step=[fingerprint,0,targetIndex(original.target),original.value,starting.signature,selectionMeta(original)];
 const fakeEntries=Array.from({length:120},(_,index)=>[index,index===0?fingerprint:'',[clone(step)]]);
-Cache.clear();Cache.registerShard({schema:2,version:'tango-tutor-cache-r4-lean',difficulty:'easy',entries:fakeEntries});
-const cached=Cache.tryPlan(engine,'easy');
+Cache.clear();Cache.registerShard({schema:2,version:'tango-tutor-cache-r4-lean',difficulty,entries:fakeEntries});
+const cached=Cache.tryPlan(engine,difficulty);
 assert(cached,'exact visible state must produce a cache hit');
 assert.strictEqual(cached.precomputedTutorCache,true,'cache hit marker missing');
 assert.deepStrictEqual(cached.target,original.target,'cached reconstruction target mismatch');
@@ -58,8 +60,8 @@ assert.deepStrictEqual(humanized.displayDeduction||humanized.deduction,original.
 assert.strictEqual(Planner.applyPlayedMoveToState(state,original),true,'fixture move could not be applied');
 const changedPuzzle={...puzzle,state:state.map(row=>row.slice())},changedEngine=Planner.sessionFromPublicBoard(changedPuzzle,state);
 assert.notStrictEqual(DifficultyRating.fingerprintPublicPuzzle(changedPuzzle),fingerprint,'fixture fingerprint did not change');
-assert.strictEqual(Cache.tryPlan(changedEngine,'easy'),null,'stale cache seed must not apply after visible-state change');
+assert.strictEqual(Cache.tryPlan(changedEngine,difficulty),null,'stale cache seed must not apply after visible-state change');
 
 Cache.clear();
-assert.strictEqual(Cache.tryPlan(engine,'easy'),null,'cache miss must be safe when no shard is registered');
+assert.strictEqual(Cache.tryPlan(engine,difficulty),null,'cache miss must be safe when no shard is registered');
 console.log('tango-tutor-precomputed-cache-runtime.test.js: OK');
