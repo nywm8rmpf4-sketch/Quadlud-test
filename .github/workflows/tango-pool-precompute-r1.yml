@@ -33,17 +33,25 @@ jobs:
             2>&1 | tee tango-pool-v5-build.log
       - name: Validate complete pool contract
         run: node qa-public/tests/tango-precompute-pool-v5-contract.test.js
+      - name: Materialize canonical QA layout
+        run: |
+          Q="$RUNNER_TEMP/q"
+          mkdir -p "$Q/GitHub" "$Q/tests"
+          rsync -a ./ "$Q/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='qa-public/' --exclude='qa-release/'
+          cp -a qa-public/tests/. "$Q/tests/"
       - name: Run Tango logical and Tutor non-regressions
         run: |
-          node qa-public/tests/v319-hf39-r56-causal-closure.test.js
-          node qa-public/tests/v319-hf39-semantic-coherence.test.js
-          node qa-public/tests/v319-r3ui-tango-tutor-freeze-guard.test.js
-          node qa-public/tests/v319-r5-frontier-validation-cache.test.js
+          cd "$RUNNER_TEMP/q"
+          node tests/v319-hf39-r56-causal-closure.test.js
+          node tests/v319-hf39-semantic-coherence.test.js
+          node tests/v319-r3ui-tango-tutor-freeze-guard.test.js
+          node tests/v319-r5-frontier-validation-cache.test.js
       - name: Record artifact integrity
+        if: always()
         run: |
-          sha256sum tango-diversity-pool.js | tee tango-diversity-pool.js.sha256
-          cat tango-pool-v5-report.json
-          wc -c tango-diversity-pool.js
+          if [ -f tango-diversity-pool.js ]; then sha256sum tango-diversity-pool.js | tee tango-diversity-pool.js.sha256; fi
+          if [ -f tango-pool-v5-report.json ]; then cat tango-pool-v5-report.json; fi
+          if [ -f tango-diversity-pool.js ]; then wc -c tango-diversity-pool.js; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
