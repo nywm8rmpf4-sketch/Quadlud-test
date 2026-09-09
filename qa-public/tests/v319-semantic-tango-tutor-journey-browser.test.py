@@ -150,6 +150,10 @@ def observable_snapshot(page) -> dict:
             .map(el=>String(el.className||''))
             .filter(Boolean);
           const scroll=document.querySelector('.walkthrough-scroll');
+          const session=typeof walkthroughSession!=='undefined'?walkthroughSession:null;
+          const group=typeof walkthroughCurrentGroup==='function'?walkthroughCurrentGroup():null;
+          const proofIndex=Math.max(0,Math.min((group?.entries?.length||1)-1,Number(session?.navigation?.proofStepIndex)||0));
+          const move=group?.entries?.[proofIndex]?.move||null;
           return {
             documentLang:document.documentElement.lang,
             title:text('.walkthrough-head h1'),
@@ -179,7 +183,14 @@ def observable_snapshot(page) -> dict:
             },
             visibleClassNames:[...new Set(visiblePedagogy)].sort(),
             viewport:{width:innerWidth,height:innerHeight},
-            bodyClass:String(document.body.className||'')
+            bodyClass:String(document.body.className||''),
+            currentMove:move?{
+              stageKind:String(move.pedagogyStageKind||move.proofStage?.kind||''),
+              causalRelationProof:move.causalRelationProof===true,
+              causalAtomicRelationHop:move.causalAtomicRelationHop===true,
+              proofCompleteness:move.proofCompleteness||move.presentation?.metadata?.proofCompleteness||null,
+              deduction:move.deduction||move.presentation?.evidence?.primary||null
+            }:null
           };
         }"""
     )
@@ -259,6 +270,7 @@ def capture(page, evidence_dir: Path, ordinal: int, phase: str) -> tuple[dict, s
         "explanationScroll": snapshot.get("explanationScroll"),
         "visibleClassNames": snapshot.get("visibleClassNames"),
         "visibleCells": visible_cells,
+        "currentMove": snapshot.get("currentMove"),
     }
     print("SEMANTIC_SCREEN " + json.dumps(screen_log, ensure_ascii=False, sort_keys=True), flush=True)
     visual_tokens = " ".join(snapshot.get("visibleClassNames") or []).lower()
@@ -273,6 +285,7 @@ def main() -> None:
     evidence_dir.mkdir(parents=True, exist_ok=True)
     errors: list[str] = []
     captures: list[dict] = []
+    screen_snapshots: list[dict] = []
     seen: set[str] = set()
     logical_click_durations_ms: list[int] = []
     build = load_build_info()
@@ -293,6 +306,7 @@ def main() -> None:
         ordinal = 0
         snap, sig = capture(page, evidence_dir, ordinal, "start")
         captures.append({"ordinal": ordinal, "phase": "start", "counter": snap.get("counter")})
+        screen_snapshots.append(snap)
         seen.add(sig)
         ordinal += 1
 
@@ -306,6 +320,7 @@ def main() -> None:
                 assert sig not in seen, f"Tutor proof navigation made no observable progress at capture {ordinal}"
                 seen.add(sig)
                 captures.append({"ordinal": ordinal, "phase": "proof", "counter": snap.get("counter")})
+                screen_snapshots.append(snap)
                 ordinal += 1
                 continue
 
@@ -330,6 +345,7 @@ def main() -> None:
             assert sig not in seen, f"Tutor logical navigation made no observable progress at capture {ordinal}"
             seen.add(sig)
             captures.append({"ordinal": ordinal, "phase": "logical", "counter": snap.get("counter")})
+            screen_snapshots.append(snap)
             ordinal += 1
 
         final = observable_snapshot(page)
@@ -338,6 +354,19 @@ def main() -> None:
         assert final["controls"]["next"] and final["controls"]["next"]["disabled"], final["controls"]
         assert final["documentLang"].lower().startswith("fr"), final["documentLang"]
         assert final["viewport"] == VIEWPORT, final["viewport"]
+        forbidden_explanations = {
+            "Avec ,": "empty visible premises",
+            "configurations restent possibles : .": "empty compatible domains",
+            "chaîne de preuve complète n’est pas disponible": "derived relation consumed without accessible proof",
+            "Avec ces prémisses et la règle": "opaque generic deduction wording",
+        }
+        for screen in screen_snapshots:
+            explanation = str(screen.get("fullExplanation") or "")
+            for phrase, defect in forbidden_explanations.items():
+                assert phrase not in explanation, (
+                    f"semantic causal-closure defect at screen {screen.get('ordinal')}: "
+                    f"{defect}: {explanation}"
+                )
         assert not errors, errors
 
         context.close()
