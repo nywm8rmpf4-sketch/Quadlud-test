@@ -1,0 +1,201 @@
+name: QUADLUD Tango Tutor exact cache R8
+
+on:
+  push:
+    branches: [qa/tango-tutor-cache-exact-r8]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: quadlud-tango-tutor-cache-exact-r8
+  cancel-in-progress: true
+
+jobs:
+  exact-cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact R8 candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Reuse certified source artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tango-pool" "$RUNNER_TEMP/tango-cache-r4" "$RUNNER_TEMP/tango-runtime-r8"
+          gh run download 34328652161 -n tango-precompute-pool-r1 -D "$RUNNER_TEMP/tango-pool"
+          gh run download 34330141819 -n tango-tutor-cache-r4-complete -D "$RUNNER_TEMP/tango-cache-r4"
+          test -f "$RUNNER_TEMP/tango-pool/tango-diversity-pool.js"
+          for d in easy medium hard expert; do test -f "$RUNNER_TEMP/tango-cache-r4/tango-tutor-cache-$d.json"; done
+
+      - name: Materialize compact runtime puzzle pool
+        run: |
+          set -euo pipefail
+          node qa-public/tools/materialize_tango_runtime_pool_exact_r8.js \
+            "$RUNNER_TEMP/tango-pool/tango-diversity-pool.js" \
+            "$RUNNER_TEMP/tango-runtime-r8"
+
+      - name: Transform R4 Tutor cache to exact compact R8
+        run: |
+          set -euo pipefail
+          node qa-public/tools/compact_tango_tutor_cache_exact_r8.js \
+            "$RUNNER_TEMP/tango-cache-r4" \
+            "$RUNNER_TEMP/tango-runtime-r8"
+
+      - name: Exhaustively validate exact R8 against current engine
+        run: |
+          set -euo pipefail
+          node qa-public/tools/validate_tango_tutor_cache_exact_r8.js \
+            "$RUNNER_TEMP/tango-pool/tango-diversity-pool.js" \
+            "$RUNNER_TEMP/tango-cache-r4" \
+            "$RUNNER_TEMP/tango-runtime-r8/tango-tutor-cache-data-r8.js" \
+            "$RUNNER_TEMP/tango-runtime-r8/tango-tutor-cache-r8-validation.json"
+
+      - name: Measure and hash exact runtime artifacts
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/tango-runtime-r8"
+          sha256sum tango-runtime-pool-data.js tango-tutor-cache-data-r8.js | sort | tee runtime-exact-r8.sha256
+          wc -c tango-runtime-pool-data.js tango-tutor-cache-data-r8.js
+          cat tango-runtime-pool-r8-report.json
+          cat tango-tutor-cache-r8-report.json
+          cat tango-tutor-cache-r8-validation.json
+
+      - name: Upload exact R8 runtime artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tango-runtime-data-exact-r8
+          path: ${{ runner.temp }}/tango-runtime-r8
+          retention-days: 14
+
+  semantic-regressions:
+    needs: exact-cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact R8 candidate
+        uses: actions/checkout@v4
+
+      - name: Enforce public/private boundary
+        run: python3 qa-public/tests/public_runtime_guard.py
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Chromium QA environment
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+          CHROMIUM_PATH="$(python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              print(p.chromium.executable_path)
+          PY
+          )"
+          test -x "$CHROMIUM_PATH"
+          sudo ln -sf "$CHROMIUM_PATH" /usr/bin/chromium
+          /usr/bin/chromium --version
+
+      - name: Materialize canonical QA layout
+        run: |
+          set -euo pipefail
+          QA_ROOT="$RUNNER_TEMP/quadlud-public-qa"
+          rm -rf "$QA_ROOT"
+          mkdir -p "$QA_ROOT/GitHub" "$QA_ROOT/tests"
+          rsync -a ./ "$QA_ROOT/GitHub/" \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.gitignore' \
+            --exclude='qa-public/' \
+            --exclude='qa-release/' \
+            --exclude='LICENSE'
+          cp -a qa-public/tests/. "$QA_ROOT/tests/"
+          test -f "$QA_ROOT/GitHub/index.html"
+
+      - name: Execute Tango Tutor logical and semantic regressions
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          node tests/v319-hf39-r56-causal-closure.test.js
+          node tests/v319-hf39-semantic-coherence.test.js
+          node tests/v319-r3ui-tango-tutor-freeze-guard.test.js
+          node tests/v319-r5-frontier-validation-cache.test.js
+          node tests/v319-hf36-human-next-move-policy.test.js
+          node tests/v319-hf39-r55-causal-atomic-contract.test.js
+          node tests/v319-r5-tutor-action-atomicity.test.js
+          node tests/v319-r3ui-tango-tutor-clarity.test.js
+          node tests/v319-r3ui-tango-attention-dependency.test.js
+          node tests/v319-r3ui-tango-contradiction-visual-integration.test.js
+          node tests/v319-r3ui-pedagogy-visual-hierarchy.test.js
+
+      - name: Execute mobile attention continuity journey
+        env:
+          QUADLUD_ATTENTION_EVIDENCE_DIR: ${{ runner.temp }}/semantic-evidence/attention-continuity
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python3 tests/v319-r3ui-tango-attention-continuity-browser.test.py
+
+      - name: Execute contradiction presentation journey
+        env:
+          QUADLUD_CONTRADICTION_EVIDENCE_DIR: ${{ runner.temp }}/semantic-evidence/contradiction-presentation
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python3 tests/v319-r3ui-tango-contradiction-visual-browser.test.py
+
+      - name: Execute visual hierarchy journey
+        env:
+          QUADLUD_VISUAL_EVIDENCE_DIR: ${{ runner.temp }}/semantic-evidence/visual-hierarchy
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python3 tests/v319-r3ui-pedagogy-visual-hierarchy-browser.test.py
+
+      - name: Execute Tutor clarity journey
+        env:
+          QUADLUD_TUTOR_CLARITY_EVIDENCE_DIR: ${{ runner.temp }}/semantic-evidence/tutor-clarity
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python3 tests/v319-r3ui-tango-tutor-clarity-browser.test.py
+
+      - name: Execute full Soleil-Lune Expert Tutor semantic journey
+        env:
+          QUADLUD_SEMANTIC_EVIDENCE_DIR: ${{ runner.temp }}/semantic-evidence/tango-expert-fr-mobile-r8
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          python3 tests/v319-semantic-tango-tutor-journey-browser.test.py
+
+      - name: Upload semantic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tango-exact-r8-semantic-evidence
+          path: ${{ runner.temp }}/semantic-evidence
+          if-no-files-found: warn
+          retention-days: 14
