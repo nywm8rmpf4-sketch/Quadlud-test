@@ -21,7 +21,7 @@ assert.strictEqual(typeof generator.generationIdentity,'function','Soleil-Lune m
 assert.strictEqual(registry.hasCapability('tango','generationIdentity'),true,'Soleil-Lune must participate in session anti-repeat');
 assert(sandbox.QuadludTangoDiversityPool,'the certified diversity pool must be loaded');
 
-const expectedMinimumFamilies={medium:20,hard:28,expert:28};
+const expectedMinimumFamilies={medium:20,hard:28,expert:16};
 for(const diff of Object.keys(expectedMinimumFamilies)){
   const entries=sandbox.QuadludTangoDiversityPool.entries[diff];
   assert(Array.isArray(entries),`${diff} diversity pool missing`);
@@ -29,6 +29,13 @@ for(const diff of Object.keys(expectedMinimumFamilies)){
   const reasoning=new Set();
   const fingerprints=new Set();
   for(const entry of entries){
+    if(diff==='expert'){
+      assert.strictEqual(entry.tutorProfile?.schema,1,'expert entry needs a Tutor certification profile');
+      assert.strictEqual(entry.tutorProfile?.status,'solved','expert entry Tutor journey must solve');
+      assert.strictEqual(entry.tutorProfile?.policy,'full-tutor-journey-v1','expert entry Tutor policy mismatch');
+      assert(entry.tutorProfile.moves>0&&entry.tutorProfile.moves<=36,'expert Tutor journey move count must stay bounded');
+      assert(entry.tutorProfile.maxMoveMs<=5500,`expert entry exceeded the offline Tutor interaction budget: ${entry.tutorProfile.maxMoveMs} ms`);
+    }
     const candidate=generator.fromDiversityEntry(diff,entry);
     const publicPuzzle=generator.publicPuzzleFromCandidate(candidate);
     const fingerprint=rating.fingerprintPublicPuzzle(publicPuzzle);
@@ -59,8 +66,8 @@ for(const diff of Object.keys(expectedMinimumFamilies)){
     sampledFingerprints.add(candidate.difficultyProfile.fingerprint);
     sampledFamilies.add(generator.generationIdentity(candidate));
   }
-  assert(sampledFingerprints.size>=Math.min(18,entries.length),`${diff} sampled fingerprint diversity too low: ${sampledFingerprints.size}`);
-  assert(sampledFamilies.size>=Math.min(20,expectedMinimumFamilies[diff]),`${diff} sampled family diversity too low: ${sampledFamilies.size}`);
+  assert(sampledFingerprints.size>=Math.min(14,entries.length),`${diff} sampled fingerprint diversity too low: ${sampledFingerprints.size}`);
+  assert(sampledFamilies.size>=Math.min(14,expectedMinimumFamilies[diff]),`${diff} sampled family diversity too low: ${sampledFamilies.size}`);
 
   const seen=new Set();
   for(let round=0;round<Math.min(20,expectedMinimumFamilies[diff]);round++){

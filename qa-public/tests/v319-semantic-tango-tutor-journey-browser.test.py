@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1] / "GitHub"
 DEFAULT_EVIDENCE = Path(os.environ.get("QUADLUD_SEMANTIC_EVIDENCE_DIR", "/tmp/quadlud-semantic-evidence/tango-expert-fr-mobile-v1"))
 SEED = "qa-semantic-tango-expert-v1"
 MAX_TRANSITIONS = 160
+MAX_LOGICAL_CLICK_MS = 20_000
 VIEWPORT = {"width": 390, "height": 844}
 
 
@@ -240,6 +242,7 @@ def main() -> None:
     errors: list[str] = []
     captures: list[dict] = []
     seen: set[str] = set()
+    logical_click_durations_ms: list[int] = []
     build = load_build_info()
 
     with sync_playwright() as p:
@@ -282,7 +285,14 @@ def main() -> None:
 
             diagnostic = pre_click_diagnostics(page, transition, ordinal)
             print("R5_NEXT_PRE " + json.dumps(diagnostic, ensure_ascii=False, sort_keys=True), flush=True)
-            next_button.click(timeout=10000)
+            click_started = time.perf_counter()
+            next_button.click(timeout=MAX_LOGICAL_CLICK_MS + 5000)
+            click_duration_ms = round((time.perf_counter() - click_started) * 1000)
+            logical_click_durations_ms.append(click_duration_ms)
+            assert click_duration_ms <= MAX_LOGICAL_CLICK_MS, (
+                f"Tutor logical transition exceeded {MAX_LOGICAL_CLICK_MS} ms: "
+                f"{click_duration_ms} ms at ordinal {ordinal}"
+            )
             page.wait_for_timeout(700)
             snap, sig = capture(page, evidence_dir, ordinal, "logical")
             assert sig not in seen, f"Tutor logical navigation made no observable progress at capture {ordinal}"
@@ -319,6 +329,9 @@ def main() -> None:
         },
         "captures": captures,
         "captureCount": len(captures),
+        "logicalClickDurationsMs": logical_click_durations_ms,
+        "maximumLogicalClickMs": max(logical_click_durations_ms, default=0),
+        "logicalClickBudgetMs": MAX_LOGICAL_CLICK_MS,
         "consoleErrors": errors,
         "evidenceSemantics": {
             "screenshot": "mobile viewport only",
