@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 concurrency:
@@ -76,6 +76,21 @@ jobs:
           name: tango-runtime-data-exact-r8
           path: ${{ runner.temp }}/tango-runtime-r8
           retention-days: 14
+
+      - name: Commit exact R8 data into QA runtime
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/tango-runtime-r8/tango-runtime-pool-data.js" tango-runtime-pool-data.js
+          cp "$RUNNER_TEMP/tango-runtime-r8/tango-tutor-cache-data-r8.js" tango-tutor-cache-data-r8.js
+          echo '6c3b226cc4c4db089768740510113bd07db2958a14216cf98020e7b0f4f9b013  tango-runtime-pool-data.js' | sha256sum -c -
+          echo '60d7030a1d2f4840764b24e18102d13e0aa997d9ca39fa59ddd531da8f466346  tango-tutor-cache-data-r8.js' | sha256sum -c -
+          git config user.name 'QUADLUD QA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add tango-runtime-pool-data.js tango-tutor-cache-data-r8.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'data(tango): materialize exact certified R8 runtime [exact-r8-data]'
+            git push origin HEAD:qa/tango-tutor-cache-exact-r8
+          fi
 
   semantic-regressions:
     needs: exact-cache
