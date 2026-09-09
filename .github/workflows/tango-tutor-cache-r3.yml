@@ -1,0 +1,47 @@
+name: QUADLUD Tango Tutor cache R3
+
+on:
+  push:
+    branches: [qa/tango-tutor-cache-r3]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: quadlud-tango-tutor-cache-r3
+  cancel-in-progress: true
+
+jobs:
+  profile-cache-shape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Download certified compact 120x4 pool
+        uses: actions/download-artifact@v4
+        with:
+          name: tango-compact-pool-r2
+          path: compact
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 34329271172
+      - name: Profile Tutor cache payload candidates
+        run: |
+          node qa-public/tools/profile_tango_tutor_cache_shape.js \
+            --pool compact/tango-diversity-pool.js \
+            --per-difficulty 2 \
+            --report tango-tutor-cache-shape-report.json
+      - name: Show report
+        run: cat tango-tutor-cache-shape-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tango-tutor-cache-shape-r3
+          path: tango-tutor-cache-shape-report.json
+          if-no-files-found: warn
+          retention-days: 7
