@@ -26,7 +26,7 @@ def load(page):
     # independent from certified-pool additions and reorderings.
     for src in scripts:
         if 'const tangoDiversityPoolV1=' in src:
-            src = re.sub(r'const tangoDiversityPoolV1=.*?;\\n', 'const tangoDiversityPoolV1=null;\\n', src, count=1)
+            src = re.sub(r'const tangoDiversityPoolV1=.*?;\n', 'const tangoDiversityPoolV1=null;\n', src, count=1)
         page.add_script_tag(content=src)
     page.wait_for_selector('.cards')
 
