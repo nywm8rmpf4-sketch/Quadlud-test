@@ -79,6 +79,20 @@
   .walkthrough-hypothetical-badge{top:2px;right:2px;min-width:16px;height:16px;padding:0 3px;line-height:14px}
 }
 
+/* Relation + balance proofs carry three explicit causal clauses. On narrow
+   portrait screens, reclaim chrome rather than hiding or shortening evidence. */
+@media(max-width:520px) and (orientation:portrait){
+  .walkthrough-panel.tango-relation-balance-detail .walkthrough-explanation{
+    gap:3px;
+    margin-top:3px;
+    padding:5px 8px;
+    line-height:1.25;
+  }
+  .walkthrough-panel.tango-relation-balance-detail .walkthrough-explanation p{
+    line-height:1.25;
+  }
+}
+
 @media(forced-colors:active){
   .walkthrough-past-proof:not(.walkthrough-current-focus):not(.walkthrough-current-action){outline:1px dashed CanvasText!important;box-shadow:none!important}
   .cell.hint-substep-focus:not(.hint-focus){outline:3px solid Highlight!important;box-shadow:none!important}
