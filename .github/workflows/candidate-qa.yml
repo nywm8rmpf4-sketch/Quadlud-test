@@ -1,11 +1,11 @@
-name: QUADLUD v3.1.9 HF3.9 R5.5 browser regression QA
+name: QUADLUD v3.1.9 HF3.9 R5.6 browser regression QA
 on:
   push:
     branches: [candidate/v3.1.9-hf3.9-r5.5]
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
-  group: quadlud-v319-hf39-r55
+  group: quadlud-v319-hf39-r56
   cancel-in-progress: true
 jobs:
   qa:
@@ -15,6 +15,28 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v5
         with: {node-version: '22'}
+      - name: Soleil-Lune precomputed pool builder smoke
+        run: |
+          set -euo pipefail
+          node --check qa-public/tools/build_tango_precomputed_pool.js
+          node qa-public/tools/build_tango_precomputed_pool.js --target 2 --attempts 12000 --output "$RUNNER_TEMP/tango-precomputed-smoke.js"
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const p=process.env.RUNNER_TEMP+'/tango-precomputed-smoke.js';
+          const s={};s.globalThis=s;vm.createContext(s);vm.runInContext(fs.readFileSync(p,'utf8'),s);
+          const d=s.QuadludTangoPrecomputedPoolData;
+          if(!d||d.contract?.plannerVersion!==4||d.contract?.causalVersion!==11)throw new Error('pool contract mismatch');
+          for(const x of ['easy','medium','hard','expert'])if(d.pools?.[x]?.length!==2)throw new Error(`${x} smoke count mismatch`);
+          console.log('precomputed pool smoke: PASS');
+          NODE
+      - name: Upload Soleil-Lune pool smoke evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: tango-precomputed-pool-smoke-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/tango-precomputed-smoke.js
+            ${{ runner.temp }}/tango-precomputed-smoke.js.report.json
+          retention-days: 14
       - uses: actions/setup-python@v6
         with: {python-version: '3.13'}
       - name: Install browser QA
