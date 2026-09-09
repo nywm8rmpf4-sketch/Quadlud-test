@@ -1,4 +1,4 @@
-name: QUADLUD Tango target-only Tutor cache audit R7
+name: QUADLUD Tango Tutor cache encoding audits R7-R8
 on:
   push:
     branches: ["qa/tango-cache-target-unique-r7"]
@@ -9,7 +9,7 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -48,13 +48,20 @@ jobs:
           }
           console.log('POOL_CACHE_VERSION_MATCH PASS');
           NODE
-      - name: Audit target-value uniqueness over all cached states
+      - name: Document why target-value alone is insufficient
+        continue-on-error: true
         run: |
           set -euo pipefail
           node qa-public/tests/tango-cache-target-uniqueness-r7.test.js "$RUNNER_TEMP/pool/tango-diversity-pool.js" "$RUNNER_TEMP/cache" | tee "$RUNNER_TEMP/tango-cache-target-uniqueness-r7-report.json"
+      - name: Certify exact direct-deduction ordinal encoding
+        run: |
+          set -euo pipefail
+          node qa-public/tests/tango-cache-ordinal-r8.test.js "$RUNNER_TEMP/pool/tango-diversity-pool.js" "$RUNNER_TEMP/cache" | tee "$RUNNER_TEMP/tango-cache-ordinal-r8-report.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tango-cache-target-uniqueness-r7
-          path: ${{ runner.temp }}/tango-cache-target-uniqueness-r7-report.json
+          name: tango-cache-encoding-audits-r8
+          path: |
+            ${{ runner.temp }}/tango-cache-target-uniqueness-r7-report.json
+            ${{ runner.temp }}/tango-cache-ordinal-r8-report.json
           if-no-files-found: warn
