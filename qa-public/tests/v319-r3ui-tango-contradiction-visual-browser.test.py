@@ -49,7 +49,7 @@ with sync_playwright() as p:
         // after the canonical HF3.9 overlay rebuild, as in production.
         QuadludTangoContradictionVisuals.decorate();
         QuadludTangoSemanticCoherenceHF39.decorate();
-        QuadludTangoSemanticStabilizerHF39R4.decorate();
+        QuadludTangoSemanticStabilizerHF39R4.stabilize();
       };
       window.__setProofStep(0);
     }""")
