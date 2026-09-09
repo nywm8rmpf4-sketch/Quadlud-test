@@ -6,7 +6,7 @@
  */
 (function(root,factory){const api=factory(root);if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root)root.QuadludTangoTutorCausalAtomicR55=api;if(typeof document!=='undefined')api.scheduleInstall()})(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
-const VERSION=18,TOKEN='3.1.9-hf3.9-r5.6-causal-closure-v18-provenance-render';
+const VERSION=17,TOKEN='3.1.9-hf3.9-r5.6-causal-closure-v17';
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
 function chainHas(fn,marker){let current=fn,guard=0;while(typeof current==='function'&&guard++<32){if(current[marker]===true)return true;current=current.__quadludPrevious}return false}
 const sameCell=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1]);
