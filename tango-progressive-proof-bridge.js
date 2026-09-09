@@ -6,7 +6,7 @@
  */
 (function(root){
 'use strict';
-const VERSION=6;
+const VERSION=7;
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function sameCell(a,b){return Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1])}
 function session(){try{return typeof walkthroughSession!=='undefined'?walkthroughSession:null}catch(_){return null}}
@@ -84,13 +84,21 @@ function orderedRelationPath(source,target,path){
 function relationPathText(source,target,path){
   const ordered=orderedRelationPath(source,target,path);if(ordered.length<2)return'';const fr=locale()==='fr';return ordered.map((edge,index)=>`${index&&fr?'puis ':index&&!fr?'then ':''}${humanCell(edge.from)} ${edge.parity===0?'=':'×'} ${humanCell(edge.to)}`).join(fr?', ':', ')
 }
+function completeRelationExplanation(d){
+  const explain=root.QuadludTangoTutorClarity?._test?.relationExplanation;if(typeof explain!=='function')return null;
+  try{const detail=explain(d,locale());return detail?.complete===true&&Array.isArray(detail.steps)&&detail.steps.length?detail:null}catch(_){return null}
+}
 function clarifyDerivedRelation(entry){
   const next=copy(entry),d=entryDeduction(next);if(String(d?.rule||'')!=='RELATION_PROPAGATION')return next;
   const rel=relationPremise(d);if(!rel||rel.explicit===true)return next;
   const x=d?.explanationData||{},source=x.source,target=x.target||(d?.conclusions||[]).find(c=>c?.type==='VALUE')?.cell,conclusion=(d?.conclusions||[]).find(c=>c?.type==='VALUE');if(!Array.isArray(source)||!Array.isArray(target)||!conclusion)return next;
-  const fr=locale()==='fr',sourceName=humanCell(source),targetName=humanCell(target),sourceValue=Number(x.sourceValue),targetValue=Number(conclusion.value),parity=Number(x.parity),hypothesis=!!valuePremise(d,source)?.hypothesis,relation=parity===0?(fr?'identiques':'the same'):(fr?'opposées':'opposite'),ordered=orderedRelationPath(source,target,rel.path),explicitPath=ordered.length>=2&&ordered.every(edge=>edge.explicit===true),pathText=explicitPath?relationPathText(source,target,rel.path):'';
+  const fr=locale()==='fr',sourceName=humanCell(source),targetName=humanCell(target),sourceValue=Number(x.sourceValue),targetValue=Number(conclusion.value),parity=Number(x.parity),hypothesis=!!valuePremise(d,source)?.hypothesis,relation=parity===0?(fr?'identiques':'the same'):(fr?'opposées':'opposite'),ordered=orderedRelationPath(source,target,rel.path),explicitPath=ordered.length>=2&&ordered.every(edge=>edge.explicit===true),pathText=explicitPath?relationPathText(source,target,rel.path):'',completeDetail=completeRelationExplanation(d);
   let where,why,proofCompleteness;
-  if(explicitPath){
+  if(completeDetail){
+    where=completeDetail.where;
+    why=`${completeDetail.steps.join(' ')} ${completeDetail.conclusion||''}`.trim();
+    proofCompleteness='complete-derived-relation-provenance'
+  }else if(explicitPath){
     where=fr?`Regarde les indices qui relient ${sourceName} à ${targetName}.`:`Look at the clues linking ${sourceName} to ${targetName}.`;
     const relationReason=fr?`La relation n’est pas directe : ${pathText}. Ces indices visibles montrent que ${sourceName} et ${targetName} sont ${relation}.`:`The relation is not direct: ${pathText}. These visible clues show that ${sourceName} and ${targetName} are ${relation}.`;
     why=fr?`${relationReason} ${hypothesis?'Sous l’hypothèse,':'Comme'} ${sourceName} = ${humanPiece(sourceValue)}, donc ${targetName} = ${humanPiece(targetValue)}.`:`${relationReason} ${hypothesis?'Under the assumption,':'Since'} ${sourceName} = ${humanPiece(sourceValue)}, therefore ${targetName} = ${humanPiece(targetValue)}.`;
@@ -134,5 +142,5 @@ function install(){return installGenerator()}
 function scheduleInstall(){
   let tries=240,timer=null;const retry=()=>{const generatorOk=installGenerator(),renderOk=installRender();if(generatorOk&&renderOk){if(timer!=null)clearTimeout(timer);return true}if(tries--<=0)return false;timer=setTimeout(retry,10);return true};retry();if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',retry,{once:true});return true
 }
-const api=Object.freeze({VERSION,install,installGenerator,installRender,scheduleInstall,_test:Object.freeze({expandSingleAdvancedEntry,proofStages,causalModel,attachCausalProof,sanitizeStageEntry,atomicConclusionFocus,atomicLineEntries,clarifyDerivedRelation,postProcessGeneratedEntries,lineDomainText,lineDomainTitle,orderedRelationPath,relationPathText,currentTutorStageKind,scrubPrematureAction})});root.QuadludTangoProgressiveProofBridge=api;if(typeof document!=='undefined')scheduleInstall();if(typeof module!=='undefined'&&module.exports)module.exports=api;
+const api=Object.freeze({VERSION,install,installGenerator,installRender,scheduleInstall,_test:Object.freeze({expandSingleAdvancedEntry,proofStages,causalModel,attachCausalProof,sanitizeStageEntry,atomicConclusionFocus,atomicLineEntries,completeRelationExplanation,clarifyDerivedRelation,postProcessGeneratedEntries,lineDomainText,lineDomainTitle,orderedRelationPath,relationPathText,currentTutorStageKind,scrubPrematureAction})});root.QuadludTangoProgressiveProofBridge=api;if(typeof document!=='undefined')scheduleInstall();if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
