@@ -2,6 +2,7 @@
 const assert=require('assert');
 const fs=require('fs'),pathUtil=require('path');
 globalThis.QuadludTangoCausalProofModel=require('../GitHub/tango-causal-proof-model.js');
+globalThis.QuadludTangoTutorClarity=require('../GitHub/tango-tutor-clarity.js');
 const R=require('../GitHub/tango-tutor-causal-atomic-r55.js');
 const T=R._test;
 
@@ -61,9 +62,34 @@ assert.deepEqual(proofSteps.map(s=>s.sequenceIndex),[0,0,1],'relation proof scre
 const available=new Set([T.relationKey(A3,B3,1)]);
 assert.deepEqual(T.planRelationProofs(propagation,available).map(m=>T.deduction(m).rule),['RELATION_PROPAGATION']);
 
+const tripleSupport={
+  rule:'TRIPLE_CONSTRAINT',
+  premises:[{kind:'RELATION',a:[1,3],b:[1,4],parity:0,explicit:true,path:[{a:[1,3],b:[1,4],parity:0,explicit:true}]}],
+  conclusions:[{type:'RELATION',a:[1,5],b:[1,3],parity:1}],
+  explanationData:{family:'row',id:1,mode:'RELATION',pair:[[1,3],[1,4]],target:[1,5],window:[[1,3],[1,4],[1,5]]}
+};
+const tripleProofText=T.relationProofText(tripleSupport);
+assert(!tripleProofText.why.includes('Avec ,'),'triple relation proof must not be formatted as an empty domain proof');
+assert(tripleProofText.why.includes('B4')&&tripleProofText.why.includes('B5')&&tripleProofText.why.includes('B6'),'triple relation proof must expose its visible pair and target');
+
+const tripleValue={rule:'TRIPLE_CONSTRAINT',premises:[{kind:'VALUE',cell:[5,0],value:1},{kind:'VALUE',cell:[5,1],value:1}],conclusions:[{type:'VALUE',cell:[5,2],value:0}],focusUnits:[{family:'row',id:5}],explanationData:{family:'row',id:5,mode:'VALUE',pair:[[5,0],[5,1]],target:[5,2]}};
+const tripleAtomic=T.atomicText({rule:'TRIPLE_CONSTRAINT',deduction:tripleValue,current:{cell:[5,2],value:0},dependency:null});
+assert(tripleAtomic.why.includes('F1')&&tripleAtomic.why.includes('F2')&&tripleAtomic.why.includes('F3'),'atomic triple explanation must name every causal cell');
+assert(!tripleAtomic.why.includes('Using these premises'),'atomic triple explanation must state the actual rule implication');
+
+const priorClosedBranch=[
+  {pedagogyStageKind:'hypothesis',deduction:{rule:'ASSUMPTION_CONTRADICTION',premises:[{kind:'ASSUMPTION',cell:[1,5],value:1,hypothesis:true}],conclusions:[]}},
+  {pedagogyStageKind:'reasoning',deduction:{rule:'RELATION_PROPAGATION',conclusions:[{type:'VALUE',cell:[1,5],value:1}]}},
+  {pedagogyStageKind:'rollback',deduction:{rule:'ASSUMPTION_CONTRADICTION',conclusions:[]}},
+  {pedagogyStageKind:'action',deduction:{rule:'ASSUMPTION_CONTRADICTION',conclusions:[{type:'VALUE',cell:[0,0],value:0}]}}
+];
+const stableFacts=T.knownValuesBefore(priorClosedBranch);
+assert(!stableFacts.has('1,5'),'rolled-back hypothetical values must not leak into the next proof');
+assert.equal(stableFacts.get('0,0'),0,'the real post-rollback action must remain pedagogically available');
+
 const root=pathUtil.resolve(__dirname,'../GitHub'),index=fs.readFileSync(pathUtil.join(root,'index.html'),'utf8'),sw=fs.readFileSync(pathUtil.join(root,'sw.js'),'utf8');
 const asset=`tango-tutor-causal-atomic-r55.js?v=${R.TOKEN}`;
-assert.equal(R.VERSION,12,'causal closure runtime must restore the final semantic stabilizer owner');
+assert.equal(R.VERSION,13,'causal closure runtime must restore the final semantic stabilizer owner');
 assert(index.includes(asset),'iPhone page must request the new causal-closure asset');
 assert(sw.includes(`./${asset}`),'service worker must precache that exact asset URL');
 const inner=function(){},outer=function(){};inner.__quadludTutorCausalAtomicR55=true;outer.__quadludPrevious=inner;
