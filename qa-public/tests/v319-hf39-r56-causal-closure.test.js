@@ -63,7 +63,12 @@ assert.deepEqual(T.planRelationProofs(propagation,available).map(m=>T.deduction(
 
 const root=pathUtil.resolve(__dirname,'../GitHub'),index=fs.readFileSync(pathUtil.join(root,'index.html'),'utf8'),sw=fs.readFileSync(pathUtil.join(root,'sw.js'),'utf8');
 const asset=`tango-tutor-causal-atomic-r55.js?v=${R.TOKEN}`;
+assert.equal(R.VERSION,12,'causal closure runtime must restore the final semantic stabilizer owner');
 assert(index.includes(asset),'iPhone page must request the new causal-closure asset');
 assert(sw.includes(`./${asset}`),'service worker must precache that exact asset URL');
+const inner=function(){},outer=function(){};inner.__quadludTutorCausalAtomicR55=true;outer.__quadludPrevious=inner;
+assert.equal(T.chainHas(outer,'__quadludTutorCausalAtomicR55'),true,'wrapper ownership must be detected below the final stabilizer');
+const source=fs.readFileSync(pathUtil.join(root,'tango-tutor-causal-atomic-r55.js'),'utf8');
+assert(source.includes('restoreFinalSemanticStabilizer()'),'R5.6 must restore R4 after installing its late wrappers');
 
 console.log('PASS HF3.9-R5.6 causal closure rejects opaque supports and inserts a self-contained relation proof before propagation.');

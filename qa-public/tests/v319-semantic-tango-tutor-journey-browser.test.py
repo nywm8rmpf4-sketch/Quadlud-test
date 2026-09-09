@@ -15,7 +15,10 @@ ROOT = Path(__file__).resolve().parents[1] / "GitHub"
 DEFAULT_EVIDENCE = Path(os.environ.get("QUADLUD_SEMANTIC_EVIDENCE_DIR", "/tmp/quadlud-semantic-evidence/tango-expert-fr-mobile-v1"))
 SEED = "qa-semantic-tango-expert-v1"
 MAX_TRANSITIONS = 160
-MAX_LOGICAL_CLICK_MS = 20_000
+# The corpus is selected under a strict local 5.5 s planning budget.  Hosted CI
+# can run the semantic browser concurrently with the full QA matrix, so this
+# outer watchdog detects a genuine freeze while retaining contention margin.
+MAX_LOGICAL_CLICK_MS = 40_000
 VIEWPORT = {"width": 390, "height": 844}
 
 
