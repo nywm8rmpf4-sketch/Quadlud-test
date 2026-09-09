@@ -1,0 +1,87 @@
+name: QUADLUD Tango Tutor seed cache build R3
+
+on:
+  push:
+    branches: [qa/tango-tutor-cache-r3]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: quadlud-tango-tutor-cache-build-r3
+  cancel-in-progress: true
+
+jobs:
+  build-shard:
+    strategy:
+      fail-fast: false
+      matrix:
+        difficulty: [easy, medium, hard, expert]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Download certified compact 120x4 pool
+        uses: actions/download-artifact@v4
+        with:
+          name: tango-compact-pool-r2
+          path: compact
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 34329271172
+      - name: Build and targeted-replay Tutor seed shard
+        run: |
+          node qa-public/tools/build_tango_tutor_seed_shard_r3.js \
+            --pool compact/tango-diversity-pool.js \
+            --difficulty '${{ matrix.difficulty }}' \
+            --output 'tango-tutor-seed-${{ matrix.difficulty }}.json' \
+            --report 'tango-tutor-seed-${{ matrix.difficulty }}-report.json'
+      - name: Record shard integrity
+        run: |
+          sha256sum 'tango-tutor-seed-${{ matrix.difficulty }}.json' | tee 'tango-tutor-seed-${{ matrix.difficulty }}.sha256'
+          cat 'tango-tutor-seed-${{ matrix.difficulty }}-report.json'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-tutor-seed-${{ matrix.difficulty }}-r3
+          path: |
+            tango-tutor-seed-${{ matrix.difficulty }}.json
+            tango-tutor-seed-${{ matrix.difficulty }}.sha256
+            tango-tutor-seed-${{ matrix.difficulty }}-report.json
+          if-no-files-found: error
+          retention-days: 7
+
+  summarize:
+    needs: build-shard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tango-tutor-seed-*-r3
+          path: shards
+          merge-multiple: true
+      - name: Summarize cache size and speedup
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),path=require('path');
+          const diffs=['easy','medium','hard','expert'];
+          const reports=Object.fromEntries(diffs.map(d=>[d,JSON.parse(fs.readFileSync(path.join('shards',`tango-tutor-seed-${d}-report.json`),'utf8'))]));
+          const totalBytes=diffs.reduce((n,d)=>n+reports[d].bytes,0);
+          const cachedSteps=diffs.reduce((n,d)=>n+reports[d].cachedSteps,0);
+          const uniqueFingerprints=diffs.reduce((n,d)=>n+reports[d].uniqueFingerprints,0);
+          const fullMs=diffs.reduce((n,d)=>n+reports[d].fullPlannerMs.total,0);
+          const targetedMs=diffs.reduce((n,d)=>n+reports[d].targetedRebuildMs.total,0);
+          const out={schema:1,version:'tango-tutor-seed-cache-r3',totalBytes,cachedSteps,uniqueFingerprints,bytesPerCachedStep:Number((totalBytes/cachedSteps).toFixed(1)),fullPlannerMs:fullMs,targetedRebuildMs:targetedMs,speedupMean:Number((fullMs/targetedMs).toFixed(3)),reports};
+          fs.writeFileSync('shards/tango-tutor-seed-cache-r3-summary.json',JSON.stringify(out,null,2));
+          console.log(JSON.stringify(out));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-tutor-seed-cache-r3-complete
+          path: shards/
+          if-no-files-found: error
+          retention-days: 7
