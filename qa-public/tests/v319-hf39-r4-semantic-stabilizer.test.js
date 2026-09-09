@@ -32,11 +32,12 @@ global.QuadludTangoPedagogyTextFinalizer=Finalizer;
   global.walkthroughSession={base:{game:'tango'}};
   global.document={documentElement:{lang:'fr'},querySelector(){return null}};
   global.QuadludTangoSemanticCoherenceHF39={decorate(){order.push('canonical');return true}};
+  global.QuadludTangoTutorHumanRegressionR54={decorate(){order.push('projected');return true}};
   global.walkthroughNavigateProof=function(delta){order.push('lower');return delta};
   assert.strictEqual(Stabilizer.installNavigation(),true);
   assert.strictEqual(global.walkthroughNavigateProof.__quadludSemanticStabilizerHF39R4,true);
   assert.strictEqual(global.walkthroughNavigateProof(1),1);
-  assert.deepStrictEqual(order,['lower','canonical']);
+  assert.deepStrictEqual(order,['lower','canonical','projected'],'the final stabilizer must restore projected causal markers after canonical overlays');
 }
-assert.strictEqual(Stabilizer.VERSION,1);assert.strictEqual(Stabilizer.TOKEN,'3.1.9-hf3.9-r4');
+assert.strictEqual(Stabilizer.VERSION,2);assert.strictEqual(Stabilizer.TOKEN,'3.1.9-hf3.9-r4-marker-projection-v2');
 console.log('HF3.9-R4 semantic stabilizer PASS — final marker ordering, late French normalization, action visibility');

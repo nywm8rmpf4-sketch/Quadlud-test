@@ -12,8 +12,8 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
 
-const VERSION=1;
-const TOKEN='3.1.9-hf3.9-r4';
+const VERSION=2;
+const TOKEN='3.1.9-hf3.9-r4-marker-projection-v2';
 
 function locale(){
   try{return String(typeof lang==='function'?lang():root.document?.documentElement?.lang||'en').toLowerCase().split('-')[0]}
@@ -64,6 +64,11 @@ function ensureActionVisible(panel){
 function stabilize(){
   if(!isTangoTutor())return false;
   try{root.QuadludTangoSemanticCoherenceHF39?.decorate?.()}catch(_){ }
+  // Semantic coherence rebuilds the canonical overlay first. Reapply the
+  // non-mutating R5.4 causal projection afterwards so an implicit consequence
+  // keeps its chronological badge (for example the explicit-relation sibling
+  // inserted between two engine trace entries).
+  try{root.QuadludTangoTutorHumanRegressionR54?.decorate?.()}catch(_){ }
   const panel=root.document?.querySelector?.('.walkthrough-panel');if(!panel)return false;
   finalizePanelText(panel);
   ensureActionVisible(panel);
