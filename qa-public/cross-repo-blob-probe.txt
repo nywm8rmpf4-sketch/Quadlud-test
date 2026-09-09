@@ -1,0 +1,2 @@
+QUADLUD cross-repository blob transfer probe
+Copyright © 2026 Serge Benoliel. All rights reserved.
