@@ -1,0 +1,57 @@
+name: QUADLUD Tango precomputed pool R1
+
+on:
+  push:
+    branches: [qa/tango-pool-precompute-r1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quadlud-tango-pool-precompute-r1
+  cancel-in-progress: true
+
+jobs:
+  build-and-certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Generate 120x4 certified pool
+        env:
+          QUADLUD_TANGO_AUDIT_CACHE: ${{ runner.temp }}/tango-tutor-audit-cache.json
+        run: |
+          set -o pipefail
+          node qa-public/tools/build_tango_precompute_pool_v5.js \
+            --reuse tango-diversity-pool.js \
+            --output tango-diversity-pool.js \
+            --report tango-pool-v5-report.json \
+            2>&1 | tee tango-pool-v5-build.log
+      - name: Validate complete pool contract
+        run: node qa-public/tests/tango-precompute-pool-v5-contract.test.js
+      - name: Run Tango logical and Tutor non-regressions
+        run: |
+          node qa-public/tests/v319-hf39-r56-causal-closure.test.js
+          node qa-public/tests/v319-hf39-semantic-coherence.test.js
+          node qa-public/tests/v319-r3ui-tango-tutor-freeze-guard.test.js
+          node qa-public/tests/v319-r5-frontier-validation-cache.test.js
+      - name: Record artifact integrity
+        run: |
+          sha256sum tango-diversity-pool.js | tee tango-diversity-pool.js.sha256
+          cat tango-pool-v5-report.json
+          wc -c tango-diversity-pool.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tango-precompute-pool-r1
+          path: |
+            tango-diversity-pool.js
+            tango-diversity-pool.js.sha256
+            tango-pool-v5-report.json
+            tango-pool-v5-build.log
+          if-no-files-found: warn
+          retention-days: 7
