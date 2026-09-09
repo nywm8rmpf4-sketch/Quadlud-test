@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -237,7 +238,33 @@ def capture(page, evidence_dir: Path, ordinal: int, phase: str) -> tuple[dict, s
     snapshot["phase"] = phase
     stem = f"{ordinal:03d}-{phase}"
     (steps / f"{stem}.json").write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
-    page.screenshot(path=str(steps / f"{stem}.png"), full_page=False)
+    png_path = steps / f"{stem}.png"
+    page.screenshot(path=str(png_path), full_page=False)
+    visible_cells = [
+        {
+            "cell": f"{chr(65 + int(cell['row']))}{int(cell['column']) + 1}" if cell.get("row") is not None and cell.get("column") is not None else str(cell.get("index")),
+            "text": cell.get("text"),
+            "className": cell.get("className"),
+            "ariaLabel": cell.get("ariaLabel"),
+        }
+        for cell in snapshot["board"]["cells"]
+        if cell.get("text") or "walkthrough-" in str(cell.get("className") or "")
+    ]
+    screen_log = {
+        "ordinal": ordinal,
+        "phase": phase,
+        "counter": snapshot.get("counter"),
+        "visibleExplanation": snapshot.get("visibleExplanation"),
+        "fullExplanation": snapshot.get("fullExplanation"),
+        "explanationScroll": snapshot.get("explanationScroll"),
+        "visibleClassNames": snapshot.get("visibleClassNames"),
+        "visibleCells": visible_cells,
+    }
+    print("SEMANTIC_SCREEN " + json.dumps(screen_log, ensure_ascii=False, sort_keys=True), flush=True)
+    visual_tokens = " ".join(snapshot.get("visibleClassNames") or []).lower()
+    if phase in {"start", "logical"} or "contradiction" in visual_tokens or "relation-balance" in visual_tokens:
+        encoded = base64.b64encode(png_path.read_bytes()).decode("ascii")
+        print(f"SEMANTIC_PNG {ordinal:03d} {encoded}", flush=True)
     return snapshot, signature(snapshot)
 
 
