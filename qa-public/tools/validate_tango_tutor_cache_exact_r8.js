@@ -66,10 +66,18 @@ for(const diff of DIFFS){
   if(r4.schema!==2||r4.version!=='tango-tutor-cache-r4-lean'||r4.poolVersion!=='tango-precompute-pool-v6-compact')throw new Error(`${diff}: unexpected R4 cache contract`);
   if(!Array.isArray(sourceEntries)||sourceEntries.length<120||!Array.isArray(r4.entries)||r4.entries.length<120)throw new Error(`${diff}: fewer than 120 source puzzles`);
   if(Number(Data.puzzleCounts?.[diff])!==r4.entries.length)throw new Error(`${diff}: compact puzzle count mismatch`);
-  let diffSteps=0,diffHits=0;
+  const sourceByFingerprint=new Map();
+  for(let i=0;i<sourceEntries.length;i++){
+    const entry=sourceEntries[i],fp=String(entry?.difficultyProfile?.fingerprint||entry?.logicTrace?.sourceFingerprint||'');
+    if(!/^qfp1-[0-9a-f]{32}$/.test(fp))throw new Error(`${diff}[${i}]: invalid source puzzle fingerprint`);
+    if(sourceByFingerprint.has(fp))throw new Error(`${diff}: duplicate source puzzle fingerprint ${fp}`);
+    sourceByFingerprint.set(fp,{entry,index:i});
+  }
+  let diffSteps=0,diffHits=0,sourceRemaps=0;const usedSourceIndices=new Set();
   for(const journey of r4.entries){
-    const poolIndex=journey?.[0],steps=journey?.[2],entry=sourceEntries?.[poolIndex];
-    if(!Number.isInteger(poolIndex)||!entry||!Array.isArray(steps))throw new Error(`${diff}: invalid R4 journey`);
+    const cachePoolIndex=journey?.[0],steps=journey?.[2],initialFp=steps?.[0]?.[0],source=sourceByFingerprint.get(initialFp),entry=source?.entry,poolIndex=source?.index;
+    if(!Number.isInteger(cachePoolIndex)||!Array.isArray(steps)||!steps.length||!entry||!Number.isInteger(poolIndex))throw new Error(`${diff}: invalid/unmapped R4 journey`);
+    usedSourceIndices.add(poolIndex);if(poolIndex!==cachePoolIndex)sourceRemaps++;
     const state=stateForEntry(entry);
     if(!mutations.some(m=>m.diff===diff)){const probe=mutationFallback(entry,state,diff,poolIndex);if(probe)mutations.push(probe)}
     for(let stepIndex=0;stepIndex<steps.length;stepIndex++){
@@ -95,8 +103,9 @@ for(const diff of DIFFS){
       presentationReady++;applyExpected(state,expectedTarget,expectedValue);diffSteps++;diffHits++;
     }
   }
+  if(usedSourceIndices.size!==r4.entries.length)throw new Error(`${diff}: source mapping is not bijective (${usedSourceIndices.size}/${r4.entries.length})`);
   if(diffSteps!==Data.steps[diff].length)throw new Error(`${diff}: exhaustive step count mismatch ${diffSteps} != ${Data.steps[diff].length}`);
-  perDifficulty[diff]={puzzles:r4.entries.length,steps:diffSteps,hits:diffHits};totalSteps+=diffSteps;expectedHits+=diffHits;
+  perDifficulty[diff]={puzzles:r4.entries.length,steps:diffSteps,hits:diffHits,sourceRemaps};totalSteps+=diffSteps;expectedHits+=diffHits;
 }
 if(totalSteps!==14861)throw new Error(`expected 14861 Tutor states, got ${totalSteps}`);
 if(Cache.stats.hits!==expectedHits)throw new Error(`cache hit counter mismatch ${Cache.stats.hits} != ${expectedHits}`);
