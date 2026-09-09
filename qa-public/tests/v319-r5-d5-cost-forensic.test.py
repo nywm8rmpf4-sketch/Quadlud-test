@@ -105,7 +105,9 @@ def main():
         assert profile['estimatedCandidateCount'] == 20, profile
         assert profile['hydratedCandidateCount'] == 2, profile
         assert profile['prunedCandidateCount'] == 18, profile
-        assert profile['advancedStateCount'] == 6, profile
+        # Structural lower bounds must not trigger advanced solves; only the two
+        # surviving candidates are fully hydrated before the proven minimum.
+        assert profile['advancedStateCount'] == 0, profile
         assert profile['minimumEngineStepCount'] == profile['engineStepCount'] == 15, profile
         assert profile['proofChainLength'] > 0, profile
         assert profile['elapsedMs'] < 9000, profile
