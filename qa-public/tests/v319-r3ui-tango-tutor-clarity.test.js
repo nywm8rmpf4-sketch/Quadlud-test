@@ -1,5 +1,6 @@
 'use strict';
 const assert=require('assert');
+global.lang=()=> 'fr';
 const M=require('../GitHub/tango-tutor-clarity.js');
 const P=require('../GitHub/tango-progressive-proof-bridge.js');
 
