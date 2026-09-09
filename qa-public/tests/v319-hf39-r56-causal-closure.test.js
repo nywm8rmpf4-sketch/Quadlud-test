@@ -77,6 +77,11 @@ const tripleAtomic=T.atomicText({rule:'TRIPLE_CONSTRAINT',deduction:tripleValue,
 assert(tripleAtomic.why.includes('F1')&&tripleAtomic.why.includes('F2')&&tripleAtomic.why.includes('F3'),'atomic triple explanation must name every causal cell');
 assert(!tripleAtomic.why.includes('Using these premises'),'atomic triple explanation must state the actual rule implication');
 
+const exactAtomicMove={causalAtomicRelationHop:true,deduction:{rule:'RELATION_PROPAGATION',premises:[{kind:'VALUE',cell:[1,5],value:1},{kind:'RELATION',a:[1,5],b:[1,3],parity:1,path:[{a:[1,5],b:[1,3],parity:1,explicit:false,support:tripleSupport}]}],conclusions:[{type:'VALUE',cell:[1,3],value:0}],explanationData:{source:[1,5],target:[1,3],sourceValue:1,parity:1,causalAtomicRelationHop:true}}};
+const exactDisplay=T.atomicHopDisplay(exactAtomicMove);
+assert.deepEqual(exactDisplay.dependency,{cell:[1,5],value:1},'atomic display must use its own exact source fact');
+assert.deepEqual(exactDisplay.current,{cell:[1,3],value:0},'atomic display must use its own exact conclusion');
+
 const priorClosedBranch=[
   {pedagogyStageKind:'hypothesis',deduction:{rule:'ASSUMPTION_CONTRADICTION',premises:[{kind:'ASSUMPTION',cell:[1,5],value:1,hypothesis:true}],conclusions:[]}},
   {pedagogyStageKind:'reasoning',deduction:{rule:'RELATION_PROPAGATION',conclusions:[{type:'VALUE',cell:[1,5],value:1}]}},
@@ -89,7 +94,7 @@ assert.equal(stableFacts.get('0,0'),0,'the real post-rollback action must remain
 
 const root=pathUtil.resolve(__dirname,'../GitHub'),index=fs.readFileSync(pathUtil.join(root,'index.html'),'utf8'),sw=fs.readFileSync(pathUtil.join(root,'sw.js'),'utf8');
 const asset=`tango-tutor-causal-atomic-r55.js?v=${R.TOKEN}`;
-assert.equal(R.VERSION,13,'causal closure runtime must restore the final semantic stabilizer owner');
+assert.equal(R.VERSION,14,'causal closure runtime must restore the final semantic stabilizer owner');
 assert(index.includes(asset),'iPhone page must request the new causal-closure asset');
 assert(sw.includes(`./${asset}`),'service worker must precache that exact asset URL');
 const inner=function(){},outer=function(){};inner.__quadludTutorCausalAtomicR55=true;outer.__quadludPrevious=inner;
