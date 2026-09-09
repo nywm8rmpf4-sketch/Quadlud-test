@@ -1,0 +1,25 @@
+name: QUADLUD Tango Tutor cache runtime R5
+
+on:
+  push:
+    branches: [qa/tango-tutor-cache-runtime-r5]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Check cache runtime syntax
+        run: |
+          node --check tango-tutor-precomputed-cache.js
+          node --check qa-public/tests/tango-tutor-precomputed-cache-runtime.test.js
+      - name: Validate exact-hit and stale-state fallback contract
+        run: node qa-public/tests/tango-tutor-precomputed-cache-runtime.test.js
