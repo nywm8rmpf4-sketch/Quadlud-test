@@ -9,11 +9,11 @@
   let api;
   if(typeof module!=='undefined'&&module.exports){
     let pool=null;try{pool=require('./tango-diversity-pool.js')}catch(_){pool=null}
-    api=factory(require('./tango-generator.js'),pool,require('./difficulty-rating.js'));
+    api=factory(require('./tango-generator.js'),pool,require('./difficulty-rating.js'),require('./tango-trace-codec.js'));
     module.exports=api;
-  }else api=factory(root.QuadludTangoGenerator,root.QuadludTangoDiversityPool,root.DifficultyRating);
+  }else api=factory(root.QuadludTangoGenerator,root.QuadludTangoDiversityPool,root.DifficultyRating,root.QuadludTangoTraceCodec);
   if(root&&api)root.QuadludTangoGenerator=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(Base,Pool,DR){
+})(typeof globalThis!=='undefined'?globalThis:this,function(Base,Pool,DR,Codec){
   'use strict';
   if(!Base)throw new Error('Soleil-Lune base generator unavailable');
   if(!DR)throw new Error('Soleil-Lune pool rating dependency unavailable');
@@ -25,6 +25,12 @@
   }
   function fingerprint(puzzle){try{return DR.fingerprintPublicPuzzle(puzzle)}catch(_){return null}}
   function poolEntries(diff){let entries=Pool?.entries?.[diff];return Array.isArray(entries)?entries:[]}
+  function hydrateTrace(trace){
+    if(!trace)return null;
+    if(trace.schema===2&&trace.encoding){if(!Codec||typeof Codec.decode!=='function')return null;try{return Codec.decode(trace,6)}catch(_){return null}}
+    if(trace.schema===1&&Array.isArray(trace.trace))return copy(trace);
+    return null
+  }
   function candidateFromEntry(diff,entry,index){
     if(!entry||!Array.isArray(entry.sol)||entry.sol.length!==6||!Array.isArray(entry.givens)||!Array.isArray(entry.edges)||!entry.difficultyProfile)return null;
     let candidate={sol:entry.sol.map(row=>row.slice()),givens:new Set(entry.givens),edges:entry.edges.map(edge=>edge.slice()),difficultyProfile:copy(entry.difficultyProfile)};
@@ -32,6 +38,7 @@
     if(!fp||profile.status!=='solved'||profile.difficulty!==diff||profile.minimumRequiredTier!==tier||profile.budgetHit||profile.fingerprint!==fp)return null;
     let trace=entry.logicTrace;
     if(trace&&trace.sourceFingerprint!==fp)return null;
+    if(trace?.schema===2&&(!Codec||trace.encoding!==Codec.ENCODING||trace.codecVersion!==Codec.VERSION))return null;
     candidate.generationStats={
       generatorVersion:DR.GENERATOR_VERSION||1,
       targetDifficulty:diff,
@@ -48,6 +55,7 @@
       relationCount:candidate.edges.length,
       diversityIdentity:entry.familyKey||null,
       tracePolicy:trace?.policy||null,
+      traceEncoding:trace?.encoding||'json-v1',
       traceSourceFingerprint:trace?.sourceFingerprint||null,
       fallbackUsed:false
     };
@@ -79,10 +87,11 @@
     let entry=poolEntryForCandidate(candidate),trace=entry?.logicTrace;if(!trace||!currentPuzzle)return null;
     let currentFingerprint=fingerprint(currentPuzzle);
     if(!currentFingerprint||currentFingerprint!==trace.sourceFingerprint||currentFingerprint!==candidate?.difficultyProfile?.fingerprint)return null;
-    return copy(trace)
+    let hydrated=hydrateTrace(trace);if(!hydrated||hydrated.sourceFingerprint!==currentFingerprint)return null;
+    return hydrated
   }
   function precomputedTraceForState(candidate,state){return precomputedTraceForPublicPuzzle(candidate,publicPuzzle(candidate,state))}
   function poolInfo(){return Pool?copy({schema:Pool.schema,version:Pool.version,counts:Pool.counts||Object.fromEntries(Object.keys(Pool.entries||{}).map(diff=>[diff,poolEntries(diff).length])),certification:Pool.certification||null}):null}
 
-  return Object.freeze({...Base,generateTangoPuzzle,tangoCandidate:generateTangoPuzzle,generationIdentity,precomputedCandidate,precomputedTraceForPublicPuzzle,precomputedTraceForState,poolInfo,_poolTest:Object.freeze({candidateFromEntry,poolEntryForCandidate,poolEntries,fingerprint})});
+  return Object.freeze({...Base,generateTangoPuzzle,tangoCandidate:generateTangoPuzzle,generationIdentity,precomputedCandidate,precomputedTraceForPublicPuzzle,precomputedTraceForState,poolInfo,_poolTest:Object.freeze({candidateFromEntry,poolEntryForCandidate,poolEntries,fingerprint,hydrateTrace})});
 });
