@@ -1,0 +1,55 @@
+name: QUADLUD Tango compact pool R2
+
+on:
+  push:
+    branches: [qa/tango-pool-compact-r2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: quadlud-tango-pool-compact-r2
+  cancel-in-progress: true
+
+jobs:
+  compact-and-certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Download certified raw 120x4 pool
+        uses: actions/download-artifact@v4
+        with:
+          name: tango-precompute-pool-r1
+          path: raw
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 34322874481
+      - name: Compact certified logical traces
+        run: |
+          node qa-public/tools/compact_tango_precompute_pool_v6.js \
+            --input raw/tango-diversity-pool.js \
+            --output tango-diversity-pool.js \
+            --report tango-pool-v6-compact-report.json
+      - name: Validate exact trace round-trip and size budget
+        run: node qa-public/tests/tango-trace-compact-r2.test.js --raw raw/tango-diversity-pool.js --compact tango-diversity-pool.js
+      - name: Record compact artifact integrity
+        run: |
+          sha256sum tango-diversity-pool.js | tee tango-diversity-pool.js.sha256
+          cat tango-pool-v6-compact-report.json
+          wc -c raw/tango-diversity-pool.js tango-diversity-pool.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tango-compact-pool-r2
+          path: |
+            tango-diversity-pool.js
+            tango-diversity-pool.js.sha256
+            tango-pool-v6-compact-report.json
+          if-no-files-found: warn
+          retention-days: 7
