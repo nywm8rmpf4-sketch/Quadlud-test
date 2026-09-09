@@ -39,7 +39,7 @@ def prepare_html() -> str:
     return html
 
 
-def load_runtime(page) -> None:
+def load_runtime(page, use_diversity_pool: bool = True) -> None:
     page.set_content(prepare_html(), wait_until="domcontentloaded")
     page.add_style_tag(content=runtime_styles(ROOT))
     page.evaluate(
@@ -56,6 +56,8 @@ def load_runtime(page) -> None:
         }"""
     )
     for source in runtime_sources(ROOT):
+        if not use_diversity_pool and 'const tangoDiversityPoolV1=' in source:
+            source = re.sub(r'const tangoDiversityPoolV1=.*?;\n', 'const tangoDiversityPoolV1=null;\n', source, count=1)
         page.add_script_tag(content=source)
     page.wait_for_selector(".cards")
 
