@@ -2,7 +2,7 @@ name: QUADLUD Tango Tutor exact cache R8
 
 on:
   push:
-    branches: [qa/tango-tutor-cache-exact-r8]
+    branches: [qa/tango-tutor-cache-exact-r8-isolated]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: quadlud-tango-tutor-cache-exact-r8
+  group: quadlud-tango-tutor-cache-exact-r8-isolated
   cancel-in-progress: true
 
 jobs:
