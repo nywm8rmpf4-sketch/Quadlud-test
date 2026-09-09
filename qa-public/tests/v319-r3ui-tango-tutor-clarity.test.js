@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('assert');
 const M=require('../GitHub/tango-tutor-clarity.js');
+const P=require('../GitHub/tango-progressive-proof-bridge.js');
 
 // Multi-edge relation: every edge is explicit, so the local proof can replay
 // the whole path without depending on a previous Tutor page.
@@ -57,11 +58,28 @@ const wording=(y.steps.join(' ')+' '+y.conclusion).toLowerCase();
 for(const banned of ['déjà démontr','déjà déduit','comme vu précédemment','résultat précédent'])assert(!wording.includes(banned),wording);
 assert.deepStrictEqual(M._test.relationFocusCells(derived),[[0,5],[2,5]]);
 
+// Progressive Tutor projection must reuse the same complete recursive provenance,
+// rather than replacing it with a false "proof chain unavailable" message.
+const projected=P._test.clarifyDerivedRelation({
+  pedagogyStageKind:'reasoning',deduction:derived,
+  presentation:{metadata:{},explanation:{where:'',why:'',move:''}}
+});
+assert.strictEqual(projected.proofCompleteness,'complete-derived-relation-provenance');
+assert.strictEqual(projected.presentation.metadata.proofCompleteness,'complete-derived-relation-provenance');
+assert(projected.why.includes('règle des trois'),projected.why);
+assert(!projected.why.includes('chaîne de preuve complète n’est pas disponible'),projected.why);
+
 // Missing provenance must be surfaced honestly, never disguised as a proof.
 const missing=JSON.parse(JSON.stringify(derived));delete missing.premises[1].path[0].support;
 const z=M._test.relationExplanation(missing,'fr');
 assert.strictEqual(z.complete,false);
 assert(z.steps.join(' ').includes('provenance nécessaire'));
 assert(!z.steps.join(' ').toLowerCase().includes('déjà démontr'));
+const projectedMissing=P._test.clarifyDerivedRelation({
+  pedagogyStageKind:'reasoning',deduction:missing,
+  presentation:{metadata:{},explanation:{where:'',why:'',move:''}}
+});
+assert.strictEqual(projectedMissing.proofCompleteness,'missing-relation-provenance');
+assert(projectedMissing.why.includes('chaîne de preuve complète n’est pas disponible'));
 
 console.log('v319-r3ui-tango-tutor-clarity.test.js: PASS');
