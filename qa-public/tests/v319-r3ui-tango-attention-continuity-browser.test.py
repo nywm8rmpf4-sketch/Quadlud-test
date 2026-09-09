@@ -21,7 +21,12 @@ def load(page):
     page.set_content(html, wait_until='domcontentloaded')
     page.add_style_tag(content=css)
     page.evaluate("""()=>{const data=new Map();const storage={getItem:k=>data.has(String(k))?data.get(String(k)):null,setItem:(k,v)=>data.set(String(k),String(v)),removeItem:k=>data.delete(String(k)),clear:()=>data.clear(),key:i=>[...data.keys()][i]??null,get length(){return data.size}};Object.defineProperty(window,'localStorage',{value:storage,configurable:true});}""")
+    # This contract validates the historical B4 -> C6 -> C3 attention fixture,
+    # not the rotating diversity portfolio. Keep its seeded legacy generator
+    # independent from certified-pool additions and reorderings.
     for src in scripts:
+        if 'const tangoDiversityPoolV1=' in src:
+            src = re.sub(r'const tangoDiversityPoolV1=.*?;\\n', 'const tangoDiversityPoolV1=null;\\n', src, count=1)
         page.add_script_tag(content=src)
     page.wait_for_selector('.cards')
 
