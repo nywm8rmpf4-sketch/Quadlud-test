@@ -62,6 +62,11 @@ assert.deepEqual(proofSteps.map(s=>s.sequenceIndex),[0,0,1],'relation proof scre
 const available=new Set([T.relationKey(A3,B3,1)]);
 assert.deepEqual(T.planRelationProofs(propagation,available).map(m=>T.deduction(m).rule),['RELATION_PROPAGATION']);
 
+assert.equal(T.supportProofComplete(selfContained,5),true,'valid nested support must remain inspectable beyond the former arbitrary depth four');
+const domainProofText=T.relationProofText(selfContained);
+assert(domainProofText.why.includes('Compatible configurations'),'line-domain proof must expose the exact compatible domains');
+assert(!domainProofText.why.includes('Given ,'),'line-domain proof must never omit all premises');
+
 const tripleSupport={
   rule:'TRIPLE_CONSTRAINT',
   premises:[{kind:'RELATION',a:[1,3],b:[1,4],parity:0,explicit:true,path:[{a:[1,3],b:[1,4],parity:0,explicit:true}]}],
@@ -94,7 +99,7 @@ assert.equal(stableFacts.get('0,0'),0,'the real post-rollback action must remain
 
 const root=pathUtil.resolve(__dirname,'../GitHub'),index=fs.readFileSync(pathUtil.join(root,'index.html'),'utf8'),sw=fs.readFileSync(pathUtil.join(root,'sw.js'),'utf8');
 const asset=`tango-tutor-causal-atomic-r55.js?v=${R.TOKEN}`;
-assert.equal(R.VERSION,14,'causal closure runtime must restore the final semantic stabilizer owner');
+assert.equal(R.VERSION,15,'causal closure runtime must restore the final semantic stabilizer owner');
 assert(index.includes(asset),'iPhone page must request the new causal-closure asset');
 assert(sw.includes(`./${asset}`),'service worker must precache that exact asset URL');
 const inner=function(){},outer=function(){};inner.__quadludTutorCausalAtomicR55=true;outer.__quadludPrevious=inner;
