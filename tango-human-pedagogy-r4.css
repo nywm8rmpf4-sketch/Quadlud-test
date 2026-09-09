@@ -91,6 +91,9 @@
   .walkthrough-panel.tango-relation-balance-detail .walkthrough-explanation p{
     line-height:1.25;
   }
+  .walkthrough-panel.tango-walkthrough-complete .walkthrough-help-note{
+    display:none;
+  }
 }
 
 @media(forced-colors:active){
