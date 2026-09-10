@@ -40,6 +40,12 @@ const atA4=R._test.projectedMarkers(group,2);
 assert.deepStrictEqual(atA4.map(x=>({cell:x.cell,value:x.value,sequence:x.sequence})),[{cell:[0,4],value:1,sequence:3}]);
 assert.equal(JSON.stringify(group),before,'presentation projection must not mutate the proof');
 
+// A projected sibling must never turn the branch hypothesis itself into a numbered consequence.
+const hypA1={pedagogyStageKind:'hypothesis',deduction:{premises:[{kind:'ASSUMPTION',cell:[0,0],value:1,hypothesis:true}],conclusions:[]},causalStep:{kind:'hypothesis',sequenceIndex:0}};
+const a2ToA1={pedagogyStageKind:'reasoning',beforeSnapshot:{state:empty()},deduction:{conclusions:[{type:'VALUE',cell:[0,1],value:0}]},causalStep:{kind:'deduction',sequenceIndex:1,premises:[{kind:'RELATION',a:[0,1],b:[0,0],parity:1,explicit:true}]}};
+const hypothesisProtected=R._test.projectedMarkers({entries:[{move:hypA1},{move:a2ToA1}]},1);
+assert(!hypothesisProtected.some(x=>x.cell[0]===0&&x.cell[1]===0&&x.value===1),'A1 hypothesis H must never be duplicated as a numbered projected consequence');
+
 const c3={pedagogyStageKind:'reasoning',beforeSnapshot:{state},deduction:{conclusions:[{type:'VALUE',cell:[2,2],value:1}]},causalStep:{id:'cp12',kind:'deduction',sequenceIndex:3,premises:[]}};
 const c4Projection={pedagogyStageKind:'reasoning',beforeSnapshot:{state},deduction:{conclusions:[{type:'VALUE',cell:[2,3],value:0}]},causalStep:{id:'cp13',kind:'deduction',sequenceIndex:4,premises:[{kind:'RELATION',a:[2,2],b:[2,3],parity:1,explicit:true}]}};
 const extended={entries:[...group.entries,{move:c3},{move:c4Projection}]};
