@@ -1,0 +1,83 @@
+name: QUADLUD integrated exact R8 browser gate
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths: ['.github/workflows/tango-r8-browser-gate.yml']
+permissions:
+  contents: read
+jobs:
+  browser-r8:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Chromium QA environment
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+          CHROMIUM_PATH="$(python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p: print(p.chromium.executable_path)
+          PY
+          )"
+          sudo ln -sf "$CHROMIUM_PATH" /usr/bin/chromium
+          /usr/bin/chromium --version
+      - name: Materialize canonical QA layout
+        run: |
+          set -euo pipefail
+          R="$RUNNER_TEMP/quadlud-r8-browser"
+          rm -rf "$R"; mkdir -p "$R/GitHub" "$R/tests"
+          rsync -a ./ "$R/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='.gitignore' --exclude='qa-public/' --exclude='qa-release/' --exclude='LICENSE'
+          cp -a qa-public/tests/. "$R/tests/"
+          test -f "$R/GitHub/tango-runtime-pool-data.js"
+          test -f "$R/GitHub/tango-tutor-cache-data-r8.js"
+          test -f "$R/tests/v319-r8-integrated-browser.test.py"
+      - name: Run real-page exact R8 integration gate
+        env:
+          QUADLUD_R8_BASE_URL: http://127.0.0.1:8765/
+          QUADLUD_R8_BROWSER_REPORT: ${{ runner.temp }}/r8-evidence/integrated-browser.json
+        run: |
+          set -euo pipefail
+          R="$RUNNER_TEMP/quadlud-r8-browser"
+          mkdir -p "$RUNNER_TEMP/r8-evidence"
+          cd "$R/GitHub"
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/r8-http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
+          cd "$R"
+          export PYTHONPATH="$R/tests"
+          python3 tests/v319-r8-integrated-browser.test.py
+      - name: Run integrated semantic browser regressions
+        env:
+          QUADLUD_ATTENTION_EVIDENCE_DIR: ${{ runner.temp }}/r8-evidence/attention
+          QUADLUD_CONTRADICTION_EVIDENCE_DIR: ${{ runner.temp }}/r8-evidence/contradiction
+          QUADLUD_VISUAL_EVIDENCE_DIR: ${{ runner.temp }}/r8-evidence/visual
+          QUADLUD_TUTOR_CLARITY_EVIDENCE_DIR: ${{ runner.temp }}/r8-evidence/clarity
+          QUADLUD_SEMANTIC_EVIDENCE_DIR: ${{ runner.temp }}/r8-evidence/expert
+        run: |
+          set -euo pipefail
+          R="$RUNNER_TEMP/quadlud-r8-browser"; cd "$R"; export PYTHONPATH="$R/tests"
+          python3 tests/v319-r3ui-tango-attention-continuity-browser.test.py
+          python3 tests/v319-r3ui-tango-contradiction-visual-browser.test.py
+          python3 tests/v319-r3ui-pedagogy-visual-hierarchy-browser.test.py
+          python3 tests/v319-r3ui-tango-tutor-clarity-browser.test.py
+          python3 tests/v319-semantic-tango-tutor-journey-browser.test.py
+      - name: Upload integrated R8 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-integrated-browser-evidence
+          path: ${{ runner.temp }}/r8-evidence
+          if-no-files-found: warn
+          retention-days: 14
