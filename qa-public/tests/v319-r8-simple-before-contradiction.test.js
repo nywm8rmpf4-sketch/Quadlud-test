@@ -11,8 +11,8 @@ const WEB=fs.existsSync(path.join(candidate,'tango-logic.js'))?candidate:repo;
 const load=name=>require(path.join(WEB,name));
 global.document={body:{classList:{contains:name=>name==='tutor-active'}}};
 for(const f of ['tango-logic.js','tango-difficulty.js','tutor-move-selector.js','pedagogy-next-move-policy.js','tango-played-move-planner.js','tango-attention-continuity-bridge.js','tango-tutor-frontier-pruner-r5.js','tango-played-move-runtime.js','tango-human-pedagogy-r4.js','tango-tutor-single-planner-r5.js'])load(f);
-const P=global.QuadludTangoPlayedMovePlanner,T=global.QuadludTangoTutorSinglePlannerR5;
-assert(P&&T,'Tango live Tutor unavailable');
+const P=global.QuadludTangoPlayedMovePlanner,T=global.QuadludTangoTutorSinglePlannerR5,H=global.QuadludTangoHumanPedagogyR4;
+assert(P&&T&&H,'Tango live Tutor unavailable');
 // Visible state after E5 = soleil in the user's screenshot.
 // Coordinates are zero-based internally: C5=[2,4], D5=[3,4].
 const E=-1;
@@ -38,9 +38,12 @@ const direct=P._test.allowedDirectDeductions(engine,tier);
 const c5=direct.filter(d=>(d.conclusions||[]).some(c=>c?.type==='VALUE'&&c.cell?.[0]===2&&c.cell?.[1]===4&&c.value===0));
 assert(c5.length>0,'fixture must expose the direct visible C5 = lune deduction');
 assert(c5.some(d=>d.rule==='RELATION_PROPAGATION'||/RELATION/i.test(String(d.rule||''))),`C5 direct proof should be relation-based, got ${c5.map(d=>d.rule).join(',')}`);
+const frontier=H._test.playableDirectPlans(engine,'expert',{});
+console.log('DIRECT_FRONTIER',JSON.stringify({directCount:direct.length,frontierComplete:frontier?.frontierComplete,evaluation:frontier?.evaluation?{evaluated:frontier.evaluation.evaluated,total:frontier.evaluation.total,truncated:frontier.evaluation.truncated,branchBudgetHit:frontier.evaluation.branchBudgetHit}:null,plans:(frontier?.plans||[]).map(p=>({target:p.target,value:p.value,rule:(p.startingDeduction||p.deduction)?.rule,cost:P._test.planCostVector(p)}))}));
 const t0=performance.now();
 const live=T._test.humanizeTutorPlan(engine,'expert',{usePrecomputedCache:false});
 const ms=performance.now()-t0;
+console.log('LIVE_SELECTION',JSON.stringify({target:live?.target,value:live?.value,rule:(live?.startingDeduction||live?.deduction)?.rule,advancedStart:live?.advancedStart,mode:live?.tutorPlannerMode,selectionStatus:live?.selectionStatus,frontierComplete:live?.frontierComplete,budgetHit:live?.budgetHit,ms:Number(ms.toFixed(3))}));
 assert.strictEqual(live?.status,'move',`live Tutor returned ${live?.status||'invalid'}`);
 assert.deepStrictEqual(live.target,[2,4],`simpler C5 direct equality must outrank advanced contradiction; got ${JSON.stringify(live.target)}`);
 assert.strictEqual(live.value,0,'C5 must be lune');
