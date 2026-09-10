@@ -13,7 +13,12 @@ const difficulty=String(arg('--difficulty')||'').trim().toLowerCase();
 const poolPath=path.resolve(arg('--pool')||path.join(ROOT,'tango-runtime-pool-data.js'));
 const outputPath=path.resolve(arg('--output')||`tango-tutor-sync-${difficulty}.json`);
 const reportPath=arg('--report')?path.resolve(arg('--report')):null;
+const startRaw=arg('--start'),countRaw=arg('--count');
+const startIndex=startRaw==null?0:Number(startRaw),requestedCount=countRaw==null?120:Number(countRaw);
 if(!['easy','medium','hard','expert'].includes(difficulty))throw new Error('--difficulty must be easy, medium, hard or expert');
+if(!Number.isInteger(startIndex)||startIndex<0||startIndex>=120)throw new Error('--start must be an integer from 0 to 119');
+if(!Number.isInteger(requestedCount)||requestedCount<1||startIndex+requestedCount>120)throw new Error('--count must keep the requested range within the 120-entry pool');
+const endIndex=startIndex+requestedCount;
 
 const Pool=require(poolPath);
 const DifficultyRating=require(path.join(ROOT,'difficulty-rating.js'));
@@ -51,7 +56,7 @@ function verifyRebuild(engine,diff,plan,startSeed,dispSeed){const starting=resol
 const sourceEntries=Pool.pools?.[difficulty]||Pool.entries?.[difficulty];
 if(!Array.isArray(sourceEntries)||sourceEntries.length!==120)throw new Error(`${difficulty}: exact 120-entry runtime pool unavailable`);
 const entries=[],seen=new Map(),plannerTimes=[];let directStarts=0,materializedStarts=0,directDisplays=0,materializedDisplays=0,advancedMoves=0,totalSteps=0;
-for(let poolIndex=0;poolIndex<sourceEntries.length;poolIndex++){
+for(let poolIndex=startIndex;poolIndex<endIndex;poolIndex++){
   const entry=sourceEntries[poolIndex],state=stateFor(entry),steps=[];
   for(let moveIndex=0;moveIndex<72;moveIndex++){
     if(!state.some(row=>row.includes(-1)))break;
@@ -67,10 +72,10 @@ for(let poolIndex=0;poolIndex<sourceEntries.length;poolIndex++){
   }
   if(state.some(row=>row.includes(-1)))throw new Error(`${difficulty}[${poolIndex}]: canonical live Tutor did not solve within 72 moves`);
   entries.push([poolIndex,entry.fingerprint||entry.difficultyProfile?.fingerprint||'',steps]);
-  if((poolIndex+1)%10===0||poolIndex===119)console.error(`${difficulty}: ${poolIndex+1}/120 puzzles, ${seen.size} unique synchronized states`);
+  const processed=poolIndex-startIndex+1;if(processed%10===0||poolIndex===endIndex-1)console.error(`${difficulty}: ${processed}/${requestedCount} puzzles in pool range ${startIndex}-${endIndex-1}, ${seen.size} unique synchronized states`);
 }
 const stats=v=>{const total=v.reduce((a,b)=>a+b,0);return {count:v.length,total:Number(total.toFixed(3)),avg:Number((total/Math.max(1,v.length)).toFixed(3)),max:Number(Math.max(...v).toFixed(3)),min:Number(Math.min(...v).toFixed(3))}};
 const payload={schema:2,version:'tango-tutor-sync-shard-r2',difficulty,poolVersion:Pool.version,tutorContract:{schema:tutorContract.schema,version:tutorContract.version,algorithm:tutorContract.algorithm,digest:tutorContract.digest},tutorPlannerToken:Tutor.TOKEN||null,humanPolicy:Human.POLICY||null,proofPolicy:Runtime.HUMAN_PROOF_POLICY||null,entryShape:'[poolIndex,initialFingerprint,steps]',stepShape:'[fingerprint,advancedFlag,startKind,targetIndex,value,startPayload,selectionMeta,displayKind,displayPayload,proofMeta]',entries};
 fs.mkdirSync(path.dirname(outputPath),{recursive:true});fs.writeFileSync(outputPath,JSON.stringify(payload));
-const report={schema:2,version:payload.version,difficulty,poolVersion:payload.poolVersion,tutorContract:payload.tutorContract,tutorPlannerToken:payload.tutorPlannerToken,humanPolicy:payload.humanPolicy,proofPolicy:payload.proofPolicy,puzzles:entries.length,totalSteps,uniqueFingerprints:seen.size,advancedMoves,directStarts,materializedStarts,directDisplays,materializedDisplays,bytes:fs.statSync(outputPath).size,livePlannerMs:stats(plannerTimes)};
+const report={schema:2,version:payload.version,difficulty,poolVersion:payload.poolVersion,tutorContract:payload.tutorContract,tutorPlannerToken:payload.tutorPlannerToken,humanPolicy:payload.humanPolicy,proofPolicy:payload.proofPolicy,startIndex,endIndex,puzzles:entries.length,totalSteps,uniqueFingerprints:seen.size,advancedMoves,directStarts,materializedStarts,directDisplays,materializedDisplays,bytes:fs.statSync(outputPath).size,livePlannerMs:stats(plannerTimes)};
 if(reportPath){fs.mkdirSync(path.dirname(reportPath),{recursive:true});fs.writeFileSync(reportPath,JSON.stringify(report,null,2))}console.log(JSON.stringify(report));
