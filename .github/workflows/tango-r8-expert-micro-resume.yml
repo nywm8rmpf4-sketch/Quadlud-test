@@ -1,0 +1,244 @@
+name: QUADLUD Tango R8 Expert micro-shard certification
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths: ['.github/workflows/tango-r8-expert-micro-resume.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - name: Add bounded range support to parity invariant
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('qa-public/tests/v319-r8-cache-live-parity.test.js'); s=p.read_text()
+          old="const DIFFS=requestedDifficulty?[requestedDifficulty]:ALL_DIFFS;\nconst diagnostic=process.env.QUADLUD_PARITY_DIAGNOSTIC==='1';"
+          new="const DIFFS=requestedDifficulty?[requestedDifficulty]:ALL_DIFFS;\nconst parityStartRaw=String(process.env.QUADLUD_PARITY_START||'').trim(),parityCountRaw=String(process.env.QUADLUD_PARITY_COUNT||'').trim();\nconst parityStart=parityStartRaw===''?0:Number(parityStartRaw),parityCount=parityCountRaw===''?120:Number(parityCountRaw);\nif(!Number.isInteger(parityStart)||parityStart<0||parityStart>=120)throw new Error(`invalid QUADLUD_PARITY_START ${parityStartRaw}`);\nif(!Number.isInteger(parityCount)||parityCount<1||parityStart+parityCount>120)throw new Error(`invalid QUADLUD_PARITY_COUNT ${parityCountRaw}`);\nconst parityEnd=parityStart+parityCount;\nconst diagnostic=process.env.QUADLUD_PARITY_DIAGNOSTIC==='1';"
+          if s.count(old)!=1: raise SystemExit('parity range header anchor mismatch')
+          s=s.replace(old,new)
+          old="const report={schema:1,kind:'tango-r8-cache-live-canonical-parity',poolCounts:pool.counts,checkedStates:0"
+          new="const report={schema:1,kind:'tango-r8-cache-live-canonical-parity',poolCounts:pool.counts,range:{start:parityStart,end:parityEnd,count:parityCount},checkedStates:0"
+          if s.count(old)!=1: raise SystemExit('parity report anchor mismatch')
+          s=s.replace(old,new)
+          old="const stats={puzzles:entries.length,states:0,hits:0,lookupMisses:0,rebuildMisses:0,mismatches:0};\n  for(let poolIndex=0;poolIndex<entries.length;poolIndex++){"
+          new="const stats={puzzles:parityCount,start:parityStart,end:parityEnd,states:0,hits:0,lookupMisses:0,rebuildMisses:0,mismatches:0};\n  for(let poolIndex=parityStart;poolIndex<parityEnd;poolIndex++){"
+          if s.count(old)!=1: raise SystemExit('parity loop anchor mismatch')
+          p.write_text(s.replace(old,new))
+          PY
+          node --check qa-public/tests/v319-r8-cache-live-parity.test.js
+          git diff --check
+      - name: Commit bounded parity support
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'; git config user.email 'actions@users.noreply.github.com'
+          git add qa-public/tests/v319-r8-cache-live-parity.test.js
+          git diff --cached --check
+          git commit -m 'test(tango): bound R8 parity by deterministic pool range'
+          git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
+
+  expert:
+    needs: prepare
+    name: expert-${{ matrix.start }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        start: [0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45,48,51,54,57,60,63,66,69,72,75,78,81,84,87,90,93,96,99,102,105,108,111,114,117]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Build exact three-puzzle Expert shard
+        run: |
+          set -euo pipefail
+          test "$(sha256sum tango-runtime-pool-data.js | cut -d' ' -f1)" = "6c3b226cc4c4db089768740510113bd07db2958a14216cf98020e7b0f4f9b013"
+          mkdir -p "$RUNNER_TEMP/expert"
+          node qa-public/tools/build_tango_tutor_sync_shard_r8.js \
+            --difficulty expert --start "${{ matrix.start }}" --count 3 \
+            --pool tango-runtime-pool-data.js \
+            --output "$RUNNER_TEMP/expert/tango-tutor-sync-expert-${{ matrix.start }}.json" \
+            --report "$RUNNER_TEMP/expert/expert-${{ matrix.start }}-report.json"
+          START='${{ matrix.start }}' node - <<'NODE'
+          const fs=require('fs'),assert=require('assert'),start=Number(process.env.START);
+          const x=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+`/expert/tango-tutor-sync-expert-${start}.json`));
+          assert.equal(x.entries.length,3);assert.deepStrictEqual(x.entries.map(e=>e[0]),[start,start+1,start+2]);
+          assert.equal(x.tutorContract.digest,'b48da5bd09ae47acffa1ba787fe26e11c4c3e4830115b931392c6e9fa2e9c45a');
+          const steps=x.entries.flatMap(e=>e[2]);assert(steps.length>0);assert.equal(new Set(steps.map(s=>s[0])).size,steps.length);console.log('PASS Expert micro-shard',start,'states',steps.length);
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-sync-expert-${{ matrix.start }}
+          path: ${{ runner.temp }}/expert/
+          if-no-files-found: error
+          retention-days: 7
+
+  combine:
+    needs: expert
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Recover certified Easy Medium Hard shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tango-sync-*
+          path: ${{ runner.temp }}/sync
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          repository: nywm8rmpf4-sketch/Quadlud-test
+          run-id: 34515807007
+      - name: Download current Expert micro-shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tango-sync-expert-*
+          path: ${{ runner.temp }}/expert
+          merge-multiple: true
+      - name: Merge Expert and prove exact 0-119 coverage
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,glob,os
+          root=os.environ['RUNNER_TEMP'];paths=sorted(glob.glob(root+'/expert/tango-tutor-sync-expert-*.json'))
+          if len(paths)!=40: raise SystemExit(f'expected 40 Expert micro-shards, got {len(paths)}')
+          docs=[json.load(open(p,encoding='utf-8')) for p in paths]
+          identity=lambda d:(d['schema'],d['version'],d['difficulty'],d['poolVersion'],json.dumps(d['tutorContract'],sort_keys=True),d['tutorPlannerToken'],d['humanPolicy'],d['proofPolicy'])
+          if len({identity(d) for d in docs})!=1: raise SystemExit('Expert micro-shard algorithm identity mismatch')
+          entries=sorted((e for d in docs for e in d['entries']),key=lambda e:e[0]);indices=[e[0] for e in entries]
+          if indices!=list(range(120)): raise SystemExit(f'Expert coverage mismatch: {indices}')
+          fingerprints=[s[0] for e in entries for s in e[2]]
+          if len(fingerprints)!=len(set(fingerprints)): raise SystemExit('Expert duplicate canonical-state fingerprint across micro-shards')
+          out=dict(docs[0]);out['entries']=entries
+          json.dump(out,open(root+'/sync/tango-tutor-sync-expert.json','w',encoding='utf-8'),separators=(',',':'))
+          print('PASS merged Expert 120/120:',len(fingerprints),'unique canonical states')
+          PY
+          for d in easy medium hard expert; do test -s "$RUNNER_TEMP/sync/tango-tutor-sync-$d.json"; done
+      - name: Compact losslessly and materialize guarded package
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/package"
+          node qa-public/tools/compact_tango_tutor_sync_r8.js "$RUNNER_TEMP/sync" "$RUNNER_TEMP/package"
+          cp qa-public/tools/tango-tutor-precomputed-cache-sync-template.js "$RUNNER_TEMP/package/tango-tutor-precomputed-cache.js"
+          node - <<'NODE'
+          const fs=require('fs'),C=require('./qa-public/tools/tango_tutor_cache_contract.js').compute('.');
+          const R=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/package/tango-tutor-cache-r8-sync-report.json'));
+          if(C.digest!==R.tutorContract.digest||C.digest!=='b48da5bd09ae47acffa1ba787fe26e11c4c3e4830115b931392c6e9fa2e9c45a')throw new Error('Tutor contract mismatch');
+          const data={...C,tutorPlannerToken:R.tutorPlannerToken,humanPolicy:R.humanPolicy,proofPolicy:R.proofPolicy};
+          fs.writeFileSync(process.env.RUNNER_TEMP+'/package/tango-tutor-cache-contract-r8.js',`/* QUADLUD — Soleil-Lune Tutor cache contract R8. Copyright © 2026 Serge Benoliel. All rights reserved. */\n(function(root){'use strict';const c=${JSON.stringify(data)};root.QuadludTangoTutorCacheContractR8=Object.freeze(c);if(typeof module!=='undefined'&&module.exports)module.exports=Object.freeze(c);})(typeof globalThis!=='undefined'?globalThis:this);\n`);
+          NODE
+          cp "$RUNNER_TEMP/package/tango-tutor-precomputed-cache.js" ./tango-tutor-precomputed-cache.js
+          cp "$RUNNER_TEMP/package/tango-tutor-cache-contract-r8.js" ./tango-tutor-cache-contract-r8.js
+          cp "$RUNNER_TEMP/package/tango-tutor-cache-data-r8.js" ./tango-tutor-cache-data-r8.js
+          node --check tango-tutor-precomputed-cache.js; node --check tango-tutor-cache-contract-r8.js; node --check tango-tutor-cache-data-r8.js
+          node - <<'NODE'
+          const assert=require('assert'),C=require('./tango-tutor-precomputed-cache.js'),D=require('./tango-tutor-cache-data-r8.js');if(!C.info().registered)C.registerData(D);const i=C.info();
+          assert.equal(i.version,3);assert.equal(i.dataSchema,8);assert.equal(i.dataVersion,'tango-tutor-cache-r8-sync2');assert.equal(i.contract.digest,'b48da5bd09ae47acffa1ba787fe26e11c4c3e4830115b931392c6e9fa2e9c45a');assert.deepStrictEqual(D.puzzleCounts,{easy:120,medium:120,hard:120,expert:120});console.log('PASS synchronized cache package',i.steps);
+          NODE
+          (cd "$RUNNER_TEMP/package" && sha256sum tango-tutor-precomputed-cache.js tango-tutor-cache-contract-r8.js tango-tutor-cache-data-r8.js tango-tutor-cache-r8-sync-report.json > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-sync-cache-package
+          path: ${{ runner.temp }}/package/
+          if-no-files-found: error
+          retention-days: 7
+
+  parity-core:
+    needs: combine
+    name: parity-${{ matrix.difficulty }}-${{ matrix.start }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        difficulty: [easy, medium, hard]
+        start: [0,20,40,60,80,100]
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: candidate/v3.1.9-tango-r8-integrated}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with: {name: tango-r8-sync-cache-package, path: '${{ runner.temp }}/package'}
+      - name: Prove bounded cache live parity
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/package/tango-tutor-precomputed-cache.js" .; cp "$RUNNER_TEMP/package/tango-tutor-cache-contract-r8.js" .; cp "$RUNNER_TEMP/package/tango-tutor-cache-data-r8.js" .
+          QUADLUD_PARITY_DIFFICULTY='${{ matrix.difficulty }}' QUADLUD_PARITY_START='${{ matrix.start }}' QUADLUD_PARITY_COUNT=20 QUADLUD_PARITY_REPORT="$RUNNER_TEMP/parity-${{ matrix.difficulty }}-${{ matrix.start }}.json" node qa-public/tests/v319-r8-cache-live-parity.test.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-parity-${{ matrix.difficulty }}-${{ matrix.start }}
+          path: ${{ runner.temp }}/parity-${{ matrix.difficulty }}-${{ matrix.start }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  parity-expert:
+    needs: combine
+    name: parity-expert-${{ matrix.start }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        start: [0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68,72,76,80,84,88,92,96,100,104,108,112,116]
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: candidate/v3.1.9-tango-r8-integrated}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with: {name: tango-r8-sync-cache-package, path: '${{ runner.temp }}/package'}
+      - name: Prove bounded Expert cache live parity
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/package/tango-tutor-precomputed-cache.js" .; cp "$RUNNER_TEMP/package/tango-tutor-cache-contract-r8.js" .; cp "$RUNNER_TEMP/package/tango-tutor-cache-data-r8.js" .
+          QUADLUD_PARITY_DIFFICULTY=expert QUADLUD_PARITY_START='${{ matrix.start }}' QUADLUD_PARITY_COUNT=4 QUADLUD_PARITY_REPORT="$RUNNER_TEMP/parity-expert-${{ matrix.start }}.json" node qa-public/tests/v319-r8-cache-live-parity.test.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-parity-expert-${{ matrix.start }}
+          path: ${{ runner.temp }}/parity-expert-${{ matrix.start }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  aggregate:
+    needs: [parity-core, parity-expert]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tango-r8-parity-*
+          path: ${{ runner.temp }}/parity
+          merge-multiple: true
+      - name: Prove exhaustive 480-puzzle parity coverage
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob,json,os
+          paths=glob.glob(os.environ['RUNNER_TEMP']+'/parity/parity-*.json')
+          if len(paths)!=48: raise SystemExit(f'expected 48 parity reports, got {len(paths)}')
+          cov={d:[] for d in ['easy','medium','hard','expert']}; totals={'states':0,'hits':0}
+          for p in paths:
+            d=json.load(open(p,encoding='utf-8')); by=d.get('byDifficulty') or {}
+            if len(by)!=1: raise SystemExit(f'{p}: expected exactly one difficulty')
+            diff=next(iter(by)); r=d.get('range') or {}; start=int(r.get('start',-1)); end=int(r.get('end',-1))
+            cov[diff].extend(range(start,end)); totals['states']+=int(d.get('checkedStates',0)); totals['hits']+=int(d.get('cacheHits',0))
+            if d.get('mismatches') or d.get('lookupMisses') or d.get('rebuildMisses') or int(d.get('checkedStates',0))!=int(d.get('cacheHits',0)):
+              raise SystemExit(f'{p}: parity not exact')
+          for diff,indices in cov.items():
+            if sorted(indices)!=list(range(120)): raise SystemExit(f'{diff}: parity coverage mismatch {sorted(indices)}')
+          if totals['states']<=0 or totals['states']!=totals['hits']: raise SystemExit(f'aggregate parity counts invalid {totals}')
+          print('PASS exhaustive synchronized R8 cache/live parity: 480/480 puzzles,',totals['states'],'visible states, 100% cache hits, zero mismatches/misses')
+          PY
