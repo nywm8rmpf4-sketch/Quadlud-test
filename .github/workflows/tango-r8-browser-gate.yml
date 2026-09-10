@@ -39,11 +39,26 @@ jobs:
           rm -rf "$R"; mkdir -p "$R/GitHub" "$R/tests"
           rsync -a ./ "$R/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='.gitignore' --exclude='qa-public/' --exclude='qa-release/'
           cp -a qa-public/tests/. "$R/tests/"
+          printf '<!doctype html><html><body>SW probe</body></html>\n' > "$R/GitHub/qa-sw-probe.html"
           test -f "$R/GitHub/LICENSE"
           test -f "$R/GitHub/tango-runtime-pool-data.js"
           test -f "$R/GitHub/tango-tutor-cache-data-r8.js"
           test -f "$R/tests/v319-r8-integrated-browser.test.py"
           test -f "$R/tests/v319-r8-browser-phase-diagnostic.py"
+          test -f "$R/tests/v319-r8-service-worker-minimal-probe.py"
+      - name: Probe service worker on minimal page
+        env:
+          QUADLUD_R8_BASE_URL: http://127.0.0.1:8765/
+        run: |
+          set -euo pipefail
+          R="$RUNNER_TEMP/quadlud-r8-browser"
+          cd "$R/GitHub"
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/r8-http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/qa-sw-probe.html >/dev/null && break; sleep 1; done
+          cd "$R"; export PYTHONPATH="$R/tests"
+          timeout 30s python3 -u tests/v319-r8-service-worker-minimal-probe.py
       - name: Diagnose real-page phase boundaries
         env:
           QUADLUD_R8_BASE_URL: http://127.0.0.1:8765/
@@ -55,8 +70,7 @@ jobs:
           SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
-          cd "$R"
-          export PYTHONPATH="$R/tests"
+          cd "$R"; export PYTHONPATH="$R/tests"
           timeout 90s python3 -u tests/v319-r8-browser-phase-diagnostic.py
       - name: Run real-page exact R8 integration gate
         env:
@@ -71,8 +85,7 @@ jobs:
           SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
-          cd "$R"
-          export PYTHONPATH="$R/tests"
+          cd "$R"; export PYTHONPATH="$R/tests"
           timeout 420s python3 -u tests/v319-r8-integrated-browser.test.py
       - name: Run integrated semantic browser regressions
         env:
