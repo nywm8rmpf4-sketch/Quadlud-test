@@ -1,0 +1,27 @@
+name: QUADLUD Tango R8 human priority check
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths:
+      - '.github/workflows/tango-r8-human-priority-check.yml'
+      - 'qa-public/tests/v319-r8-simple-before-contradiction.test.js'
+permissions: {contents: read}
+jobs:
+  priority:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Materialize canonical layout and run human-priority regression
+        run: |
+          set -euo pipefail
+          R="$RUNNER_TEMP/q"; mkdir -p "$R/GitHub" "$R/tests"
+          rsync -a ./ "$R/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='qa-public/' --exclude='qa-release/'
+          cp -a qa-public/tests/. "$R/tests/"
+          cd "$R"
+          node --check tests/v319-r8-simple-before-contradiction.test.js
+          node tests/v319-r8-simple-before-contradiction.test.js
