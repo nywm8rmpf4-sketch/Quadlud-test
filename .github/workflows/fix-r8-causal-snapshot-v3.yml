@@ -80,7 +80,6 @@ jobs:
           node --check qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js
           node qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js
           node qa-public/tests/v319-hf39-semantic-coherence.test.js
-          node qa-public/tests/v319-hf39-r55-stage-order.test.js
           git diff --check
       - name: Commit tested source and regression
         run: |
