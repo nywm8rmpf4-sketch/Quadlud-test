@@ -1,0 +1,128 @@
+name: Fix R8 outermost final text ownership
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths:
+      - '.github/workflows/fix-r8-finalizer-outermost.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Patch finalizer ownership and rendered cross-field dedup
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('tango-pedagogy-text-finalizer.js'); s=p.read_text(encoding='utf-8')
+          if s.count('const VERSION=4;')!=1: raise SystemExit('unexpected finalizer VERSION')
+          s=s.replace('const VERSION=4;','const VERSION=5;')
+          old="""function dedupPresentationMove(presentation){
+            if(!presentation||typeof presentation!=='object')return presentation;const explanation=presentation.explanation;if(!explanation||typeof explanation!=='object'||typeof explanation.why!=='string'||typeof explanation.move!=='string')return presentation;const moveKey=propositionKey(explanation.move);if(!moveKey)return presentation;
+            const parts=explanation.why.split(/(?<=[.!?])\\s+/);explanation.why=parts.filter(part=>{const key=propositionKey(part);return !(key===moveKey&&/^\\s*(?:Donc|Therefore|Conclusion)(?:\\s*:|\\s|$)/i.test(part))}).join(' ').trim();return presentation
+          }
+          function sanitizePresentation(presentation){return presentation&&typeof presentation==='object'?dedupPresentationMove(finalizeValue(copy(presentation))):presentation}"""
+          new="""function dedupWhyAgainstMove(why,move){
+            const moveKey=propositionKey(move);if(!moveKey)return String(why??'');const parts=String(why??'').split(/(?<=[.!?])\\s+/);return parts.filter(part=>{const key=propositionKey(part);return !(key===moveKey&&/^\\s*(?:Donc|Therefore|Conclusion)(?:\\s*:|\\s|$)/i.test(part))}).join(' ').trim()
+          }
+          function dedupPresentationMove(presentation){
+            if(!presentation||typeof presentation!=='object')return presentation;const explanation=presentation.explanation;if(!explanation||typeof explanation!=='object'||typeof explanation.why!=='string'||typeof explanation.move!=='string')return presentation;explanation.why=dedupWhyAgainstMove(explanation.why,explanation.move);return presentation
+          }
+          function sanitizePresentation(presentation){return presentation&&typeof presentation==='object'?dedupPresentationMove(finalizeValue(copy(presentation))):presentation}"""
+          if s.count(old)!=1: raise SystemExit(f'dedup block count={s.count(old)}')
+          s=s.replace(old,new)
+          old="""function finalizeRenderedDom(){
+            let changed=false;if(walkthroughIsTango())changed=finalizeTextNodes(root.document?.querySelector?.('.walkthrough-explanation'))||changed;if(currentTango())changed=finalizeTextNodes(root.document?.querySelector?.('#hintNotice .hint-notice-text'))||changed;
+            refreshWalkthroughSemanticRoles();return changed
+          }"""
+          new="""function dedupRenderedMove(scope){
+            const move=scope?.querySelector?.('.walkthrough-move');if(!move||!root.document?.createTreeWalker)return false;let why=move.previousElementSibling;while(why&&String(why.tagName||'').toUpperCase()!=='P')why=why.previousElementSibling;if(!why)return false;const walker=root.document.createTreeWalker(why,root.NodeFilter?.SHOW_TEXT||4),nodes=[];let node;while((node=walker.nextNode()))nodes.push(node);let changed=false;for(const n of nodes){const source=String(n.nodeValue??'');const next=dedupWhyAgainstMove(source,move.textContent||'');if(next!==source){n.nodeValue=next;changed=true}}return changed
+          }
+          function finalizeRenderedDom(){
+            let changed=false;if(walkthroughIsTango()){const explanation=root.document?.querySelector?.('.walkthrough-explanation');changed=finalizeTextNodes(explanation)||changed;changed=dedupRenderedMove(explanation)||changed}if(currentTango())changed=finalizeTextNodes(root.document?.querySelector?.('#hintNotice .hint-notice-text'))||changed;
+            refreshWalkthroughSemanticRoles();return changed
+          }"""
+          if s.count(old)!=1: raise SystemExit(f'finalizeRenderedDom count={s.count(old)}')
+          s=s.replace(old,new)
+          old="return Object.freeze({VERSION,install,finalizeText,finalizeHtml,sanitizePresentation,dedupSemanticSentences,propositionKey,refreshWalkthroughSemanticRoles,_test:Object.freeze({replaceRawPieces,normalizeFrenchGrammar,finalizeInlineText,stripIntermediate,finalizeValue})});"
+          new="return Object.freeze({VERSION,install,finalizeText,finalizeHtml,sanitizePresentation,dedupSemanticSentences,dedupWhyAgainstMove,dedupRenderedMove,finalizeRenderedDom,propositionKey,refreshWalkthroughSemanticRoles,_test:Object.freeze({replaceRawPieces,normalizeFrenchGrammar,finalizeInlineText,stripIntermediate,finalizeValue})});"
+          if s.count(old)!=1: raise SystemExit(f'export count={s.count(old)}')
+          p.write_text(s.replace(old,new),encoding='utf-8')
+
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          old='<script src="tango-pedagogy-text-finalizer.js?v=3.1.9-hf3.6-retest2"></script>'
+          if s.count(old)!=1: raise SystemExit(f'index old finalizer count={s.count(old)}')
+          s=s.replace(old,'')
+          anchor='<script src="tango-tutor-causal-atomic-r55.js?v=3.1.9-hf3.9-r5.6-causal-closure-v17"></script>'
+          if s.count(anchor)!=1: raise SystemExit(f'causal atomic anchor count={s.count(anchor)}')
+          s=s.replace(anchor,anchor+'<script src="tango-pedagogy-text-finalizer.js?v=3.1.9-hf3.6-retest3"></script>')
+          p.write_text(s,encoding='utf-8')
+
+          p=Path('sw.js'); s=p.read_text(encoding='utf-8')
+          if s.count("const CACHE='quadlud-v3.1.9-tango-r8-exact-v16';")!=1: raise SystemExit('SW v16 anchor mismatch')
+          s=s.replace("const CACHE='quadlud-v3.1.9-tango-r8-exact-v16';","const CACHE='quadlud-v3.1.9-tango-r8-exact-v17';")
+          old='./tango-pedagogy-text-finalizer.js?v=3.1.9-hf3.6-retest2'; new='./tango-pedagogy-text-finalizer.js?v=3.1.9-hf3.6-retest3'
+          if s.count(old)!=1: raise SystemExit(f'SW finalizer URL count={s.count(old)}')
+          p.write_text(s.replace(old,new),encoding='utf-8')
+
+          p=Path('qa-public/tests/v319-r8-integrated-browser.test.py'); s=p.read_text(encoding='utf-8')
+          if s.count('quadlud-v3.1.9-tango-r8-exact-v16')!=1: raise SystemExit('R8 v16 assertion anchor mismatch')
+          p.write_text(s.replace('quadlud-v3.1.9-tango-r8-exact-v16','quadlud-v3.1.9-tango-r8-exact-v17'),encoding='utf-8')
+
+          p=Path('qa-public/tests/v319-r3ui-tango-text-finalizer.test.js'); s=p.read_text(encoding='utf-8')
+          old="""assert(!/Donc\\s+A1\\s*=/i.test(contradiction.explanation.why),contradiction.explanation.why);"""
+          new="""assert(!/Donc\\s+A1\\s*=/i.test(contradiction.explanation.why),contradiction.explanation.why);
+          assert.strictEqual(Finalizer.dedupWhyAgainstMove('L’hypothèse est impossible. Donc F6 = moon 🌙.','F6 = moon 🌙.'),'L’hypothèse est impossible.');"""
+          if s.count(old)!=1: raise SystemExit(f'finalizer unit anchor count={s.count(old)}')
+          s=s.replace(old,new)
+          old="assert(clarity>=0&&finalizer>clarity,'text finalizer must load after Tutor clarity so it is the final presentation layer');"
+          new="const causalAtomic=index.indexOf('tango-tutor-causal-atomic-r55.js');\nassert(clarity>=0&&causalAtomic>clarity&&finalizer>causalAtomic,'text finalizer must load after every late Tango Tutor wrapper');"
+          if s.count(old)!=1: raise SystemExit(f'order assertion count={s.count(old)}')
+          s=s.replace(old,new)
+          old="tango-pedagogy-text-finalizer.js?v=3.1.9-hf3.6-retest2"
+          if s.count(old)!=1: raise SystemExit(f'query assertion count={s.count(old)}')
+          s=s.replace(old,"tango-pedagogy-text-finalizer.js?v=3.1.9-hf3.6-retest3")
+          s=s.replace('Safari cache-busting query must identify RETEST1 finalizer','Safari cache-busting query must identify RETEST3 finalizer')
+          s=s.replace('PASS HF3.6 RETEST1:','PASS HF3.6 RETEST3:')
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Run targeted regressions in canonical layout
+        run: |
+          set -euo pipefail
+          node --check tango-pedagogy-text-finalizer.js
+          git diff --check
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm'),assert=require('assert');
+          const src=fs.readFileSync('sw.js','utf8');
+          const m=src.match(/const ASSETS=(\[[\s\S]*?\]);/);assert(m,'ASSETS not found');
+          const assets=vm.runInNewContext(m[1]);
+          assert.strictEqual(assets.length,new Set(assets).size,'service-worker precache must stay unique');
+          assert.strictEqual(assets.length,128,'expected 128 precache URLs');
+          console.log(`PASS SW precache uniqueness ${assets.length}/${new Set(assets).size}`);
+          NODE
+          R="$RUNNER_TEMP/r8-finalizer"; rm -rf "$R"; mkdir -p "$R/GitHub" "$R/tests"
+          rsync -a ./ "$R/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='.gitignore' --exclude='qa-public/' --exclude='qa-release/'
+          cp -a qa-public/tests/. "$R/tests/"
+          cd "$R"
+          node tests/v319-r3ui-tango-text-finalizer.test.js
+          node tests/v319-hf39-r54-tutor-presentation.test.js
+          node tests/v319-hf39-r55-internal-action-continuity.test.js
+          node tests/v319-hf39-semantic-coherence.test.js
+      - name: Commit tested finalizer ownership fix
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add tango-pedagogy-text-finalizer.js index.html sw.js qa-public/tests/v319-r8-integrated-browser.test.py qa-public/tests/v319-r3ui-tango-text-finalizer.test.js
+          git diff --cached --check
+          git commit -m 'fix(tango): make final text projection outermost'
+          git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
