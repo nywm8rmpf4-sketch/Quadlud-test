@@ -21,23 +21,23 @@ function signatureId(signature){const [rule,suffix]=splitSignature(signature);if
 function deductionId(d){const key=JSON.stringify(d);return idFor(deductionIds,data.materializedDeductions,key,d)}
 function seedId(kind,payload){return kind===0?signatureId(payload):deductionId(payload)}
 function identity(source){return JSON.stringify([source.poolVersion,source.tutorContract?.schema,source.tutorContract?.version,source.tutorContract?.algorithm,source.tutorContract?.digest,source.tutorPlannerToken,source.humanPolicy,source.proofPolicy])}
-let expectedIdentity=null,totalSteps=0,directStarts=0,materializedStarts=0,directDisplays=0,materializedDisplays=0;
+let expectedIdentity=null,totalSteps=0,advancedMoves=0,directStarts=0,materializedStarts=0,directDisplays=0,materializedDisplays=0;
 for(const diff of DIFFS){
   const file=path.join(cacheDir,`tango-tutor-sync-${diff}.json`),source=JSON.parse(fs.readFileSync(file,'utf8'));
-  if(source.schema!==1||source.version!=='tango-tutor-sync-shard-r1'||source.difficulty!==diff||!source.tutorContract?.digest||!source.tutorPlannerToken||!source.humanPolicy||!source.proofPolicy||!Array.isArray(source.entries)||source.entries.length!==120)throw new Error(`${diff}: invalid synchronized Tutor shard`);
+  if(source.schema!==2||source.version!=='tango-tutor-sync-shard-r2'||source.difficulty!==diff||!source.tutorContract?.digest||!source.tutorPlannerToken||!source.humanPolicy||!source.proofPolicy||!Array.isArray(source.entries)||source.entries.length!==120)throw new Error(`${diff}: invalid synchronized Tutor shard`);
   const ident=identity(source);if(expectedIdentity===null){expectedIdentity=ident;data.sourcePoolVersion=source.poolVersion;data.tutorContract=source.tutorContract;data.tutorPlannerToken=source.tutorPlannerToken;data.humanPolicy=source.humanPolicy;data.proofPolicy=source.proofPolicy}else if(ident!==expectedIdentity)throw new Error(`${diff}: Tutor algorithm identity differs between shards`);
   data.puzzleCounts[diff]=source.entries.length;const out=[],seen=new Map();
   for(const entry of source.entries){
     if(!Array.isArray(entry)||!Array.isArray(entry[2]))throw new Error(`${diff}: invalid shard entry`);
     for(const step of entry[2]){
-      if(!Array.isArray(step)||step.length!==9)throw new Error(`${diff}: invalid synchronized step`);
-      const [fingerprint,startKind,target,value,startPayload,selection,displayKind,displayPayload,proofMeta]=step;
-      if((startKind!==0&&startKind!==1)||(displayKind!==0&&displayKind!==1)||!Number.isInteger(target)||target<0||target>=36||(value!==0&&value!==1)||!Array.isArray(selection)||selection.length<5||!Array.isArray(proofMeta)||proofMeta.length<9)throw new Error(`${diff}: malformed synchronized step`);
+      if(!Array.isArray(step)||step.length!==10)throw new Error(`${diff}: invalid synchronized step`);
+      const [fingerprint,advancedFlag,startKind,target,value,startPayload,selection,displayKind,displayPayload,proofMeta]=step;
+      if((advancedFlag!==0&&advancedFlag!==1)||(startKind!==0&&startKind!==1)||(displayKind!==0&&displayKind!==1)||!Number.isInteger(target)||target<0||target>=36||(value!==0&&value!==1)||!Array.isArray(selection)||selection.length<5||!Array.isArray(proofMeta)||proofMeta.length<9)throw new Error(`${diff}: malformed synchronized step`);
       const startId=seedId(startKind,startPayload),displayId=seedId(displayKind,displayPayload),selKey=JSON.stringify(selection),selId=idFor(selectionIds,data.selectionMeta,selKey,selection),proofKey=JSON.stringify(proofMeta),proofId=idFor(proofIds,data.proofMeta,proofKey,proofMeta);
-      const compact=[fpKey(fingerprint),startKind,target,value,startId,selId,displayKind,displayId,proofId],key=compact[0],previous=seen.get(key);
+      const compact=[fpKey(fingerprint),advancedFlag,startKind,target,value,startId,selId,displayKind,displayId,proofId],key=compact[0],previous=seen.get(key);
       if(previous&&JSON.stringify(previous)!==JSON.stringify(compact))throw new Error(`${diff}: conflicting visible-state fingerprint ${fingerprint}`);
       if(!previous){seen.set(key,compact);out.push(compact)}
-      startKind===0?directStarts++:materializedStarts++;displayKind===0?directDisplays++:materializedDisplays++;totalSteps++;
+      if(advancedFlag)advancedMoves++;startKind===0?directStarts++:materializedStarts++;displayKind===0?directDisplays++:materializedDisplays++;totalSteps++;
     }
   }
   data.steps[diff]=out;
@@ -49,9 +49,9 @@ function expandSeed(kind,id){return kind===0?signatureFromId(id):data.materializ
 for(const diff of DIFFS){
   const source=JSON.parse(fs.readFileSync(path.join(cacheDir,`tango-tutor-sync-${diff}.json`),'utf8')),sourceSteps=source.entries.flatMap(e=>e[2]),out=data.steps[diff];
   if(identity(source)!==expectedIdentity||sourceSteps.length!==out.length)throw new Error(`${diff}: synchronized compaction cardinality/identity mismatch`);
-  sourceSteps.forEach((oldStep,i)=>{const x=out[i];if(fpFromKey(x[0])!==oldStep[0]||x[1]!==oldStep[1]||x[2]!==oldStep[2]||x[3]!==oldStep[3]||JSON.stringify(expandSeed(x[1],x[4]))!==JSON.stringify(oldStep[4])||JSON.stringify(data.selectionMeta[x[5]])!==JSON.stringify(oldStep[5])||x[6]!==oldStep[6]||JSON.stringify(expandSeed(x[6],x[7]))!==JSON.stringify(oldStep[7])||JSON.stringify(data.proofMeta[x[8]])!==JSON.stringify(oldStep[8]))throw new Error(`${diff}: lossless round-trip mismatch at step ${i}`)})
+  sourceSteps.forEach((oldStep,i)=>{const x=out[i];if(fpFromKey(x[0])!==oldStep[0]||x[1]!==oldStep[1]||x[2]!==oldStep[2]||x[3]!==oldStep[3]||x[4]!==oldStep[4]||JSON.stringify(expandSeed(x[2],x[5]))!==JSON.stringify(oldStep[5])||JSON.stringify(data.selectionMeta[x[6]])!==JSON.stringify(oldStep[6])||x[7]!==oldStep[7]||JSON.stringify(expandSeed(x[7],x[8]))!==JSON.stringify(oldStep[8])||JSON.stringify(data.proofMeta[x[9]])!==JSON.stringify(oldStep[9]))throw new Error(`${diff}: lossless round-trip mismatch at step ${i}`)})
 }
 const json=JSON.stringify(data),js=`/* QUADLUD — synchronized generated Soleil-Lune Tutor cache R8. Copyright © 2026 Serge Benoliel. All rights reserved. */\n(function(root){'use strict';const d=${json};root.QuadludTangoTutorCacheDataR8=d;const c=root.QuadludTangoTutorPrecomputedCache;if(c&&typeof c.registerData==='function')c.registerData(d);if(typeof module!=='undefined'&&module.exports)module.exports=d;})(typeof globalThis!=='undefined'?globalThis:this);\n`;
 fs.writeFileSync(path.join(outDir,'tango-tutor-cache-data-r8.js'),js);
-const report={schema:1,version:data.version,sourcePoolVersion:data.sourcePoolVersion,tutorContract:data.tutorContract,tutorPlannerToken:data.tutorPlannerToken,humanPolicy:data.humanPolicy,proofPolicy:data.proofPolicy,puzzles:data.puzzleCounts,steps:Object.fromEntries(DIFFS.map(d=>[d,data.steps[d].length])),totalSteps,directStarts,materializedStarts,directDisplays,materializedDisplays,rules:data.rules.length,payloads:data.payloads.length,signatures:data.signaturePairs.length,materializedDeductions:data.materializedDeductions.length,selectionMeta:data.selectionMeta.length,proofMeta:data.proofMeta.length,bytes:Buffer.byteLength(js)};
+const report={schema:2,version:data.version,sourcePoolVersion:data.sourcePoolVersion,tutorContract:data.tutorContract,tutorPlannerToken:data.tutorPlannerToken,humanPolicy:data.humanPolicy,proofPolicy:data.proofPolicy,puzzles:data.puzzleCounts,steps:Object.fromEntries(DIFFS.map(d=>[d,data.steps[d].length])),totalSteps,advancedMoves,directStarts,materializedStarts,directDisplays,materializedDisplays,rules:data.rules.length,payloads:data.payloads.length,signatures:data.signaturePairs.length,materializedDeductions:data.materializedDeductions.length,selectionMeta:data.selectionMeta.length,proofMeta:data.proofMeta.length,bytes:Buffer.byteLength(js)};
 fs.writeFileSync(path.join(outDir,'tango-tutor-cache-r8-sync-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
