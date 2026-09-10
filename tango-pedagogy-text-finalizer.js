@@ -11,7 +11,7 @@
   if(typeof document!=='undefined')api.install();
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
-const VERSION=4;
+const VERSION=5;
 const PIECE_TOKEN_RE=/\b(suns?|moons?|soleils?|lunes?)\b(?:\s*[☀☾🌞🌙🌛🌜🌚🌝])?/giu;
 const INTERMEDIATE_RE=/(?:\s|^)(?:Conclusion intermédiaire|Intermediate conclusion)\s*:\s*[^.!?<]*(?:[.!?](?=\s|$)|$)/gi;
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
@@ -64,9 +64,11 @@ function finalizeValue(value,depth=0){
   if(depth>8||value==null)return value;if(typeof value==='string')return finalizeText(value);if(Array.isArray(value))return value.map(v=>finalizeValue(v,depth+1));if(typeof value!=='object')return value;
   const out={};for(const [k,v] of Object.entries(value))out[k]=finalizeValue(v,depth+1);return out
 }
+function dedupWhyAgainstMove(why,move){
+  const moveKey=propositionKey(move);if(!moveKey)return String(why??'');const parts=String(why??'').split(/(?<=[.!?])\s+/);return parts.filter(part=>{const key=propositionKey(part);return !(key===moveKey&&/^\s*(?:Donc|Therefore|Conclusion)(?:\s*:|\s|$)/i.test(part))}).join(' ').trim()
+}
 function dedupPresentationMove(presentation){
-  if(!presentation||typeof presentation!=='object')return presentation;const explanation=presentation.explanation;if(!explanation||typeof explanation!=='object'||typeof explanation.why!=='string'||typeof explanation.move!=='string')return presentation;const moveKey=propositionKey(explanation.move);if(!moveKey)return presentation;
-  const parts=explanation.why.split(/(?<=[.!?])\s+/);explanation.why=parts.filter(part=>{const key=propositionKey(part);return !(key===moveKey&&/^\s*(?:Donc|Therefore|Conclusion)(?:\s*:|\s|$)/i.test(part))}).join(' ').trim();return presentation
+  if(!presentation||typeof presentation!=='object')return presentation;const explanation=presentation.explanation;if(!explanation||typeof explanation!=='object'||typeof explanation.why!=='string'||typeof explanation.move!=='string')return presentation;explanation.why=dedupWhyAgainstMove(explanation.why,explanation.move);return presentation
 }
 function sanitizePresentation(presentation){return presentation&&typeof presentation==='object'?dedupPresentationMove(finalizeValue(copy(presentation))):presentation}
 function currentTango(){try{return typeof current!=='undefined'&&current?.game==='tango'}catch(_){return false}}
@@ -84,8 +86,11 @@ function refreshWalkthroughSemanticRoles(){
   board.querySelectorAll('[data-pedagogy-unit]').forEach(el=>el.removeAttribute('data-pedagogy-unit'));
   try{return root.QuadludTutorActionFirstNavigation?.decorateCurrentAction?.()===true}catch(_){return false}
 }
+function dedupRenderedMove(scope){
+  const move=scope?.querySelector?.('.walkthrough-move');if(!move||!root.document?.createTreeWalker)return false;let why=move.previousElementSibling;while(why&&String(why.tagName||'').toUpperCase()!=='P')why=why.previousElementSibling;if(!why)return false;const walker=root.document.createTreeWalker(why,root.NodeFilter?.SHOW_TEXT||4),nodes=[];let node;while((node=walker.nextNode()))nodes.push(node);let changed=false;for(const n of nodes){const source=String(n.nodeValue??'');const next=dedupWhyAgainstMove(source,move.textContent||'');if(next!==source){n.nodeValue=next;changed=true}}return changed
+}
 function finalizeRenderedDom(){
-  let changed=false;if(walkthroughIsTango())changed=finalizeTextNodes(root.document?.querySelector?.('.walkthrough-explanation'))||changed;if(currentTango())changed=finalizeTextNodes(root.document?.querySelector?.('#hintNotice .hint-notice-text'))||changed;
+  let changed=false;if(walkthroughIsTango()){const explanation=root.document?.querySelector?.('.walkthrough-explanation');changed=finalizeTextNodes(explanation)||changed;changed=dedupRenderedMove(explanation)||changed}if(currentTango())changed=finalizeTextNodes(root.document?.querySelector?.('#hintNotice .hint-notice-text'))||changed;
   refreshWalkthroughSemanticRoles();return changed
 }
 let installed=false;
@@ -97,5 +102,5 @@ function install(){
   try{if(typeof renderWalkthrough==='function'&&!renderWalkthrough.__quadludTextFinalizer){const previous=renderWalkthrough,wrapped=function(...args){const result=previous(...args);finalizeRenderedDom();return result};wrapped.__quadludTextFinalizer=true;wrapped.__quadludPrevious=previous;renderWalkthrough=wrapped;ok=true}}catch(_){ }
   installed=ok;if(ok)finalizeRenderedDom();return ok
 }
-return Object.freeze({VERSION,install,finalizeText,finalizeHtml,sanitizePresentation,dedupSemanticSentences,propositionKey,refreshWalkthroughSemanticRoles,_test:Object.freeze({replaceRawPieces,normalizeFrenchGrammar,finalizeInlineText,stripIntermediate,finalizeValue})});
+return Object.freeze({VERSION,install,finalizeText,finalizeHtml,sanitizePresentation,dedupSemanticSentences,dedupWhyAgainstMove,dedupRenderedMove,finalizeRenderedDom,propositionKey,refreshWalkthroughSemanticRoles,_test:Object.freeze({replaceRawPieces,normalizeFrenchGrammar,finalizeInlineText,stripIntermediate,finalizeValue})});
 });

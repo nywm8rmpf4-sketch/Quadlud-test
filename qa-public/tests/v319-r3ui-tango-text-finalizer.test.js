@@ -68,6 +68,7 @@ const contradiction=Finalizer.sanitizePresentation({
 assert.strictEqual(contradiction.explanation.why,'L’hypothèse est impossible.',contradiction.explanation.why);
 assert(contradiction.explanation.move.includes('A1 = lune ☾'),contradiction.explanation.move);
 assert(!/Donc\s+A1\s*=/i.test(contradiction.explanation.why),contradiction.explanation.why);
+assert.strictEqual(Finalizer.dedupWhyAgainstMove('L’hypothèse est impossible. Donc F6 = moon 🌙.','F6 = moon 🌙.'),'L’hypothèse est impossible.');
 
 // Reproduce step N -> N+1: stale semantic classes from the previous Tutor
 // step must be removed from the board before the current step is reprojected.
@@ -96,9 +97,10 @@ assert.strictEqual(redecorated,1,'current step must be decorated exactly once af
 const index=fs.readFileSync(runtime('index.html'),'utf8');
 const clarity=index.indexOf('tango-tutor-clarity.js');
 const finalizer=index.indexOf('tango-pedagogy-text-finalizer.js');
-assert(clarity>=0&&finalizer>clarity,'text finalizer must load after Tutor clarity so it is the final presentation layer');
-assert(index.includes('tango-pedagogy-text-finalizer.js?v=3.1.9-hf3.6-retest2'),'Safari cache-busting query must identify RETEST1 finalizer');
+const causalAtomic=index.indexOf('tango-tutor-causal-atomic-r55.js');
+assert(clarity>=0&&causalAtomic>clarity&&finalizer>causalAtomic,'text finalizer must load after every late Tango Tutor wrapper');
+assert(index.includes('tango-pedagogy-text-finalizer.js?v=3.1.9-hf3.6-retest3'),'Safari cache-busting query must identify RETEST3 finalizer');
 
 const source=fs.readFileSync(runtime('tango-pedagogy-text-finalizer.js'),'utf8');
 assert(!/hiddenSolution|solutionGrid|solvedGrid/.test(source),'text finalizer must not depend on hidden solution data');
-console.log('PASS HF3.6 RETEST1: French sun/moon localization, board-consistent ☀/☾ glyphs, semantic dedup, and stale Tutor step focus cleanup/reprojection.');
+console.log('PASS HF3.6 RETEST3: French sun/moon localization, board-consistent ☀/☾ glyphs, semantic dedup, and stale Tutor step focus cleanup/reprojection.');

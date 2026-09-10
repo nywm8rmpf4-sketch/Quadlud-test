@@ -151,7 +151,7 @@ def main() -> None:
         pwa = page.evaluate(
             """async()=>({controller:!!navigator.serviceWorker?.controller,caches:await caches.keys(),pool:!!globalThis.QuadludTangoRuntimePoolData,cache:!!globalThis.QuadludTangoTutorCacheDataR8})"""
         )
-        assert any("quadlud-v3.1.9-tango-r8-exact-v16" == x for x in pwa["caches"]), pwa
+        assert any("quadlud-v3.1.9-tango-r8-exact-v17" == x for x in pwa["caches"]), pwa
         assert pwa["pool"] and pwa["cache"], pwa
         context.set_offline(True)
         page.reload(wait_until="domcontentloaded", timeout=15000)
