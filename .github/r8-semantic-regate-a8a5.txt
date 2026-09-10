@@ -1,0 +1,2 @@
+Reviewed semantic-fix source commit: a8a5deea1e43a784dd81f1dd35e104e4616556f4
+Purpose: force a full exact-cache + semantic-browser gate on the corrected source.
