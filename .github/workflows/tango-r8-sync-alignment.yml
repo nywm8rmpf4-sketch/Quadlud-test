@@ -1,0 +1,102 @@
+name: QUADLUD Tango R8 synchronized stack alignment
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths: ['.github/workflows/tango-r8-sync-alignment.yml']
+permissions:
+  contents: write
+jobs:
+  align:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Align Node precompute stack with browser Tutor
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('tango-human-pedagogy-r4.js'); s=p.read_text()
+          old="  const Base=isNode?require('./tango-played-move-runtime.js'):root.QuadludTangoPlayedMoveRuntime;\n  const Planner=isNode?require('./tango-played-move-planner.js'):root.QuadludTangoPlayedMovePlanner;"
+          new="  const Base=isNode?(root.QuadludTangoPlayedMoveRuntime||require('./tango-played-move-runtime.js')):root.QuadludTangoPlayedMoveRuntime;\n  const Planner=isNode?(root.QuadludTangoPlayedMovePlanner||require('./tango-played-move-planner.js')):root.QuadludTangoPlayedMovePlanner;"
+          if s.count(old)!=1: raise SystemExit('human-pedagogy UMD anchor mismatch')
+          p.write_text(s.replace(old,new))
+
+          p=Path('qa-public/tools/tango_tutor_cache_contract.js'); s=p.read_text()
+          old="  'tango-played-move-runtime.js',\n  'tango-human-pedagogy-r4.js',"
+          new="  'tango-played-move-runtime.js',\n  'tango-human-cost-bridge.js',\n  'tango-human-pedagogy-r4.js',"
+          if s.count(old)!=1: raise SystemExit('contract anchor mismatch')
+          p.write_text(s.replace(old,new))
+
+          p=Path('qa-public/tools/build_tango_tutor_sync_shard_r8.js'); s=p.read_text()
+          old="  'tango-played-move-runtime.js','tango-human-pedagogy-r4.js',\n  'tango-tutor-single-planner-r5.js'"
+          new="  'tango-played-move-runtime.js','tango-human-cost-bridge.js',\n  'tango-human-pedagogy-r4.js','tango-tutor-single-planner-r5.js'"
+          if s.count(old)!=1: raise SystemExit('sync builder load-order anchor mismatch')
+          s=s.replace(old,new)
+          old="function proofMeta(plan){const p=plan?.displayProof||{};return [String(p.kind||'engine-proof'),p.replaced?1:0,clone(p.witness||null),String(p.replacedRule||''),Array.isArray(p.costVector)?p.costVector.slice():null,Array.isArray(p.replacedCostVector)?p.replacedCostVector.slice():null,p.traceCollapsed?1:0,Number(p.discardedAlternativeCount)||0,String(p.policy||Runtime.HUMAN_PROOF_POLICY||'')]}"
+          new="function proofMeta(plan){const p=plan?.displayProof||{};return [String(p.kind||'engine-proof'),p.replaced?1:0,clone(p.witness||null),String(p.replacedRule||''),Array.isArray(p.costVector)?p.costVector.slice():null,Array.isArray(p.replacedCostVector)?p.replacedCostVector.slice():null,p.traceCollapsed?1:0,Number(p.discardedAlternativeCount)||0,String(p.policy||Runtime.HUMAN_PROOF_POLICY||''),p.humanRelationSupportCostCorrected?1:0,Number.isFinite(Number(p.humanProofPreferenceTier))?Number(p.humanProofPreferenceTier):null]}"
+          if s.count(old)!=1: raise SystemExit('proofMeta anchor mismatch')
+          p.write_text(s.replace(old,new))
+
+          p=Path('qa-public/tools/compact_tango_tutor_sync_r8.js'); s=p.read_text()
+          old="!Array.isArray(proofMeta)||proofMeta.length<9)"
+          new="!Array.isArray(proofMeta)||proofMeta.length<11)"
+          if s.count(old)!=1: raise SystemExit('compact proofMeta validation anchor mismatch')
+          s=s.replace(old,new)
+          old="root.QuadludTangoTutorCacheDataR8=d;const c=root.QuadludTangoTutorPrecomputedCache;if(c&&typeof c.registerData==='function')c.registerData(d);if(typeof module!=='undefined'&&module.exports)module.exports=d;"
+          new="root.QuadludTangoTutorCacheDataR8=d;const c=root.QuadludTangoTutorPrecomputedCache;if(c&&typeof c.registerData==='function'){try{c.registerData(d)}catch(_){}}if(typeof module!=='undefined'&&module.exports)module.exports=d;"
+          if s.count(old)!=1: raise SystemExit('compact auto-register anchor mismatch')
+          p.write_text(s.replace(old,new))
+
+          for name in ['qa-public/tests/v319-r8-simple-before-contradiction.test.js','qa-public/tests/v319-r8-cache-live-parity.test.js']:
+              p=Path(name); s=p.read_text()
+              old="require(file('tango-played-move-runtime.js'));\nrequire(file('tango-human-pedagogy-r4.js'));" if 'parity' in name else "'tango-played-move-runtime.js','tango-human-pedagogy-r4.js','tango-tutor-single-planner-r5.js'"
+              new="require(file('tango-played-move-runtime.js'));\nrequire(file('tango-human-cost-bridge.js'));\nrequire(file('tango-human-pedagogy-r4.js'));" if 'parity' in name else "'tango-played-move-runtime.js','tango-human-cost-bridge.js','tango-human-pedagogy-r4.js','tango-tutor-single-planner-r5.js'"
+              if s.count(old)!=1: raise SystemExit(f'{name}: browser-stack anchor mismatch')
+              p.write_text(s.replace(old,new))
+          PY
+          node --check tango-human-pedagogy-r4.js
+          node --check qa-public/tools/tango_tutor_cache_contract.js
+          node --check qa-public/tools/build_tango_tutor_sync_shard_r8.js
+          node --check qa-public/tools/compact_tango_tutor_sync_r8.js
+          node --check qa-public/tools/tango-tutor-precomputed-cache-sync-template.js
+          git diff --check
+      - name: Run focused human-pedagogy regressions
+        run: |
+          set -euo pipefail
+          R="$RUNNER_TEMP/q"; mkdir -p "$R/GitHub" "$R/tests"
+          rsync -a ./ "$R/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='qa-public/' --exclude='qa-release/'
+          cp -a qa-public/tests/. "$R/tests/"
+          cd "$R"
+          node tests/v319-r8-simple-before-contradiction.test.js
+          node tests/v319-r3ui-tango-derived-relation-human-cost.test.js
+          node tests/v319-r3ui-tango-same-move-proof-minimization.test.js
+          node tests/v319-r3ui-tango-attention-fast-frontier.test.js
+          node tests/v319-r3ui-tango-tutor-freeze-guard.test.js
+          node tests/v319-r3ui-tango-tutor-single-planner-owner.test.js
+      - name: Build and verify one fresh Easy synchronized shard
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sync"
+          node qa-public/tools/build_tango_tutor_sync_shard_r8.js --difficulty easy --pool tango-runtime-pool-data.js --output "$RUNNER_TEMP/sync/tango-tutor-sync-easy.json" --report "$RUNNER_TEMP/sync/easy-report.json"
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('assert');
+          const p=process.env.RUNNER_TEMP+'/sync/tango-tutor-sync-easy.json',x=JSON.parse(fs.readFileSync(p));
+          assert.equal(x.schema,2);assert.equal(x.version,'tango-tutor-sync-shard-r2');assert.equal(x.entries.length,120);
+          const steps=x.entries.flatMap(e=>e[2]);assert(steps.length>0);assert(steps.every(s=>s.length===10&&s[9].length>=11));
+          assert(/^[0-9a-f]{64}$/.test(x.tutorContract.digest));console.log('PASS fresh Easy synchronized shard',steps.length,x.tutorContract.digest);
+          NODE
+      - name: Commit browser-equivalent precompute alignment
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add tango-human-pedagogy-r4.js qa-public/tools/tango_tutor_cache_contract.js qa-public/tools/build_tango_tutor_sync_shard_r8.js qa-public/tools/compact_tango_tutor_sync_r8.js qa-public/tests/v319-r8-simple-before-contradiction.test.js qa-public/tests/v319-r8-cache-live-parity.test.js
+          git diff --cached --check
+          git commit -m 'fix(tango): align R8 precompute with browser Tutor stack'
+          git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
