@@ -13,4 +13,17 @@ const unsupportedKnown=new Map([['0,5',0]]),unsupported=rel([0,5],[0,2],0,0,[{a:
 const plannedB4=rel([2,3],[1,3],1,0,[{a:[2,3],b:[1,3],parity:1,explicit:true}],5);
 const reserved=T.otherProducedCells([a4,plannedB4],0);assert(reserved.has('1,3'));
 const preserveKnown=new Map([['1,2',0]]),preserved=T.atomizeRelationEntry(a4,preserveKnown,null,reserved);assert.equal(preserved.length,1);assert.equal(preserved[0],a4);assert.deepEqual([...preserveKnown],[['1,2',0]]);
+
+// Semantic-review regression R8: French triple wording must be grammatical for "lune",
+// and line-domain configurations must be rendered exactly once.
+global.lang=()=> 'fr';
+const tripleText=T.atomicText({rule:'TRIPLE_CONSTRAINT',current:{cell:[3,5],value:1},deduction:{rule:'TRIPLE_CONSTRAINT',premises:[{kind:'VALUE',cell:[1,5],value:0},{kind:'VALUE',cell:[2,5],value:0}],explanationData:{family:'column',id:5}}});
+assert(tripleText.why.includes('Ajouter encore lune ☾ formerait trois symboles identiques consécutifs'),tripleText.why);
+assert(!tripleText.why.includes('troisième lune'),tripleText.why);
+assert(!tripleText.why.includes('lune ☾ consécutif'),tripleText.why);
+global.QuadludTangoTutorClarity=require('../GitHub/tango-tutor-clarity.js');
+const domainRendered=T.relationProofText(support).why;
+assert.equal((domainRendered.match(/Configurations compatibles/g)||[]).length,1,domainRendered);
+assert(domainRendered.length<700,domainRendered);
+
 console.log('PASS HF3.9-R5.5 causal atomization: B4/E3 hidden nodes exposed, unsupported or already-planned intermediates preserved.');

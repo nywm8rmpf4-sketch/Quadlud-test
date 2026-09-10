@@ -83,9 +83,15 @@ function supportRelationLines(support,edge,loc=locale(),depth=0){
     const remaining=Array.isArray(x.remaining)?x.remaining:[],unit=unitName(x.family,x.id,loc);if(remaining.length===2)return {lines:[loc==='fr'?`Dans ${unit}, il reste exactement ${humanCell(remaining[0])} et ${humanCell(remaining[1])} à remplir. L’équilibre exige encore un soleil et une lune : ces deux cases sont donc opposées.`:`In ${unit}, only ${humanCell(remaining[0])} and ${humanCell(remaining[1])} remain. Balance requires one sun and one moon, so the two cells are opposite.`],complete:true}
   }
   if(rule==='LINE_DOMAIN_SUPPORT'&&conclusion){
-    const unit=unitName(x.family,x.id,loc),count=Number(x.domainCount),known=(support.premises||[]).filter(p=>p?.kind==='RELATION'&&p.explicit!==true);let lines=[],complete=true;
-    for(const p of known){const proof=premiseRelationLines(p,loc,depth+1);lines.push(...proof.lines);complete=complete&&proof.complete}
-    lines.push(loc==='fr'?`Dans ${unit}, ${Number.isFinite(count)&&count>0?`${count} complétion${count===1?'':'s'}`:'les complétions restantes'} respectent l’équilibre, la règle des trois et les indices visibles. Dans chacune, ${humanCell(conclusion.a)} et ${humanCell(conclusion.b)} sont ${relationWord(conclusion.parity,loc)} ; cette relation est donc forcée.`:`In ${unit}, ${Number.isFinite(count)&&count>0?`${count} remaining completion${count===1?'':'s'}`:'the remaining completions'} satisfy balance, the no-three rule and visible clues. In all of them, ${humanCell(conclusion.a)} and ${humanCell(conclusion.b)} are ${relationWord(conclusion.parity,loc)}, so the relation is forced.`);return {lines,complete}
+    const unit=unitName(x.family,x.id,loc),count=Number(x.domainCount),known=(support.premises||[]).filter(p=>p?.kind==='RELATION'&&p.explicit!==true),domains=Array.isArray(x.domains)?x.domains:[];let complete=true;
+    // Keep provenance verification recursive, but do not replay every nested relation in the UI.
+    // The bounded domain list below is the actual local proof of the forced relation.
+    for(const p of known){const proof=premiseRelationLines(p,loc,depth+1);complete=complete&&proof.complete}
+    if(!complete)return {lines:[unsupportedRelationLine(edge.from,edge.to,loc)],complete:false};
+    const finite=Number.isFinite(count)&&count>0,countLabel=loc==='fr'?(finite?`${count} complétion${count===1?'':'s'}`:'les complétions restantes'):(finite?`${count} remaining completion${count===1?'':'s'}`:'the remaining completions'),lines=[];
+    lines.push(loc==='fr'?`Dans ${unit}, ${countLabel} ${finite&&count===1?'reste':'restent'} compatibles avec l’équilibre, la règle des trois, les indices visibles et les relations imposées par l’état courant.`:`In ${unit}, ${countLabel} satisfy balance, the no-three rule, visible clues and the relations forced by the current state.`);
+    if(domains.length){const configs=domains.map(domain=>domain.map(v=>Number(v)===1?'☀':'☾').join('')).join(loc==='fr'?' ou ':' or ');lines.push(loc==='fr'?`Configurations compatibles : ${configs}.`:`Compatible configurations: ${configs}.`)}
+    lines.push(loc==='fr'?`Dans chacune, ${humanCell(conclusion.a)} et ${humanCell(conclusion.b)} sont ${relationWord(conclusion.parity,loc)} ; cette relation est donc forcée.`:`In all of them, ${humanCell(conclusion.a)} and ${humanCell(conclusion.b)} are ${relationWord(conclusion.parity,loc)}, so the relation is forced.`);return {lines,complete:true}
   }
   return {lines:[unsupportedRelationLine(edge.from,edge.to,loc)],complete:false}
 }

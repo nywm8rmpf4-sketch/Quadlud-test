@@ -83,4 +83,28 @@ const projectedMissing=P._test.clarifyDerivedRelation({
 assert.strictEqual(projectedMissing.proofCompleteness,'missing-relation-provenance');
 assert(projectedMissing.why.includes('chaîne de preuve complète n’est pas disponible'));
 
+
+// Semantic-review regression R8: a line-domain relation proof must stay local and compact.
+// Nested relation provenance is still verified for completeness, but must not be replayed in
+// the visible explanation where it created duplicated and even contextually contradictory chains.
+const domainSupport={
+  rule:'LINE_DOMAIN_SUPPORT',
+  premises:[{kind:'RELATION',a:[1,3],b:[1,4],parity:0,explicit:false,path:[{a:[1,3],b:[1,4],parity:0,explicit:true}]}],
+  conclusions:[{type:'RELATION',a:[1,0],b:[1,1],parity:1}],
+  explanationData:{family:'row',id:1,domainCount:2,domains:[[1,0,0,1,1,0],[0,1,0,1,1,0]]}
+};
+const domainEdge={from:[1,0],to:[1,1],parity:1};
+const domainProof=M._test.supportRelationLines(domainSupport,domainEdge,'fr');
+assert.strictEqual(domainProof.complete,true);
+assert(domainProof.lines.length<=3,domainProof.lines.join(' '));
+const domainText=domainProof.lines.join(' ');
+assert(domainText.includes('Configurations compatibles : ☀☾☾☀☀☾ ou ☾☀☾☀☀☾.'),domainText);
+assert(domainText.includes('B1 et B2 sont opposées'),domainText);
+assert(!domainText.includes('B4 = B5'),domainText);
+const incompleteDomain=JSON.parse(JSON.stringify(domainSupport));
+delete incompleteDomain.premises[0].path;
+const incompleteDomainProof=M._test.supportRelationLines(incompleteDomain,domainEdge,'fr');
+assert.strictEqual(incompleteDomainProof.complete,false);
+assert(incompleteDomainProof.lines.join(' ').includes('provenance nécessaire'));
+
 console.log('v319-r3ui-tango-tutor-clarity.test.js: PASS');
