@@ -1,9 +1,19 @@
-# R8 v15 rerun after duplicate-precache correction
 name: QUADLUD integrated exact R8 browser gate
 on:
   push:
     branches: [candidate/v3.1.9-tango-r8-integrated]
-    paths: ['.github/workflows/tango-r8-browser-gate.yml']
+    paths:
+      - '.github/workflows/tango-r8-browser-gate.yml'
+      - 'sw.js'
+      - 'index.html'
+      - 'tango-runtime-pool-data.js'
+      - 'tango-tutor-cache-data-r8.js'
+      - 'tango-precomputed-pool-runtime.js'
+      - 'tango-tutor-precomputed-cache.js'
+      - 'tango-tutor-single-planner-r5.js'
+      - 'qa-public/tests/v319-r8-integrated-browser.test.py'
+      - 'qa-public/tests/v319-r8-browser-phase-diagnostic.py'
+      - 'qa-public/tests/v319-r8-service-worker-minimal-probe.py'
 permissions:
   contents: read
 jobs:
