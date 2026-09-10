@@ -59,6 +59,16 @@ assert(!/Conclusion intermédiaire/i.test(sanitized.explanation.why),sanitized.e
 assert.strictEqual(sanitized.evidence.primary.rule,'RELATION_PROPAGATION','proof structure must remain intact');
 assert.strictEqual(sanitized.metadata.showTutorMove,true);
 
+// Final contradiction action: keep the actionable move once, not both
+// "Donc X = ..." and an identical "Coup conseillé : X = ...".
+const contradiction=Finalizer.sanitizePresentation({
+  explanation:{where:'Regarde A1.',why:'L’hypothèse est impossible. Donc A1 = moon 🌙.',move:'A1 = moon 🌙.'},
+  metadata:{showTutorMove:true}
+});
+assert.strictEqual(contradiction.explanation.why,'L’hypothèse est impossible.',contradiction.explanation.why);
+assert(contradiction.explanation.move.includes('A1 = lune ☾'),contradiction.explanation.move);
+assert(!/Donc\s+A1\s*=/i.test(contradiction.explanation.why),contradiction.explanation.why);
+
 // Reproduce step N -> N+1: stale semantic classes from the previous Tutor
 // step must be removed from the board before the current step is reprojected.
 const semantic=['walkthrough-unit-context','walkthrough-reasoning-context','walkthrough-current-focus','walkthrough-current-action'];
@@ -87,7 +97,7 @@ const index=fs.readFileSync(runtime('index.html'),'utf8');
 const clarity=index.indexOf('tango-tutor-clarity.js');
 const finalizer=index.indexOf('tango-pedagogy-text-finalizer.js');
 assert(clarity>=0&&finalizer>clarity,'text finalizer must load after Tutor clarity so it is the final presentation layer');
-assert(index.includes('tango-pedagogy-text-finalizer.js?v=3.1.9-hf3.6-retest1'),'Safari cache-busting query must identify RETEST1 finalizer');
+assert(index.includes('tango-pedagogy-text-finalizer.js?v=3.1.9-hf3.6-retest2'),'Safari cache-busting query must identify RETEST1 finalizer');
 
 const source=fs.readFileSync(runtime('tango-pedagogy-text-finalizer.js'),'utf8');
 assert(!/hiddenSolution|solutionGrid|solvedGrid/.test(source),'text finalizer must not depend on hidden solution data');

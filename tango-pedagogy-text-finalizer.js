@@ -11,7 +11,7 @@
   if(typeof document!=='undefined')api.install();
 })(typeof globalThis!=='undefined'?globalThis:this,function(root){
 'use strict';
-const VERSION=3;
+const VERSION=4;
 const PIECE_TOKEN_RE=/\b(suns?|moons?|soleils?|lunes?)\b(?:\s*[☀☾🌞🌙🌛🌜🌚🌝])?/giu;
 const INTERMEDIATE_RE=/(?:\s|^)(?:Conclusion intermédiaire|Intermediate conclusion)\s*:\s*[^.!?<]*(?:[.!?](?=\s|$)|$)/gi;
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
@@ -64,7 +64,11 @@ function finalizeValue(value,depth=0){
   if(depth>8||value==null)return value;if(typeof value==='string')return finalizeText(value);if(Array.isArray(value))return value.map(v=>finalizeValue(v,depth+1));if(typeof value!=='object')return value;
   const out={};for(const [k,v] of Object.entries(value))out[k]=finalizeValue(v,depth+1);return out
 }
-function sanitizePresentation(presentation){return presentation&&typeof presentation==='object'?finalizeValue(copy(presentation)):presentation}
+function dedupPresentationMove(presentation){
+  if(!presentation||typeof presentation!=='object')return presentation;const explanation=presentation.explanation;if(!explanation||typeof explanation!=='object'||typeof explanation.why!=='string'||typeof explanation.move!=='string')return presentation;const moveKey=propositionKey(explanation.move);if(!moveKey)return presentation;
+  const parts=explanation.why.split(/(?<=[.!?])\s+/);explanation.why=parts.filter(part=>{const key=propositionKey(part);return !(key===moveKey&&/^\s*(?:Donc|Therefore|Conclusion)(?:\s*:|\s|$)/i.test(part))}).join(' ').trim();return presentation
+}
+function sanitizePresentation(presentation){return presentation&&typeof presentation==='object'?dedupPresentationMove(finalizeValue(copy(presentation))):presentation}
 function currentTango(){try{return typeof current!=='undefined'&&current?.game==='tango'}catch(_){return false}}
 function walkthroughIsTango(){try{return typeof walkthroughSession!=='undefined'&&walkthroughSession?.base?.game==='tango'}catch(_){return false}}
 function finalizeTextNodes(scope){
