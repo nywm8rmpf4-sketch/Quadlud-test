@@ -1,0 +1,88 @@
+name: Implement R8 Tutor cache synchronization contract
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths: ['.github/workflows/implement-r8-cache-sync-contract.yml']
+permissions: {contents: write}
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Patch builders with current-source contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('qa-public/tools/tango_tutor_cache_contract.js'); s=p.read_text(encoding='utf-8')
+          s=s.replace("  'tango-tutor-single-planner-r5.js',\n  'tango-tutor-precomputed-cache.js'\n", "  'tango-tutor-single-planner-r5.js'\n")
+          p.write_text(s,encoding='utf-8')
+
+          p=Path('qa-public/tools/build_tango_tutor_lean_shard_r4.js'); s=p.read_text(encoding='utf-8')
+          s=s.replace("const poolPath=path.resolve(arg('--pool')||'tango-diversity-pool.js');", "const poolPath=path.resolve(arg('--pool')||'tango-runtime-pool-data.js');")
+          anchor="const Runtime=global.QuadludTangoPlayedMoveRuntime;\nif(!Planner||!Tutor||!Human||!Runtime)throw new Error('Soleil-Lune Tutor runtime unavailable');"
+          repl="const Runtime=global.QuadludTangoPlayedMoveRuntime;\nif(!Planner||!Tutor||!Human||!Runtime)throw new Error('Soleil-Lune Tutor runtime unavailable');\nconst Contract=require(path.join(ROOT,'qa-public','tools','tango_tutor_cache_contract.js'));\nconst tutorContract=Contract.compute(ROOT);"
+          if s.count(anchor)!=1: raise SystemExit('builder runtime anchor mismatch')
+          s=s.replace(anchor,repl)
+          old="function stateForEntry(entry){\n  const state=Array.from({length:6},()=>Array(6).fill(-1));\n  for(const index of entry.givens||[])state[Math.floor(index/6)][index%6]=entry.sol[Math.floor(index/6)][index%6];\n  return state;\n}"
+          new="function solutionForEntry(entry){const sol=entry?.solution||entry?.sol;if(!Array.isArray(sol)||sol.length!==6)throw new Error('Tutor cache pool entry missing 6x6 solution');return sol}\nfunction stateForEntry(entry){\n  const state=Array.from({length:6},()=>Array(6).fill(-1)),sol=solutionForEntry(entry);\n  for(const index of entry.givens||[])state[Math.floor(index/6)][index%6]=sol[Math.floor(index/6)][index%6];\n  return state;\n}"
+          if s.count(old)!=1: raise SystemExit('builder state anchor mismatch')
+          s=s.replace(old,new)
+          s=s.replace("const sourceEntries=Pool.entries?.[difficulty];", "const sourceEntries=Pool.pools?.[difficulty]||Pool.entries?.[difficulty];")
+          old="const payload={schema:2,version:'tango-tutor-cache-r4-lean',difficulty,poolVersion:Pool.version,policy:'visible-state-direct-signature-or-advanced-deduction-v1',reconstruction:'resolveStartingDeduction+planFromFirstDeduction+attachHumanProof',fallback:'full-humanizeTutorPlan-on-any-miss-or-mismatch',entryShape:'[poolIndex,initialFingerprint,steps]',stepShape:'[fingerprint,advancedFlag,targetIndex,value,signatureOrDeduction,selectionMeta]',entries};"
+          new="const payload={schema:3,version:'tango-tutor-cache-r4-lean-sync1',difficulty,poolVersion:Pool.version,tutorContract:{schema:tutorContract.schema,version:tutorContract.version,algorithm:tutorContract.algorithm,digest:tutorContract.digest},tutorPlannerToken:Tutor.TOKEN||null,humanPolicy:Human.POLICY||null,policy:'visible-state-direct-signature-or-advanced-deduction-v1',reconstruction:'resolveStartingDeduction+planFromFirstDeduction+attachHumanProof',fallback:'full-humanizeTutorPlan-on-any-miss-or-mismatch',entryShape:'[poolIndex,initialFingerprint,steps]',stepShape:'[fingerprint,advancedFlag,targetIndex,value,signatureOrDeduction,selectionMeta]',entries};"
+          if s.count(old)!=1: raise SystemExit('builder payload anchor mismatch')
+          s=s.replace(old,new)
+          old="const report={schema:1,version:payload.version,difficulty,poolCount:sourceEntries.length,journeys,cachedSteps:seedSizes.length,uniqueFingerprints:seenFingerprints.size,directSeeds,advancedSeeds,bytes,bytesPerCachedStep:Number((bytes/Math.max(1,seedSizes.length)).toFixed(1)),seedBytes:stats(seedSizes),fullPlannerMs:stats(plannerTimes),targetedRebuildMs:stats(rebuildTimes),speedupMean:Number((fullTotal/Math.max(0.001,rebuildTotal)).toFixed(3))};"
+          new="const report={schema:2,version:payload.version,difficulty,poolVersion:payload.poolVersion,tutorContract:payload.tutorContract,tutorPlannerToken:payload.tutorPlannerToken,humanPolicy:payload.humanPolicy,poolCount:sourceEntries.length,journeys,cachedSteps:seedSizes.length,uniqueFingerprints:seenFingerprints.size,directSeeds,advancedSeeds,bytes,bytesPerCachedStep:Number((bytes/Math.max(1,seedSizes.length)).toFixed(1)),seedBytes:stats(seedSizes),fullPlannerMs:stats(plannerTimes),targetedRebuildMs:stats(rebuildTimes),speedupMean:Number((fullTotal/Math.max(0.001,rebuildTotal)).toFixed(3))};"
+          if s.count(old)!=1: raise SystemExit('builder report anchor mismatch')
+          p.write_text(s.replace(old,new),encoding='utf-8')
+
+          p=Path('qa-public/tools/compact_tango_tutor_cache_exact_r8.js'); s=p.read_text(encoding='utf-8')
+          old="const DIFFS=['easy','medium','hard','expert'];\nconst DATA={schema:6,version:'tango-tutor-cache-r8-b64-rule-dict',sourcePoolVersion:'tango-precompute-pool-v6-compact',rules:[],payloads:[],signaturePairs:[],selectionMeta:[],puzzleCounts:{},steps:{}};"
+          new="const DIFFS=['easy','medium','hard','expert'];\nlet contractIdentity=null;\nconst DATA={schema:7,version:'tango-tutor-cache-r8-sync1',sourcePoolVersion:null,tutorContract:null,tutorPlannerToken:null,humanPolicy:null,rules:[],payloads:[],signaturePairs:[],selectionMeta:[],puzzleCounts:{},steps:{}};"
+          if s.count(old)!=1: raise SystemExit('compact DATA anchor mismatch')
+          s=s.replace(old,new)
+          old="  if(source.schema!==2||source.version!=='tango-tutor-cache-r4-lean'||source.poolVersion!=='tango-precompute-pool-v6-compact'||!Array.isArray(source.entries)||source.entries.length<120)throw new Error(`${diff}: invalid R4 source cache`);\n  DATA.puzzleCounts[diff]=source.entries.length;const out=[],seen=new Map();"
+          new="  if(source.schema!==3||source.version!=='tango-tutor-cache-r4-lean-sync1'||!source.tutorContract?.digest||!source.tutorPlannerToken||!source.humanPolicy||!Array.isArray(source.entries)||source.entries.length!==120)throw new Error(`${diff}: invalid synchronized R4 source cache`);\n  const identity=JSON.stringify([source.poolVersion,source.tutorContract.schema,source.tutorContract.version,source.tutorContract.algorithm,source.tutorContract.digest,source.tutorPlannerToken,source.humanPolicy]);\n  if(contractIdentity===null){contractIdentity=identity;DATA.sourcePoolVersion=source.poolVersion;DATA.tutorContract=source.tutorContract;DATA.tutorPlannerToken=source.tutorPlannerToken;DATA.humanPolicy=source.humanPolicy}else if(identity!==contractIdentity)throw new Error(`${diff}: Tutor/cache contract differs from other shards`);\n  DATA.puzzleCounts[diff]=source.entries.length;const out=[],seen=new Map();"
+          if s.count(old)!=1: raise SystemExit('compact shard anchor mismatch')
+          s=s.replace(old,new)
+          old="  const source=JSON.parse(fs.readFileSync(path.join(cacheDir,`tango-tutor-cache-${diff}.json`),'utf8'));"
+          new="  const source=JSON.parse(fs.readFileSync(path.join(cacheDir,`tango-tutor-cache-${diff}.json`),'utf8'));\n  if(JSON.stringify([source.poolVersion,source.tutorContract?.schema,source.tutorContract?.version,source.tutorContract?.algorithm,source.tutorContract?.digest,source.tutorPlannerToken,source.humanPolicy])!==contractIdentity)throw new Error(`${diff}: round-trip contract mismatch`);"
+          # Replace only second loop occurrence by targeted marker.
+          marker="// Lossless round-trip against every source R4 step; no Tutor journey is recalculated here.\nfor(const diff of DIFFS){\n  const source=JSON.parse(fs.readFileSync(path.join(cacheDir,`tango-tutor-cache-${diff}.json`),'utf8'));"
+          repl="// Lossless compaction only after all four shards have been freshly calculated by the current Tutor.\nfor(const diff of DIFFS){\n  const source=JSON.parse(fs.readFileSync(path.join(cacheDir,`tango-tutor-cache-${diff}.json`),'utf8'));\n  if(JSON.stringify([source.poolVersion,source.tutorContract?.schema,source.tutorContract?.version,source.tutorContract?.algorithm,source.tutorContract?.digest,source.tutorPlannerToken,source.humanPolicy])!==contractIdentity)throw new Error(`${diff}: round-trip contract mismatch`);"
+          if s.count(marker)!=1: raise SystemExit('compact roundtrip anchor mismatch')
+          s=s.replace(marker,repl)
+          old="const report={schema:1,version:DATA.version,sourcePoolVersion:DATA.sourcePoolVersion,puzzles:DATA.puzzleCounts,steps:Object.fromEntries(DIFFS.map(d=>[d,DATA.steps[d].length])),totalSteps,rules:DATA.rules.length,payloads:DATA.payloads.length,signatures:DATA.signaturePairs.length,selectionMeta:DATA.selectionMeta.length,bytes:Buffer.byteLength(js)};"
+          new="const report={schema:2,version:DATA.version,sourcePoolVersion:DATA.sourcePoolVersion,tutorContract:DATA.tutorContract,tutorPlannerToken:DATA.tutorPlannerToken,humanPolicy:DATA.humanPolicy,puzzles:DATA.puzzleCounts,steps:Object.fromEntries(DIFFS.map(d=>[d,DATA.steps[d].length])),totalSteps,rules:DATA.rules.length,payloads:DATA.payloads.length,signatures:DATA.signaturePairs.length,selectionMeta:DATA.selectionMeta.length,bytes:Buffer.byteLength(js)};"
+          if s.count(old)!=1: raise SystemExit('compact report anchor mismatch')
+          p.write_text(s.replace(old,new),encoding='utf-8')
+          PY
+          node --check qa-public/tools/tango_tutor_cache_contract.js
+          node --check qa-public/tools/build_tango_tutor_lean_shard_r4.js
+          node --check qa-public/tools/compact_tango_tutor_cache_exact_r8.js
+          git diff --check
+      - name: Validate one full 120-puzzle shard from current runtime pool
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cache"
+          node qa-public/tools/build_tango_tutor_lean_shard_r4.js --difficulty easy --pool tango-runtime-pool-data.js --output "$RUNNER_TEMP/cache/tango-tutor-cache-easy.json" --report "$RUNNER_TEMP/cache/easy-report.json"
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('assert');const x=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/cache/tango-tutor-cache-easy.json','utf8'));
+          assert.equal(x.schema,3);assert.equal(x.version,'tango-tutor-cache-r4-lean-sync1');assert.equal(x.poolVersion,'tango-runtime-pool-r8');assert.equal(x.entries.length,120);assert(/^[0-9a-f]{64}$/.test(x.tutorContract.digest));assert(x.tutorPlannerToken);assert(x.humanPolicy);console.log('PASS synchronized easy shard',x.entries.length,x.tutorContract.digest);
+          NODE
+      - name: Commit synchronized cache builders
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'; git config user.email 'actions@users.noreply.github.com'
+          git add qa-public/tools/tango_tutor_cache_contract.js qa-public/tools/build_tango_tutor_lean_shard_r4.js qa-public/tools/compact_tango_tutor_cache_exact_r8.js
+          git diff --cached --check
+          git commit -m 'build(tango): bind Tutor cache generation to current algorithm'
+          git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
