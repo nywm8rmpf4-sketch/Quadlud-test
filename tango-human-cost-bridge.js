@@ -6,7 +6,7 @@
  */
 (function(root){
 'use strict';
-const VERSION=4;
+const VERSION=5;
 const ABSTRACT_HUMAN_RULES=new Set(['LINE_DOMAIN_SUPPORT']);
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function sameCell(a,b){return Array.isArray(a)&&Array.isArray(b)&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1])}
@@ -60,12 +60,20 @@ function relationDerivedSupportPenalty(session,d){
   const relationPenalty=!path.length?(rel.explicit===false?1:0):path.reduce((sum,edge)=>sum+(edge?.explicit===false?1:0),0);
   return Math.max(premisePenalty,relationPenalty)
 }
+function normalizeCostVector(value){
+  if(Array.isArray(value)&&value.length>=7)return value.slice(0,7).map(x=>Number(x)||0);
+  if(Array.isArray(value)&&value.length===6)return [0,...value.map(x=>Number(x)||0)];
+  return [0,1,0,1,0,0,0]
+}
 function baseHumanProofCost(source,session,d){
-  const value=source?._test?.humanProofCost?source._test.humanProofCost(session,d?[d]:[]):[1,0,1,0,0,0];return Array.isArray(value)?value.slice():[1,0,1,0,0,0]
+  const value=source?._test?.humanProofCost?source._test.humanProofCost(session,d?[d]:[]):null;return normalizeCostVector(value)
 }
 function relationAwareHumanProofCost(source,session,d){
   const cost=baseHumanProofCost(source,session,d),support=relationDerivedSupportPenalty(session,d);if(!support)return cost;
-  cost[0]=(Number(cost[0])||0)+support;cost[1]=(Number(cost[1])||0)+support;cost[5]=(Number(cost[5])||0)+support;return cost
+  // 7D contract: [semantic indirection, human steps, premises, spatial extent,
+  // technique level, rank, abstract/derived support penalty]. A derived relation
+  // adds human work and support evidence, but does not change its rule family.
+  cost[1]+=support;cost[2]+=support;cost[6]+=support;return cost
 }
 function advancedTraceGroups(d){
   const x=d?.explanationData||{};
@@ -76,15 +84,16 @@ function advancedTraceGroups(d){
 function advancedHumanProofCost(source,session,d){
   const base=relationAwareHumanProofCost(source,session,d),groups=advancedTraceGroups(d);
   if(!groups.length)return base;
-  const trace=groups.flat().filter(Boolean),traceCost=source?._test?.humanProofCost?source._test.humanProofCost(session,trace):[trace.length,0,1,0,0,0];
+  const trace=groups.flat().filter(Boolean),traceCost=normalizeCostVector(source?._test?.humanProofCost?source._test.humanProofCost(session,trace):null);
   const atomicExtra=trace.reduce((sum,step)=>sum+(ABSTRACT_HUMAN_RULES.has(String(step?.rule||''))?Math.max(0,(step?.conclusions||[]).length-1):0)+relationDerivedSupportPenalty(session,step),0);
   return [
-    3+(Number(traceCost?.[0])||0)+atomicExtra,
-    Math.max(Number(base?.[1])||0,Number(traceCost?.[1])||0),
-    Math.max(Number(base?.[2])||1,Number(traceCost?.[2])||1),
-    Math.max(Number(base?.[3])||0,Number(traceCost?.[3])||0),
-    Math.max(Number(base?.[4])||0,Number(traceCost?.[4])||0),
-    (Number(base?.[5])||0)+(Number(traceCost?.[5])||0)+atomicExtra
+    Math.max(2,base[0],traceCost[0]),
+    3+traceCost[1]+atomicExtra,
+    Math.max(base[2],traceCost[2]),
+    Math.max(base[3],traceCost[3]),
+    Math.max(base[4],traceCost[4]),
+    Math.max(base[5],traceCost[5]),
+    base[6]+traceCost[6]+atomicExtra
   ]
 }
 function compareCosts(source,a,b){return typeof source?._test?.compareCostVector==='function'?source._test.compareCostVector(a,b):(()=>{for(let i=0;i<Math.max(a?.length||0,b?.length||0);i++){const x=Number(a?.[i])||0,y=Number(b?.[i])||0;if(x!==y)return x-y}return 0})()}
@@ -128,12 +137,12 @@ function correctedProof(source,session,plan,rawProof){
 function install(){
   const relationInstalled=installRelationEvidence(),source=root.QuadludTangoPlayedMoveRuntime;
   if(!source||typeof source.selectDisplayProof!=='function')return relationInstalled;
-  if(source.__quadludHumanCostCorrectionV4===true)return true;
+  if(source.__quadludHumanCostCorrectionV5===true)return true;
   const previous=source.selectDisplayProof;
-  const replacement={...source,selectDisplayProof(session,plan){return Object.freeze(correctedProof(source,session,plan,previous.call(source,session,plan)))},_test:Object.freeze({...source._test,advancedTraceGroups,advancedHumanProofCost,derivedPremiseSupportPenalty,relationDerivedSupportPenalty,relationAwareHumanProofCost,proofPreferenceTier,compareProofCandidates,selfContainedDirectCandidates,causalContradictionCandidate,correctedProof,enrichedRelationPath,relationFactForEdge}),__quadludHumanCostCorrection:true,__quadludHumanCostCorrectionV3:true,__quadludHumanCostCorrectionV4:true};
+  const replacement={...source,selectDisplayProof(session,plan){return Object.freeze(correctedProof(source,session,plan,previous.call(source,session,plan)))},_test:Object.freeze({...source._test,normalizeCostVector,advancedTraceGroups,advancedHumanProofCost,derivedPremiseSupportPenalty,relationDerivedSupportPenalty,relationAwareHumanProofCost,proofPreferenceTier,compareProofCandidates,selfContainedDirectCandidates,causalContradictionCandidate,correctedProof,enrichedRelationPath,relationFactForEdge}),__quadludHumanCostCorrection:true,__quadludHumanCostCorrectionV3:true,__quadludHumanCostCorrectionV4:true,__quadludHumanCostCorrectionV5:true};
   root.QuadludTangoPlayedMoveRuntime=Object.freeze(replacement);return true
 }
-const api=Object.freeze({VERSION,install,installRelationEvidence,_test:Object.freeze({advancedTraceGroups,advancedHumanProofCost,derivedPremiseSupportPenalty,relationDerivedSupportPenalty,relationAwareHumanProofCost,proofPreferenceTier,compareProofCandidates,selfContainedDirectCandidates,causalContradictionCandidate,correctedProof,enrichedRelationPath,relationFactForEdge})});
+const api=Object.freeze({VERSION,install,installRelationEvidence,_test:Object.freeze({normalizeCostVector,advancedTraceGroups,advancedHumanProofCost,derivedPremiseSupportPenalty,relationDerivedSupportPenalty,relationAwareHumanProofCost,proofPreferenceTier,compareProofCandidates,selfContainedDirectCandidates,causalContradictionCandidate,correctedProof,enrichedRelationPath,relationFactForEdge})});
 root.QuadludTangoHumanCostBridge=api;
 if(typeof document!=='undefined')install();
 if(typeof module!=='undefined'&&module.exports)module.exports=api;

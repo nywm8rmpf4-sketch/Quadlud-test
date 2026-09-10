@@ -99,7 +99,7 @@ function concreteContradictionForMove(session,target,value){
   return {deduction:minimalDisplayDeduction(deduction),witness:copy(result.contradiction)}
 }
 function selectDisplayProof(session,plan){
-  const engineTrace=proofDeductions(plan),chosen=minimalDisplayDeduction(plan?.deduction||null),baseCost=chosen?humanProofCost(session,[chosen]):Object.freeze([1,0,1,0,0,0]),discardedAlternativeCount=Math.max(0,engineTrace.length-(chosen?1:0));
+  const engineTrace=proofDeductions(plan),chosen=minimalDisplayDeduction(plan?.deduction||null),baseCost=chosen?humanProofCost(session,[chosen]):Object.freeze([0,1,0,1,0,0,0]),discardedAlternativeCount=Math.max(0,engineTrace.length-(chosen?1:0));
   const base={schema:3,policy:HUMAN_PROOF_POLICY,kind:'engine-proof',target:Array.isArray(plan?.target)?plan.target.slice():null,value:plan?.value,deduction:chosen,displayDeductions:chosen?Object.freeze([chosen]):Object.freeze([]),replaced:false,witness:null,costVector:baseCost,traceCollapsed:discardedAlternativeCount>0,discardedAlternativeCount};
   if(plan?.status!=='move'||!Array.isArray(plan.target)||(plan.value!==0&&plan.value!==1)||!plan.deduction)return Object.freeze(base);
 

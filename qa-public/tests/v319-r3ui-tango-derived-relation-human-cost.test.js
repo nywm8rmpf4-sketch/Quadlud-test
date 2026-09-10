@@ -5,9 +5,9 @@ const Bridge=require('../GitHub/tango-human-cost-bridge.js');
 const source={_test:{
   humanProofCost(_session,list){
     const d=list?.[0];
-    if(d?.rule==='TRIPLE_CONSTRAINT')return [1,2,3,1,1,0];
-    if(d?.rule==='RELATION_PROPAGATION')return [1,2,2,0,0,0];
-    return [1,1,1,0,0,0]
+    if(d?.rule==='TRIPLE_CONSTRAINT')return [0,1,2,3,1,1,0];
+    if(d?.rule==='RELATION_PROPAGATION')return [0,1,2,2,0,0,0];
+    return [0,1,1,1,0,0,0]
   },
   compareCostVector(a,b){for(let i=0;i<Math.max(a.length,b.length);i++){const x=Number(a[i])||0,y=Number(b[i])||0;if(x!==y)return x-y}return 0},
   minimalDisplayDeduction(d){return JSON.parse(JSON.stringify(d))}
@@ -19,11 +19,20 @@ const session={
   directDeductions(){return [relationProof,tripleProof]}
 };
 assert.strictEqual(Bridge._test.relationDerivedSupportPenalty(session,relationProof),1);
-assert.deepStrictEqual(Bridge._test.relationAwareHumanProofCost(source,session,relationProof),[2,3,2,0,0,1]);
+assert.deepStrictEqual(Bridge._test.relationAwareHumanProofCost(source,session,relationProof),[0,2,3,2,0,0,1]);
+assert.strictEqual(Bridge.VERSION,5);
+assert.strictEqual(Bridge._test.relationAwareHumanProofCost(source,session,relationProof).length,7,'human proof cost contract must stay 7D');
+assert.deepStrictEqual(Bridge._test.normalizeCostVector([1,2,3,4,5,6]),[0,1,2,3,4,5,6],'legacy 6D vectors must map deterministically to the 7D contract');
 const corrected=Bridge._test.correctedProof(source,session,{status:'move',target:[0,2],value:1},{schema:3,kind:'engine-proof',deduction:relationProof,displayDeductions:[relationProof],replaced:false});
 assert.strictEqual(corrected.kind,'simpler-self-contained-direct-proof');
 assert.strictEqual(corrected.deduction.rule,'TRIPLE_CONSTRAINT');
-assert.deepStrictEqual(corrected.costVector,[1,2,3,1,1,0]);
+assert.deepStrictEqual(corrected.costVector,[0,1,2,3,1,1,0]);
+
+const advancedProof={rule:'ASSUMPTION_CONTRADICTION',signature:'advanced',premises:[],conclusions:[{type:'VALUE',cell:[1,1],value:1}],explanationData:{causalTrace:[tripleProof]}};
+const advancedCost=Bridge._test.advancedHumanProofCost(source,session,advancedProof);
+assert.strictEqual(advancedCost.length,7,'advanced proof cost must stay on the same 7D contract');
+assert.ok(advancedCost[0]>=2,'advanced contradiction must carry semantic indirection');
+assert.ok(advancedCost[1]>=4,'advanced contradiction must include hypothesis/contradiction human steps');
 
 const producer={id:'D7',rule:'TRIPLE_CONSTRAINT',conclusions:[{type:'RELATION',a:[0,0],b:[0,2],parity:1}]};
 const sessionWithEvidence={
