@@ -10,7 +10,7 @@ const repo=path.resolve(__dirname,'../..');
 const WEB=fs.existsSync(path.join(candidate,'tango-logic.js'))?candidate:repo;
 const load=name=>require(path.join(WEB,name));
 global.document={body:{classList:{contains:name=>name==='tutor-active'}}};
-for(const f of ['tango-logic.js','tango-difficulty.js','tutor-move-selector.js','pedagogy-next-move-policy.js','tango-played-move-planner.js','tango-attention-continuity-bridge.js','tango-tutor-frontier-pruner-r5.js','tango-played-move-runtime.js','tango-human-pedagogy-r4.js','tango-tutor-single-planner-r5.js'])load(f);
+for(const f of ['tango-logic.js','tango-difficulty.js','tutor-move-selector.js','pedagogy-next-move-policy.js','tango-played-move-planner.js','tango-attention-continuity-bridge.js','tango-tutor-frontier-pruner-r5.js','tango-played-move-runtime.js','tango-human-cost-bridge.js','tango-human-pedagogy-r4.js','tango-tutor-single-planner-r5.js'])load(f);
 const P=global.QuadludTangoPlayedMovePlanner,T=global.QuadludTangoTutorSinglePlannerR5,H=global.QuadludTangoHumanPedagogyR4;
 assert(P&&T&&H,'Tango live Tutor unavailable');
 // Visible state after E5 = soleil in the user's screenshot.

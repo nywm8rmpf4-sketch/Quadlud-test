@@ -22,8 +22,8 @@ for(const file of [
   'tango-logic.js','tango-difficulty.js','tutor-move-selector.js',
   'pedagogy-next-move-policy.js','tango-played-move-planner.js',
   'tango-attention-continuity-bridge.js','tango-tutor-frontier-pruner-r5.js',
-  'tango-played-move-runtime.js','tango-human-pedagogy-r4.js',
-  'tango-tutor-single-planner-r5.js'
+  'tango-played-move-runtime.js','tango-human-cost-bridge.js',
+  'tango-human-pedagogy-r4.js','tango-tutor-single-planner-r5.js'
 ])require(path.join(ROOT,file));
 const Planner=global.QuadludTangoPlayedMovePlanner;
 const Tutor=global.QuadludTangoTutorSinglePlannerR5;
@@ -41,7 +41,7 @@ function solutionFor(entry){const sol=entry?.solution||entry?.sol;if(!Array.isAr
 function stateFor(entry){const sol=solutionFor(entry),state=Array.from({length:6},()=>Array(6).fill(-1));for(const i of entry.givens||[])state[Math.floor(i/6)][i%6]=sol[Math.floor(i/6)][i%6];return state}
 function publicPuzzle(entry,state){return {game:'tango',n:6,state:clone(state),edges:clone(entry.edges||[])}}
 function selectionMeta(plan){return [plan?.selectionStatus||'',Number(plan?.candidateCount)||0,Number(plan?.humanCandidateCount)||0,plan?.humanGlobalSelection?1:0,plan?.frontierComplete===false?0:1]}
-function proofMeta(plan){const p=plan?.displayProof||{};return [String(p.kind||'engine-proof'),p.replaced?1:0,clone(p.witness||null),String(p.replacedRule||''),Array.isArray(p.costVector)?p.costVector.slice():null,Array.isArray(p.replacedCostVector)?p.replacedCostVector.slice():null,p.traceCollapsed?1:0,Number(p.discardedAlternativeCount)||0,String(p.policy||Runtime.HUMAN_PROOF_POLICY||'')]}
+function proofMeta(plan){const p=plan?.displayProof||{};return [String(p.kind||'engine-proof'),p.replaced?1:0,clone(p.witness||null),String(p.replacedRule||''),Array.isArray(p.costVector)?p.costVector.slice():null,Array.isArray(p.replacedCostVector)?p.replacedCostVector.slice():null,p.traceCollapsed?1:0,Number(p.discardedAlternativeCount)||0,String(p.policy||Runtime.HUMAN_PROOF_POLICY||''),p.humanRelationSupportCostCorrected?1:0,Number.isFinite(Number(p.humanProofPreferenceTier))?Number(p.humanProofPreferenceTier):null]}
 function directMatches(engine,diff,sig){const tier=Planner.tierIndexForDifficulty(diff);return Planner._test.allowedDirectDeductions(engine,tier).filter(d=>signature(d)===sig)}
 function startingSeed(engine,diff,plan){const d=clone(plan?.startingDeduction||plan?.deduction);if(!d)throw new Error('Tutor plan missing starting deduction');const sig=signature(d),matches=directMatches(engine,diff,sig);if(sig&&matches.length===1)return [0,sig];return [1,d]}
 function displaySeed(engine,diff,plan){const d=clone(plan?.displayDeduction||plan?.displayProof?.deduction||plan?.deduction);if(!d)throw new Error('Tutor plan missing display deduction');const sig=signature(d),matches=directMatches(engine,diff,sig);if(sig&&matches.length===1){const minimized=Runtime._test.minimalDisplayDeduction(matches[0]);if(sameJson(minimized,d))return [0,sig]}return [1,d]}

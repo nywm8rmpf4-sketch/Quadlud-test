@@ -21,6 +21,7 @@ const FILES=Object.freeze([
   'tango-attention-continuity-bridge.js',
   'tango-tutor-frontier-pruner-r5.js',
   'tango-played-move-runtime.js',
+  'tango-human-cost-bridge.js',
   'tango-human-pedagogy-r4.js',
   'tango-tutor-single-planner-r5.js'
 ]);

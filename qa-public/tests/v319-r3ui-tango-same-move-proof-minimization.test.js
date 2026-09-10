@@ -65,7 +65,7 @@ const transitiveSession={
   relationBetween:()=>({path:[{a:[1,3],b:[1,2],parity:1,explicit:true},{a:[1,2],b:[1,4],parity:0,explicit:true}]})
 };
 assert.strictEqual(T.relationHumanPathLength(transitiveSession,direct),2);
-assert(T.humanProofCost(transitiveSession,[direct])[0]>T.humanProofCost(session,[direct])[0],'two visible relation edges must cost more human steps than one');
+assert(T.humanProofCost(transitiveSession,[direct])[1]>T.humanProofCost(session,[direct])[1],'two visible relation edges must cost more human steps than one after semantic-indirection dimension');
 
 const noDirect={directDeductions:()=>[unrelated]};
 const single=Runtime.selectDisplayProof(noDirect,{status:'move',target,value,deduction:finalComplex,proofChain:[lineSupport,intermediate,downstream,finalComplex]});

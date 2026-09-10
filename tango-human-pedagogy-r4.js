@@ -6,8 +6,8 @@
  */
 (function(root,factory){
   const isNode=typeof module!=='undefined'&&module.exports;
-  const Base=isNode?require('./tango-played-move-runtime.js'):root.QuadludTangoPlayedMoveRuntime;
-  const Planner=isNode?require('./tango-played-move-planner.js'):root.QuadludTangoPlayedMovePlanner;
+  const Base=isNode?(root.QuadludTangoPlayedMoveRuntime||require('./tango-played-move-runtime.js')):root.QuadludTangoPlayedMoveRuntime;
+  const Planner=isNode?(root.QuadludTangoPlayedMovePlanner||require('./tango-played-move-planner.js')):root.QuadludTangoPlayedMovePlanner;
   const api=factory(root,Base,Planner);
   if(isNode)module.exports=api;
   if(root){root.QuadludTangoHumanPedagogyR4=api;if(!isNode)api.installEarly()}

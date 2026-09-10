@@ -32,7 +32,7 @@ global.QuadludTangoHumanPedagogyR4={
 };
 
 const Bridge=require(runtime('tango-tutor-single-planner-r5.js'));
-assert.strictEqual(Bridge.VERSION,2);
+assert.strictEqual(Bridge.VERSION,3);
 
 const direct=Bridge._test.humanizeTutorPlan({directVisible:true},'expert');
 assert.strictEqual(globalCalls,1,'direct visible frontier must preserve the validated human-global selector');

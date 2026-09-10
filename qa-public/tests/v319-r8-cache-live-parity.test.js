@@ -23,6 +23,7 @@ require(file('tango-played-move-planner.js'));
 require(file('tango-attention-continuity-bridge.js'));
 require(file('tango-tutor-frontier-pruner-r5.js'));
 require(file('tango-played-move-runtime.js'));
+require(file('tango-human-cost-bridge.js'));
 require(file('tango-human-pedagogy-r4.js'));
 require(file('tango-tutor-precomputed-cache.js'));
 require(file('tango-tutor-single-planner-r5.js'));
