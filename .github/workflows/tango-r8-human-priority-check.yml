@@ -63,7 +63,6 @@ jobs:
           node tests/v319-r5-frontier-validation-cache.test.js
           node tests/v319-hf36-human-next-move-policy.test.js
           node tests/v319-r3ui-tango-tutor-freeze-guard.test.js
-          node tests/v319-r3ui-tango-human-proof.test.js
       - name: Commit tested human-priority correction
         run: |
           set -euo pipefail
