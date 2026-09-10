@@ -1,0 +1,69 @@
+name: Fix R8 proof snapshot and causal continuity
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths:
+      - '.github/workflows/fix-r8-proof-snapshot-causal.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Patch proof snapshot and rebuild causal proof after demotion
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          def once(path,old,new):
+              p=Path(path); s=p.read_text(encoding='utf-8'); n=s.count(old)
+              if n!=1: raise SystemExit(f'{path}: expected one match, got {n}')
+              p.write_text(s.replace(old,new),encoding='utf-8')
+
+          f='tango-semantic-coherence-hf39.js'
+          old="function normalizeGeneratedMoves(s,start){if(!s||s.base?.game!=='tango'||!Array.isArray(s.moves)||start<0||start>=s.moves.length)return false;const added=s.moves.slice(start),last=added.length-1;added.forEach((m,i)=>{const reported=String(m?.pedagogyStageKind||m?.proofStage?.kind||(i===last?'action':'reasoning')),original=i!==last&&reported==='action'?'reasoning':reported;if(i!==last&&m?.proofSnapshot)m.snapshot=copy(m.proofSnapshot);normalizePresentation(m,{isFinal:i===last,originalKind:original})});return true}"
+          new="function rebuildCausalProof(entries){const model=root.QuadludTangoCausalProofModel;if(!Array.isArray(entries)||!entries.length||typeof model?.fromEntries!=='function')return false;let proof;try{proof=model.fromEntries(entries)}catch(_){return false}entries.forEach((m,i)=>{m.causalProof=copy(proof);m.causalStepId=proof?.entryStepIds?.[i]||null});return true}\nfunction normalizeGeneratedMoves(s,start){if(!s||s.base?.game!=='tango'||!Array.isArray(s.moves)||start<0||start>=s.moves.length)return false;const added=s.moves.slice(start),last=added.length-1;let demoted=false;added.forEach((m,i)=>{const reported=String(m?.pedagogyStageKind||m?.proofStage?.kind||(i===last?'action':'reasoning')),internalAction=i!==last&&reported==='action',original=internalAction?'reasoning':reported;if(i!==last){const safe=internalAction?(m?.beforeSnapshot||m?.proofSnapshot):m?.proofSnapshot;if(safe){m.proofSnapshot=copy(safe);m.snapshot=copy(safe)}}normalizePresentation(m,{isFinal:i===last,originalKind:original});demoted=demoted||internalAction});if(demoted)rebuildCausalProof(added);return true}"
+          once(f,old,new)
+          old="return Object.freeze({VERSION,TOKEN,OWNS_HYPOTHETICAL_MARKERS,install,scheduleInstall,normalizeGeneratedMoves,decorate,_test:Object.freeze({sameCell,stageKind,causalStep,valueConclusions,assumptionOf,snapshotValue,atomicAction,atomicActionText,normalizePresentation,proofMarkers})});});"
+          new="return Object.freeze({VERSION,TOKEN,OWNS_HYPOTHETICAL_MARKERS,install,scheduleInstall,normalizeGeneratedMoves,decorate,_test:Object.freeze({sameCell,stageKind,causalStep,valueConclusions,assumptionOf,snapshotValue,atomicAction,atomicActionText,normalizePresentation,rebuildCausalProof,proofMarkers})});});"
+          once(f,old,new)
+
+          f='qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js'
+          old="const S=require(runtime('tango-semantic-coherence-hf39.js'));"
+          new="const Model=require(runtime('tango-causal-proof-model.js'));global.QuadludTangoCausalProofModel=Model;const S=require(runtime('tango-semantic-coherence-hf39.js'));"
+          once(f,old,new)
+          old="const session={base:{game:'tango'},moves:[hypothesis,internal,contradiction,rollback,action]};\n          assert.strictEqual(S.normalizeGeneratedMoves(session,0),true);"
+          new="const session={base:{game:'tango'},moves:[hypothesis,internal,contradiction,rollback,action]};\n          const stale=Model.fromEntries(session.moves);session.moves.forEach((m,i)=>{m.causalProof=JSON.parse(JSON.stringify(stale));m.causalStepId=stale.entryStepIds[i]});\n          assert.strictEqual(S._test.causalStep(internal).kind,'conclusion','fixture must reproduce stale internal-action causal classification');\n          assert.strictEqual(S.normalizeGeneratedMoves(session,0),true);"
+          once(f,old,new)
+          old="assert.strictEqual(internal.snapshot.state[0][0],1);\n          assert.strictEqual(internal.snapshot.state[3][5],0);"
+          new="assert.strictEqual(internal.snapshot.state[0][0],-1,'internal snapshot must not expose the real final A1 value');\n          assert.strictEqual(internal.snapshot.state[3][5],-1,'hypothetical D6 must be projected as a marker, not committed into the visible base snapshot');\n          assert.strictEqual(internal.proofSnapshot.state[0][0],-1);\n          const causal=S._test.causalStep(internal);assert.strictEqual(causal.kind,'deduction');assert.strictEqual(causal.hypothetical,true);\n          const markers=S._test.proofMarkers({entries:session.moves.map(move=>({move}))},1);\n          assert(markers.some(m=>m.kind==='hypothesis'&&m.cell[0]===0&&m.cell[1]===0&&m.value===1),'A1=sun hypothesis marker must remain');\n          assert(markers.some(m=>m.kind==='consequence'&&m.cell[0]===3&&m.cell[1]===5&&m.value===0),'D6=moon must become a numbered hypothetical consequence marker');"
+          once(f,old,new)
+
+          f='qa-public/tests/v319-semantic-tango-tutor-journey-browser.test.py'
+          old='''                proof_contract = page.evaluate(\n                    \"\"\"()=>{const s=walkthroughSession,g=walkthroughCurrentGroup?.(),i=Number(s?.navigation?.proofStepIndex)||0,kinds=(g?.entries||[]).map(e=>String(e?.move?.pedagogyStageKind||e?.move?.proofStage?.kind||''));return {proofIndex:i,lastIndex:kinds.length-1,currentKind:kinds[i]||'',kinds}}\"\"\"\n                )\n                assert proof_contract[\"proofIndex\"] == proof_contract[\"lastIndex\"] or proof_contract[\"currentKind\"] != \"action\", (\n                    f\"premature Tutor action inside proof group at capture {ordinal}: {proof_contract}\"\n                )\n'''
+          new='''                proof_contract = page.evaluate(\n                    \"\"\"()=>{\n                      const s=walkthroughSession,g=walkthroughCurrentGroup?.(),entries=g?.entries||[],i=Number(s?.navigation?.proofStepIndex)||0,kinds=entries.map(e=>String(e?.move?.pedagogyStageKind||e?.move?.proofStage?.kind||''));\n                      const m=entries[i]?.move||null,final=entries.at(-1)?.move||null,target=Array.isArray(final?.target)?final.target:null;\n                      const at=(snap,cell)=>Array.isArray(cell)?snap?.state?.[Number(cell[0])]?.[Number(cell[1])]:null;\n                      const d=m?.deduction||m?.presentation?.evidence?.primary||null,proof=m?.causalProof,step=proof&&m?.causalStepId&&Array.isArray(proof.steps)?proof.steps.find(x=>x?.id===m.causalStepId)||null:null;\n                      const values=(d?.conclusions||[]).filter(c=>c?.type==='VALUE'&&Array.isArray(c.cell)&&(Number(c.value)===0||Number(c.value)===1));\n                      const markerMissing=values.filter(v=>{const cell=document.querySelector(`.walkthrough-board [data-r=\\\"${Number(v.cell[0])}\\\"][data-c=\\\"${Number(v.cell[1])}\\\"]`);return !cell?.classList?.contains('hf39-hypothetical-cell')});\n                      return {proofIndex:i,lastIndex:kinds.length-1,currentKind:kinds[i]||'',kinds,finalRule:String(final?.deduction?.rule||final?.presentation?.evidence?.primary?.rule||''),finalTarget:target,currentFinalTargetValue:at(m?.snapshot,target),beforeFinalTargetValue:at(m?.beforeSnapshot,target),causalStepKind:step?.kind||null,causalHypothetical:step?.hypothetical??null,valueConclusionCount:values.length,markerMissing:markerMissing.map(v=>({cell:v.cell,value:Number(v.value)}))};\n                    }\"\"\"\n                )\n                assert proof_contract[\"proofIndex\"] == proof_contract[\"lastIndex\"] or proof_contract[\"currentKind\"] != \"action\", (\n                    f\"premature Tutor action inside proof group at capture {ordinal}: {proof_contract}\"\n                )\n                if proof_contract[\"finalRule\"] == \"ASSUMPTION_CONTRADICTION\" and proof_contract[\"proofIndex\"] < proof_contract[\"lastIndex\"]:\n                    assert proof_contract[\"currentFinalTargetValue\"] == proof_contract[\"beforeFinalTargetValue\"], (\n                        f\"real final value leaked into pre-action proof snapshot at capture {ordinal}: {proof_contract}\"\n                    )\n                if proof_contract[\"currentKind\"] == \"reasoning\" and proof_contract[\"causalHypothetical\"] is True and proof_contract[\"valueConclusionCount\"]:\n                    assert proof_contract[\"causalStepKind\"] == \"deduction\" and not proof_contract[\"markerMissing\"], (\n                        f\"hypothetical VALUE consequence lacks causal deduction/numbered marker at capture {ordinal}: {proof_contract}\"\n                    )\n'''
+          once(f,old,new)
+          PY
+          node --check tango-semantic-coherence-hf39.js
+          node --check qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js
+          node qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js
+          node qa-public/tests/v319-hf39-semantic-coherence.test.js
+          node qa-public/tests/v319-hf39-r55-stage-order.test.js
+          python3 -m py_compile qa-public/tests/v319-semantic-tango-tutor-journey-browser.test.py
+          git diff --check
+      - name: Commit tested causal snapshot fix
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add tango-semantic-coherence-hf39.js qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js qa-public/tests/v319-semantic-tango-tutor-journey-browser.test.py
+          git diff --cached --check
+          git commit -m 'fix(tango): rebuild hypothetical proof after internal action demotion'
+          git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
