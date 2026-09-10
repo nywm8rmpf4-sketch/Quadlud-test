@@ -184,6 +184,24 @@ jobs:
               raise SystemExit('Expert text audit failed: '+json.dumps(bad[:20],ensure_ascii=False))
           print(f'PASS Expert text audit: {captures} captures, {contradiction_actions} final contradiction actions, French-only and no duplicate final conclusion.')
           PY
+      - name: Package exact certified R8 data provenance
+        run: |
+          set -euo pipefail
+          SOURCE="$RUNNER_TEMP/quadlud-r8-browser/GitHub"
+          DEST="$RUNNER_TEMP/r8-evidence/r8-data"
+          mkdir -p "$DEST"
+          cp "$SOURCE/tango-runtime-pool-data.js" "$DEST/tango-runtime-pool-data.js"
+          cp "$SOURCE/tango-tutor-cache-data-r8.js" "$DEST/tango-tutor-cache-data-r8.js"
+          POOL_EXPECTED='6c3b226cc4c4db089768740510113bd07db2958a14216cf98020e7b0f4f9b013'
+          CACHE_EXPECTED='60d7030a1d2f4840764b24e18102d13e0aa997d9ca39fa59ddd531da8f466346'
+          POOL_ACTUAL="$(sha256sum "$DEST/tango-runtime-pool-data.js" | awk '{print $1}')"
+          CACHE_ACTUAL="$(sha256sum "$DEST/tango-tutor-cache-data-r8.js" | awk '{print $1}')"
+          test "$POOL_ACTUAL" = "$POOL_EXPECTED"
+          test "$CACHE_ACTUAL" = "$CACHE_EXPECTED"
+          printf '%s  %s\n' "$POOL_ACTUAL" 'tango-runtime-pool-data.js' > "$DEST/SHA256SUMS"
+          printf '%s  %s\n' "$CACHE_ACTUAL" 'tango-tutor-cache-data-r8.js' >> "$DEST/SHA256SUMS"
+          printf '{"headSha":"%s","poolSha256":"%s","cacheSha256":"%s"}\n' "$GITHUB_SHA" "$POOL_ACTUAL" "$CACHE_ACTUAL" > "$DEST/provenance.json"
+          echo "PASS exact R8 data provenance: pool=$POOL_ACTUAL cache=$CACHE_ACTUAL head=$GITHUB_SHA"
       - name: Upload integrated R8 evidence
         if: always()
         uses: actions/upload-artifact@v4
