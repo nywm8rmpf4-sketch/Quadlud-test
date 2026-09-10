@@ -16,7 +16,7 @@ jobs:
           ref: candidate/v3.1.9-tango-r8-integrated
       - uses: actions/setup-node@v5
         with: {node-version: '22'}
-      - name: Align offline Node planner composition with browser runtime
+      - name: Fix direct-before-advanced human Tutor selection
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -25,8 +25,19 @@ jobs:
           s=p.read_text(encoding='utf-8')
           old="function planner(){const p=Planner||root.QuadludTangoPlayedMovePlanner;if(!p||typeof p.nextPlayedMove!=='function')throw new Error('Soleil/Lune played-move planner unavailable');return p}"
           new="function planner(){const p=root.QuadludTangoPlayedMovePlanner||Planner;if(!p||typeof p.nextPlayedMove!=='function')throw new Error('Soleil/Lune played-move planner unavailable');return p}"
-          if s.count(old)!=1:
-              raise SystemExit(f'unexpected planner composition anchor count={s.count(old)}')
+          if s.count(old)!=1: raise SystemExit(f'unexpected planner composition anchor count={s.count(old)}')
+          s=s.replace(old,new)
+          old="const tierIndex=P.tierIndexForDifficulty(diff),direct=T.allowedDirectDeductions(session,tierIndex),evaluation=T.evaluateStartingDeductions(session,tierIndex,direct,options,false),frontierComplete=!evaluation.truncated&&!evaluation.branchBudgetHit;"
+          new="const tierIndex=P.tierIndexForDifficulty(diff),direct=T.allowedDirectDeductions(session,tierIndex),fastEvaluate=P._attentionTest?.evaluateDirectStartingDeductions,evaluation=typeof fastEvaluate==='function'?fastEvaluate(session,tierIndex,direct,options):T.evaluateStartingDeductions(session,tierIndex,direct,options,false),frontierComplete=!evaluation.truncated&&!evaluation.branchBudgetHit;"
+          if s.count(old)!=1: raise SystemExit(f'unexpected direct evaluation anchor count={s.count(old)}')
+          s=s.replace(old,new)
+          old="if(!frontier||!frontier.frontierComplete||!frontier.plans.length)return Base.planHumanMove(session,diff);"
+          new="if(!frontier||!frontier.plans.length)return Base.planHumanMove(session,diff);"
+          if s.count(old)!=1: raise SystemExit(f'unexpected frontier fallback anchor count={s.count(old)}')
+          s=s.replace(old,new)
+          old="return {...plan,displayProof:proof,displayDeduction,selectionStatus:'human-proof-global-minimum',selectedCostVector:chosen.plannerCost.slice(),candidateCount:ranked.length,frontierComplete:true,budgetHit:false,humanGlobalSelection:true,humanCandidateCount:ranked.length,humanSignature:`${plan.target.join(',')}:${plan.value}|${plan.startingDeduction?.signature||plan.deduction?.signature||plan.deduction?.id||''}|${proof?.kind||'engine-proof'}|global`}"
+          new="return {...plan,displayProof:proof,displayDeduction,selectionStatus:frontier.frontierComplete?'human-proof-global-minimum':'human-proof-direct-minimum-budget-limited',selectedCostVector:chosen.plannerCost.slice(),candidateCount:ranked.length,frontierComplete:frontier.frontierComplete,budgetHit:!frontier.frontierComplete,humanGlobalSelection:true,humanCandidateCount:ranked.length,humanSignature:`${plan.target.join(',')}:${plan.value}|${plan.startingDeduction?.signature||plan.deduction?.signature||plan.deduction?.id||''}|${proof?.kind||'engine-proof'}|global`}"
+          if s.count(old)!=1: raise SystemExit(f'unexpected chosen-plan metadata anchor count={s.count(old)}')
           p.write_text(s.replace(old,new),encoding='utf-8')
           PY
           node --check tango-human-pedagogy-r4.js
@@ -43,7 +54,8 @@ jobs:
           node tests/v319-r3ui-tango-attention-fast-frontier.test.js
           node tests/v319-r5-frontier-validation-cache.test.js
           node tests/v319-hf36-human-next-move-policy.test.js
-      - name: Commit tested planner-composition correction
+          node tests/v319-r3ui-tango-tutor-freeze-guard.test.js
+      - name: Commit tested human-priority correction
         run: |
           set -euo pipefail
           git config user.name 'QUADLUD QA Bot'
@@ -51,6 +63,6 @@ jobs:
           git add tango-human-pedagogy-r4.js
           git diff --cached --check
           if ! git diff --cached --quiet; then
-            git commit -m 'fix(tango): align offline Tutor planner composition with browser'
+            git commit -m 'fix(tango): prefer demonstrated direct move before contradiction'
             git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
           fi
