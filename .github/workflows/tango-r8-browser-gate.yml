@@ -13,8 +13,10 @@ on:
       - 'tango-tutor-single-planner-r5.js'
       - 'tango-semantic-coherence-hf39.js'
       - 'tango-tutor-human-regression-r54.js'
+      - 'tango-pedagogy-text-finalizer.js'
       - 'qa-public/tests/v319-hf39-r54-tutor-presentation.test.js'
       - 'qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js'
+      - 'qa-public/tests/v319-r3ui-tango-text-finalizer.test.js'
       - 'qa-public/tests/v319-semantic-tango-tutor-journey-browser.test.py'
       - 'qa-public/tests/v319-r8-integrated-browser.test.py'
       - 'qa-public/tests/v319-r8-browser-phase-diagnostic.py'
@@ -64,6 +66,7 @@ jobs:
           test -f "$R/tests/v319-r8-service-worker-minimal-probe.py"
           test -f "$R/tests/v319-hf39-r54-tutor-presentation.test.js"
           test -f "$R/tests/v319-hf39-r55-internal-action-continuity.test.js"
+          test -f "$R/tests/v319-r3ui-tango-text-finalizer.test.js"
       - name: Probe service worker on minimal page
         env:
           QUADLUD_R8_BASE_URL: http://127.0.0.1:8765/
@@ -115,6 +118,7 @@ jobs:
         run: |
           set -euo pipefail
           R="$RUNNER_TEMP/quadlud-r8-browser"; cd "$R"; export PYTHONPATH="$R/tests"
+          node tests/v319-r3ui-tango-text-finalizer.test.js
           node tests/v319-hf39-r54-tutor-presentation.test.js
           node tests/v319-hf39-r55-internal-action-continuity.test.js
           node tests/v319-hf39-semantic-coherence.test.js
@@ -147,6 +151,37 @@ jobs:
           if bad:
               raise SystemExit('duplicate/missing hypothetical glyphs: '+json.dumps(bad[:20],ensure_ascii=False))
           print(f'PASS Expert evidence: {checked} hypothetical cell observations each contain exactly one glyph.')
+          PY
+      - name: Audit Expert final contradiction text and French localization
+        env:
+          QUADLUD_SEMANTIC_EVIDENCE_DIR: ${{ runner.temp }}/r8-evidence/expert
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob, json, os, re
+          root=os.environ['QUADLUD_SEMANTIC_EVIDENCE_DIR']
+          bad=[]; contradiction_actions=0; captures=0
+          raw_english=re.compile(r'\b(?:sun|moon|suns|moons)\b',re.I)
+          duplicate_final=re.compile(r'\bDonc\s+[A-F][1-6]\s*=.*?Coup conseillé\s*:',re.I|re.S)
+          for path in sorted(glob.glob(os.path.join(root,'steps','*.json'))):
+              with open(path,encoding='utf-8') as fh: data=json.load(fh)
+              captures += 1
+              text=str(data.get('visibleExplanation',''))
+              if raw_english.search(text) or re.search(r'Conclusion intermédiaire',text,re.I):
+                  bad.append({'file':os.path.basename(path),'kind':'localization/dedup','text':text})
+              move=data.get('currentMove') or {}
+              deduction=move.get('deduction') or {}
+              if move.get('stageKind')=='action' and deduction.get('rule')=='ASSUMPTION_CONTRADICTION':
+                  contradiction_actions += 1
+                  if duplicate_final.search(text) or re.search(r'\bDonc\s+[A-F][1-6]\s*=',text,re.I):
+                      bad.append({'file':os.path.basename(path),'kind':'duplicate-final-conclusion','text':text})
+                  if text.count('Coup conseillé') != 1:
+                      bad.append({'file':os.path.basename(path),'kind':'missing-or-duplicate-advice','text':text})
+          if contradiction_actions != 5:
+              bad.append({'kind':'unexpected-contradiction-action-count','count':contradiction_actions})
+          if bad:
+              raise SystemExit('Expert text audit failed: '+json.dumps(bad[:20],ensure_ascii=False))
+          print(f'PASS Expert text audit: {captures} captures, {contradiction_actions} final contradiction actions, French-only and no duplicate final conclusion.')
           PY
       - name: Upload integrated R8 evidence
         if: always()
