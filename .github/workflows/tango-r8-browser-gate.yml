@@ -8,7 +8,7 @@ permissions:
 jobs:
   browser-r8:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,6 +42,21 @@ jobs:
           test -f "$R/GitHub/tango-runtime-pool-data.js"
           test -f "$R/GitHub/tango-tutor-cache-data-r8.js"
           test -f "$R/tests/v319-r8-integrated-browser.test.py"
+          test -f "$R/tests/v319-r8-browser-phase-diagnostic.py"
+      - name: Diagnose real-page phase boundaries
+        env:
+          QUADLUD_R8_BASE_URL: http://127.0.0.1:8765/
+        run: |
+          set -euo pipefail
+          R="$RUNNER_TEMP/quadlud-r8-browser"
+          cd "$R/GitHub"
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/r8-http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
+          cd "$R"
+          export PYTHONPATH="$R/tests"
+          timeout 420s python3 -u tests/v319-r8-browser-phase-diagnostic.py
       - name: Run real-page exact R8 integration gate
         env:
           QUADLUD_R8_BASE_URL: http://127.0.0.1:8765/
@@ -57,7 +72,7 @@ jobs:
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
           cd "$R"
           export PYTHONPATH="$R/tests"
-          python3 tests/v319-r8-integrated-browser.test.py
+          timeout 420s python3 -u tests/v319-r8-integrated-browser.test.py
       - name: Run integrated semantic browser regressions
         env:
           QUADLUD_ATTENTION_EVIDENCE_DIR: ${{ runner.temp }}/r8-evidence/attention
