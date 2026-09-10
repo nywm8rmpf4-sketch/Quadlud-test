@@ -7,13 +7,14 @@
 (function(root){
 'use strict';
 
-const VERSION=2;
-const TOKEN='3.1.9-hf3.9-r5.1b-single-planner-v2';
+const VERSION=3;
+const TOKEN='3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded';
 const DIFF_TO_TIER=Object.freeze({easy:0,medium:1,hard:2,expert:3,facile:0,moyen:1,difficile:2});
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function planner(){const p=root.QuadludTangoPlayedMovePlanner;if(!p||typeof p.nextPlayedMove!=='function'||typeof p.sessionFromPublicBoard!=='function')throw new Error('Soleil/Lune played-move planner unavailable');return p}
 function runtime(){const r=root.QuadludTangoPlayedMoveRuntime;if(!r||typeof r.selectDisplayProof!=='function')throw new Error('Soleil/Lune played-move runtime unavailable');return r}
 function pedagogy(){const h=root.QuadludTangoHumanPedagogyR4;if(!h||typeof h?._test?.proofStagesForDeduction!=='function')throw new Error('Soleil/Lune human pedagogy unavailable');return h}
+function precomputedCache(){const c=root.QuadludTangoTutorPrecomputedCache;return c&&typeof c.tryPlan==='function'?c:null}
 function tierIndex(diff){if(Number.isInteger(diff)&&diff>=0&&diff<=3)return diff;return DIFF_TO_TIER[String(diff||'').trim().toLowerCase()]}
 function hasDirectVisibleDeduction(session,diff){
   const P=planner(),T=P._test,A=P._attentionTest,tier=tierIndex(diff);
@@ -34,7 +35,9 @@ function attachHumanProof(session,plan,H,R,mode){
   }
 }
 function humanizeTutorPlan(session,diff,options={}){
-  const P=planner(),R=runtime(),H=pedagogy(),directVisible=hasDirectVisibleDeduction(session,diff);
+  const P=planner(),R=runtime(),H=pedagogy();
+  if(options.usePrecomputedCache!==false){const cache=precomputedCache();let cached=null;if(cache)try{cached=cache.tryPlan(session,diff)}catch(_){cached=null}if(cached){const out=attachHumanProof(session,cached,H,R,'precomputed-guarded');if(out?.status==='move')return out}}
+  const directVisible=hasDirectVisibleDeduction(session,diff);
   // Preserve the validated human-global ordering while a directly playable
   // visible deduction exists. This is the cheap frontier that yields the
   // natural B4 -> C6 progression. If only invisible relation starts remain,
@@ -90,7 +93,7 @@ function install(){
   root.walkthroughGenerateTangoNext=walkthroughGenerateTutorPlannerNext;
   return true
 }
-const api=Object.freeze({VERSION,TOKEN,install,humanizeTutorPlan,walkthroughGenerateTutorPlannerNext,_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,attachHumanProof,humanizeTutorPlan})});
+const api=Object.freeze({VERSION,TOKEN,install,humanizeTutorPlan,walkthroughGenerateTutorPlannerNext,_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,attachHumanProof,humanizeTutorPlan,precomputedCache})});
 root.QuadludTangoTutorSinglePlannerR5=api;
 if(typeof document!=='undefined')install();
 if(typeof module!=='undefined'&&module.exports)module.exports=api;

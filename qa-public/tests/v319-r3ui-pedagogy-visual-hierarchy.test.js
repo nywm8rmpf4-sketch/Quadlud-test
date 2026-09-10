@@ -69,7 +69,7 @@ assert(css.includes('.walkthrough-proof-chain-active .walkthrough-proof-navigati
 assert(css.includes('body.tutor-active:not(:has(.walkthrough-proof-chain-active)) .walkthrough-help-note{margin:2px 0 4px;padding:4px 8px}'),'R5.3 must compact ordinary help-note spacing without shrinking text');
 assert(css.includes('body.tutor-active:not(:has(.walkthrough-proof-chain-active)) .walkthrough-explanation{margin-top:5px;padding:8px 10px}'),'R5.3 must compact ordinary explanation spacing without shrinking text');
 
-const unitToken='3.1.9-r3ui-causal-focus-r4',cssToken='3.1.9-hf3.9-r5.3-message-fit-r3',navigationToken='3.1.9-hf3.9-r5.2-action-atomicity-r1',bridgeToken='3.1.9-r3ui-progressive-proof-r7-derived-provenance',playedToken='3.1.9-a13r6-single-proof',singlePlannerToken='3.1.9-hf3.9-r5.1b-single-planner-v2';
+const unitToken='3.1.9-r3ui-causal-focus-r4',cssToken='3.1.9-hf3.9-r5.3-message-fit-r3',navigationToken='3.1.9-hf3.9-r5.2-action-atomicity-r1',bridgeToken='3.1.9-r3ui-progressive-proof-r7-derived-provenance',playedToken='3.1.9-a13r6-single-proof',singlePlannerToken='3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded';
 const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8'),sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
 assert(index.includes(`tutor-action-first-navigation.css?v=${cssToken}`));assert(sw.includes(`./tutor-action-first-navigation.css?v=${cssToken}`));
 assert(index.includes(`tutor-action-first-navigation.js?v=${navigationToken}`));assert(sw.includes(`./tutor-action-first-navigation.js?v=${navigationToken}`));
@@ -87,5 +87,5 @@ assert(!humanRegression.includes("</b><br>${detail.steps"),'relation-balance pro
 const relationCssToken='3.1.9-r3ui-relation-balance-mobile-layout-v2',humanRegressionToken='3.1.9-hf3.9-r5.4-mobile-layout-v3';
 assert(index.includes(`tango-human-pedagogy-r4.css?v=${relationCssToken}`));assert(sw.includes(`./tango-human-pedagogy-r4.css?v=${relationCssToken}`));
 assert(index.includes(`tango-tutor-human-regression-r54.js?v=${humanRegressionToken}`));
-const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-tango-diversity-pilot-v13');
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-tango-r8-exact-v14');
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
