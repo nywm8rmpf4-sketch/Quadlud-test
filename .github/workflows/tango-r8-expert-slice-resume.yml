@@ -1,0 +1,266 @@
+name: QUADLUD Tango R8 Expert sliced resume
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths: ['.github/workflows/tango-r8-expert-slice-resume.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - name: Add deterministic range support to synchronized shard builder
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('qa-public/tools/build_tango_tutor_sync_shard_r8.js'); s=p.read_text()
+          old="const reportPath=arg('--report')?path.resolve(arg('--report')):null;\nif(!['easy','medium','hard','expert'].includes(difficulty))throw new Error('--difficulty must be easy, medium, hard or expert');"
+          new="const reportPath=arg('--report')?path.resolve(arg('--report')):null;\nconst startRaw=arg('--start'),countRaw=arg('--count');\nconst startIndex=startRaw==null?0:Number(startRaw),requestedCount=countRaw==null?120:Number(countRaw);\nif(!['easy','medium','hard','expert'].includes(difficulty))throw new Error('--difficulty must be easy, medium, hard or expert');\nif(!Number.isInteger(startIndex)||startIndex<0||startIndex>=120)throw new Error('--start must be an integer from 0 to 119');\nif(!Number.isInteger(requestedCount)||requestedCount<1||startIndex+requestedCount>120)throw new Error('--count must keep the requested range within the 120-entry pool');\nconst endIndex=startIndex+requestedCount;"
+          if s.count(old)!=1: raise SystemExit('range argument anchor mismatch')
+          s=s.replace(old,new)
+          old="for(let poolIndex=0;poolIndex<sourceEntries.length;poolIndex++){"
+          new="for(let poolIndex=startIndex;poolIndex<endIndex;poolIndex++){"
+          if s.count(old)!=1: raise SystemExit('range loop anchor mismatch')
+          s=s.replace(old,new)
+          old="if((poolIndex+1)%10===0||poolIndex===119)console.error(`${difficulty}: ${poolIndex+1}/120 puzzles, ${seen.size} unique synchronized states`);"
+          new="const processed=poolIndex-startIndex+1;if(processed%10===0||poolIndex===endIndex-1)console.error(`${difficulty}: ${processed}/${requestedCount} puzzles in pool range ${startIndex}-${endIndex-1}, ${seen.size} unique synchronized states`);"
+          if s.count(old)!=1: raise SystemExit('range progress anchor mismatch')
+          s=s.replace(old,new)
+          old="proofPolicy:payload.proofPolicy,puzzles:entries.length,totalSteps"
+          new="proofPolicy:payload.proofPolicy,startIndex,endIndex,puzzles:entries.length,totalSteps"
+          if s.count(old)!=1: raise SystemExit('range report anchor mismatch')
+          p.write_text(s.replace(old,new))
+          PY
+          node --check qa-public/tools/build_tango_tutor_sync_shard_r8.js
+          git diff --check
+      - name: Commit range-capable QA builder
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add qa-public/tools/build_tango_tutor_sync_shard_r8.js
+          git diff --cached --check
+          git commit -m 'test(tango): support deterministic Tutor cache build ranges'
+          git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
+
+  expert:
+    needs: prepare
+    name: expert-${{ matrix.start }}-${{ matrix.end }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {start: 0, count: 30, end: 29}
+          - {start: 30, count: 30, end: 59}
+          - {start: 60, count: 30, end: 89}
+          - {start: 90, count: 30, end: 119}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Build exact Expert sub-shard
+        run: |
+          set -euo pipefail
+          test "$(sha256sum tango-runtime-pool-data.js | cut -d' ' -f1)" = "6c3b226cc4c4db089768740510113bd07db2958a14216cf98020e7b0f4f9b013"
+          mkdir -p "$RUNNER_TEMP/expert"
+          node qa-public/tools/build_tango_tutor_sync_shard_r8.js \
+            --difficulty expert --start "${{ matrix.start }}" --count "${{ matrix.count }}" \
+            --pool tango-runtime-pool-data.js \
+            --output "$RUNNER_TEMP/expert/tango-tutor-sync-expert-${{ matrix.start }}.json" \
+            --report "$RUNNER_TEMP/expert/expert-${{ matrix.start }}-report.json"
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('assert');const start=Number('${{ matrix.start }}');
+          const x=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+`/expert/tango-tutor-sync-expert-${start}.json`));
+          assert.equal(x.entries.length,30);assert.deepStrictEqual(x.entries.map(e=>e[0]),Array.from({length:30},(_,i)=>start+i));
+          assert.equal(x.tutorContract.digest,'b48da5bd09ae47acffa1ba787fe26e11c4c3e4830115b931392c6e9fa2e9c45a');
+          const steps=x.entries.flatMap(e=>e[2]);assert.equal(new Set(steps.map(s=>s[0])).size,steps.length);console.log('PASS Expert slice',start,steps.length);
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-sync-expert-${{ matrix.start }}
+          path: ${{ runner.temp }}/expert/
+          if-no-files-found: error
+          retention-days: 7
+
+  combine:
+    needs: expert
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Recover already certified Easy Medium Hard shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tango-sync-*
+          path: ${{ runner.temp }}/sync
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          repository: nywm8rmpf4-sketch/Quadlud-test
+          run-id: 34515807007
+      - name: Download current Expert slices
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tango-sync-expert-*
+          path: ${{ runner.temp }}/expert
+          merge-multiple: true
+      - name: Merge Expert slices and prove complete coverage
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,glob,os
+          root=os.environ['RUNNER_TEMP']
+          paths=sorted(glob.glob(root+'/expert/tango-tutor-sync-expert-*.json'))
+          if len(paths)!=4: raise SystemExit(f'expected 4 Expert slices, got {paths}')
+          docs=[json.load(open(p,encoding='utf-8')) for p in paths]
+          identity=lambda d:(d['schema'],d['version'],d['difficulty'],d['poolVersion'],json.dumps(d['tutorContract'],sort_keys=True),d['tutorPlannerToken'],d['humanPolicy'],d['proofPolicy'])
+          if len({identity(d) for d in docs})!=1: raise SystemExit('Expert slice algorithm identity mismatch')
+          entries=sorted((e for d in docs for e in d['entries']),key=lambda e:e[0])
+          indices=[e[0] for e in entries]
+          if indices!=list(range(120)): raise SystemExit(f'Expert coverage mismatch: {indices}')
+          fingerprints=[s[0] for e in entries for s in e[2]]
+          if len(fingerprints)!=len(set(fingerprints)): raise SystemExit('Expert duplicate canonical state fingerprint across slices')
+          out=dict(docs[0]);out['entries']=entries
+          dest=root+'/sync/tango-tutor-sync-expert.json';json.dump(out,open(dest,'w',encoding='utf-8'),separators=(',',':'))
+          print('PASS merged Expert 120/120:',len(fingerprints),'unique canonical states')
+          PY
+          for d in easy medium hard expert; do test -s "$RUNNER_TEMP/sync/tango-tutor-sync-$d.json"; done
+      - name: Compact losslessly and materialize guarded runtime package
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/package"
+          node qa-public/tools/compact_tango_tutor_sync_r8.js "$RUNNER_TEMP/sync" "$RUNNER_TEMP/package"
+          cp qa-public/tools/tango-tutor-precomputed-cache-sync-template.js "$RUNNER_TEMP/package/tango-tutor-precomputed-cache.js"
+          node - <<'NODE'
+          const fs=require('fs');const C=require('./qa-public/tools/tango_tutor_cache_contract.js').compute('.');
+          const R=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/package/tango-tutor-cache-r8-sync-report.json'));
+          if(C.digest!==R.tutorContract.digest)throw new Error(`contract mismatch ${C.digest} != ${R.tutorContract.digest}`);
+          if(C.digest!=='b48da5bd09ae47acffa1ba787fe26e11c4c3e4830115b931392c6e9fa2e9c45a')throw new Error('unexpected Tutor contract digest');
+          const data={...C,tutorPlannerToken:R.tutorPlannerToken,humanPolicy:R.humanPolicy,proofPolicy:R.proofPolicy};
+          fs.writeFileSync(process.env.RUNNER_TEMP+'/package/tango-tutor-cache-contract-r8.js',`/* QUADLUD — Soleil-Lune Tutor cache contract R8. Copyright © 2026 Serge Benoliel. All rights reserved. */\n(function(root){'use strict';const c=${JSON.stringify(data)};root.QuadludTangoTutorCacheContractR8=Object.freeze(c);if(typeof module!=='undefined'&&module.exports)module.exports=Object.freeze(c);})(typeof globalThis!=='undefined'?globalThis:this);\n`);
+          NODE
+          cp "$RUNNER_TEMP/package/tango-tutor-precomputed-cache.js" ./tango-tutor-precomputed-cache.js
+          cp "$RUNNER_TEMP/package/tango-tutor-cache-contract-r8.js" ./tango-tutor-cache-contract-r8.js
+          cp "$RUNNER_TEMP/package/tango-tutor-cache-data-r8.js" ./tango-tutor-cache-data-r8.js
+          node --check tango-tutor-precomputed-cache.js; node --check tango-tutor-cache-contract-r8.js; node --check tango-tutor-cache-data-r8.js
+          node - <<'NODE'
+          const assert=require('assert'),C=require('./tango-tutor-precomputed-cache.js'),D=require('./tango-tutor-cache-data-r8.js');if(!C.info().registered)C.registerData(D);
+          const i=C.info();assert.equal(i.version,3);assert.equal(i.dataSchema,8);assert.equal(i.dataVersion,'tango-tutor-cache-r8-sync2');assert.equal(i.contract.digest,'b48da5bd09ae47acffa1ba787fe26e11c4c3e4830115b931392c6e9fa2e9c45a');assert.deepStrictEqual(D.puzzleCounts,{easy:120,medium:120,hard:120,expert:120});console.log('PASS synchronized cache package',i);
+          NODE
+          (cd "$RUNNER_TEMP/package" && sha256sum tango-tutor-precomputed-cache.js tango-tutor-cache-contract-r8.js tango-tutor-cache-data-r8.js tango-tutor-cache-r8-sync-report.json > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-sync-cache-package
+          path: ${{ runner.temp }}/package/
+          if-no-files-found: error
+          retention-days: 7
+
+  parity:
+    needs: combine
+    name: parity-${{ matrix.difficulty }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        difficulty: [easy, medium, hard, expert]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tango-r8-sync-cache-package
+          path: ${{ runner.temp }}/package
+      - name: Prove exhaustive cache live parity
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/package/tango-tutor-precomputed-cache.js" .
+          cp "$RUNNER_TEMP/package/tango-tutor-cache-contract-r8.js" .
+          cp "$RUNNER_TEMP/package/tango-tutor-cache-data-r8.js" .
+          QUADLUD_PARITY_DIFFICULTY="${{ matrix.difficulty }}" QUADLUD_PARITY_REPORT="$RUNNER_TEMP/parity-${{ matrix.difficulty }}.json" node qa-public/tests/v319-r8-cache-live-parity.test.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-parity-${{ matrix.difficulty }}
+          path: ${{ runner.temp }}/parity-${{ matrix.difficulty }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/download-artifact@v4
+        with:
+          name: tango-r8-sync-cache-package
+          path: ${{ runner.temp }}/package
+      - name: Integrate exact synchronized cache into browser and PWA
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/package/tango-tutor-precomputed-cache.js" .
+          cp "$RUNNER_TEMP/package/tango-tutor-cache-contract-r8.js" .
+          cp "$RUNNER_TEMP/package/tango-tutor-cache-data-r8.js" .
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text()
+          reps={'tango-played-move-runtime.js?v=3.1.9-a13r6-single-proof':'tango-played-move-runtime.js?v=3.1.9-a13r6-single-proof-7d','tango-human-cost-bridge.js?v=3.1.9-r3ui-local-proof-hf3r1':'tango-human-cost-bridge.js?v=3.1.9-r3ui-human-cost-7d-v5','tango-human-pedagogy-r4.js?v=3.1.9-r3ui-human-r4-hf3r1':'tango-human-pedagogy-r4.js?v=3.1.9-r3ui-human-r4-hf3r2-contract'}
+          for old,new in reps.items():
+            if s.count(old)!=1: raise SystemExit(f'index cache-bust anchor mismatch: {old}')
+            s=s.replace(old,new)
+          old='<script src="tango-tutor-precomputed-cache.js?v=3.1.9-r8-exact"></script><script src="tango-tutor-cache-data-r8.js?v=3.1.9-r8-exact"></script>'
+          new='<script src="tango-tutor-cache-contract-r8.js?v=3.1.9-r8-sync2-7d"></script><script src="tango-tutor-precomputed-cache.js?v=3.1.9-r8-sync2-7d"></script><script src="tango-tutor-cache-data-r8.js?v=3.1.9-r8-sync2-7d"></script>'
+          if s.count(old)!=1: raise SystemExit('index synchronized cache anchor mismatch')
+          p.write_text(s.replace(old,new))
+          p=Path('sw.js'); s=p.read_text()
+          if s.count("const CACHE='quadlud-v3.1.9-tango-r8-exact-v17';")!=1: raise SystemExit('SW cache identity anchor mismatch')
+          s=s.replace("const CACHE='quadlud-v3.1.9-tango-r8-exact-v17';","const CACHE='quadlud-v3.1.9-tango-r8-sync2-7d-v18';")
+          reps={'./tango-played-move-runtime.js?v=3.1.9-a13r6-single-proof':'./tango-played-move-runtime.js?v=3.1.9-a13r6-single-proof-7d','./tango-human-cost-bridge.js?v=3.1.9-r3ui-local-proof-hf3r1':'./tango-human-cost-bridge.js?v=3.1.9-r3ui-human-cost-7d-v5','./tango-human-pedagogy-r4.js?v=3.1.9-r3ui-human-r4-hf3r1':'./tango-human-pedagogy-r4.js?v=3.1.9-r3ui-human-r4-hf3r2-contract'}
+          for old,new in reps.items():
+            if s.count(old)!=1: raise SystemExit(f'SW cache-bust anchor mismatch: {old}')
+            s=s.replace(old,new)
+          old="'./tango-tutor-precomputed-cache.js?v=3.1.9-r8-exact','./tango-tutor-cache-data-r8.js?v=3.1.9-r8-exact'"
+          new="'./tango-tutor-cache-contract-r8.js?v=3.1.9-r8-sync2-7d','./tango-tutor-precomputed-cache.js?v=3.1.9-r8-sync2-7d','./tango-tutor-cache-data-r8.js?v=3.1.9-r8-sync2-7d'"
+          if s.count(old)!=1: raise SystemExit('SW synchronized cache anchor mismatch')
+          p.write_text(s.replace(old,new))
+          p=Path('qa-public/tests/v319-r8-integrated-browser.test.py'); s=p.read_text();old='quadlud-v3.1.9-tango-r8-exact-v17';new='quadlud-v3.1.9-tango-r8-sync2-7d-v18'
+          if s.count(old)!=1: raise SystemExit('browser SW expectation anchor mismatch')
+          p.write_text(s.replace(old,new))
+          PY
+          node --check tango-tutor-precomputed-cache.js; node --check tango-tutor-cache-contract-r8.js; node --check tango-tutor-cache-data-r8.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('sw.js').read_text();m=re.search(r'const ASSETS=\[(.*?)\];',s,re.S)
+          if not m: raise SystemExit('SW ASSETS missing')
+          assets=re.findall(r"'([^']+)'",m.group(1))
+          if len(assets)!=len(set(assets)): raise SystemExit('duplicate SW precache URLs')
+          if './tango-tutor-cache-contract-r8.js?v=3.1.9-r8-sync2-7d' not in assets: raise SystemExit('cache contract not precached')
+          print('PASS SW unique precache URLs',len(assets))
+          PY
+          git diff --check
+      - name: Commit synchronized cache only after four parity gates PASS
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'; git config user.email 'actions@users.noreply.github.com'
+          git add tango-tutor-precomputed-cache.js tango-tutor-cache-contract-r8.js tango-tutor-cache-data-r8.js index.html sw.js qa-public/tests/v319-r8-integrated-browser.test.py
+          git diff --cached --check
+          git commit -m 'feat(tango): integrate synchronized guarded R8 Tutor cache'
+          git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
