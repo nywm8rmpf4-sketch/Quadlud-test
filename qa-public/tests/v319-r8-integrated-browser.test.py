@@ -18,8 +18,19 @@ def main() -> None:
         browser = p.chromium.launch(headless=True, executable_path="/usr/bin/chromium", args=["--no-sandbox"])
         context = browser.new_context(viewport=VIEWPORT, locale="fr-FR", has_touch=True, is_mobile=True)
         page = context.new_page()
+
+        def record_console_error(msg) -> None:
+            if msg.type != "error":
+                return
+            location = msg.location or {}
+            url = location.get("url", "")
+            implicit_favicon_url = BASE_URL.rstrip("/") + "/favicon.ico"
+            if url == implicit_favicon_url and "404" in msg.text and msg.text.startswith("Failed to load resource:"):
+                return
+            console_errors.append(f"console:{msg.text}|location={location}")
+
         page.on("pageerror", lambda exc: console_errors.append("pageerror:" + str(exc)))
-        page.on("console", lambda msg: console_errors.append(f"console:{msg.text}|location={msg.location}") if msg.type == "error" else None)
+        page.on("console", record_console_error)
         page.on("response", lambda response: http_errors.append({"status": response.status, "url": response.url}) if response.status >= 400 else None)
         page.goto(BASE_URL, wait_until="networkidle")
         page.wait_for_selector(".cards")
@@ -155,7 +166,7 @@ def main() -> None:
 
         out = Path(os.environ.get("QUADLUD_R8_BROWSER_REPORT", "/tmp/quadlud-r8-browser-report.json"))
         out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-        assert not console_errors, {"console": console_errors, "http": http_errors}
+        assert not console_errors and not http_errors, {"console": console_errors, "http": http_errors}
         context.close(); browser.close()
 
     print("integrated exact R8 browser gate PASS — 120x4 unique bag, real launch pool hit, Tutor cache hit, divergence fallback, PWA offline")
