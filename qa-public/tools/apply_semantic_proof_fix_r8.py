@@ -1,0 +1,89 @@
+from pathlib import Path
+
+
+def replace_once(path, old, new):
+    p = Path(path)
+    source = p.read_text()
+    count = source.count(old)
+    if count != 1:
+        raise SystemExit(f"{path}: expected one replacement, found {count}")
+    p.write_text(source.replace(old, new))
+
+
+clarity = "tango-tutor-clarity.js"
+old = """  if(rule==='LINE_DOMAIN_SUPPORT'&&conclusion){
+    const unit=unitName(x.family,x.id,loc),count=Number(x.domainCount),known=(support.premises||[]).filter(p=>p?.kind==='RELATION'&&p.explicit!==true);let lines=[],complete=true;
+    for(const p of known){const proof=premiseRelationLines(p,loc,depth+1);lines.push(...proof.lines);complete=complete&&proof.complete}
+    lines.push(loc==='fr'?`Dans ${unit}, ${Number.isFinite(count)&&count>0?`${count} complétion${count===1?'':'s'}`:'les complétions restantes'} respectent l’équilibre, la règle des trois et les indices visibles. Dans chacune, ${humanCell(conclusion.a)} et ${humanCell(conclusion.b)} sont ${relationWord(conclusion.parity,loc)} ; cette relation est donc forcée.`:`In ${unit}, ${Number.isFinite(count)&&count>0?`${count} remaining completion${count===1?'':'s'}`:'the remaining completions'} satisfy balance, the no-three rule and visible clues. In all of them, ${humanCell(conclusion.a)} and ${humanCell(conclusion.b)} are ${relationWord(conclusion.parity,loc)}, so the relation is forced.`);return {lines,complete}
+  }
+"""
+new = """  if(rule==='LINE_DOMAIN_SUPPORT'&&conclusion){
+    const unit=unitName(x.family,x.id,loc),count=Number(x.domainCount),known=(support.premises||[]).filter(p=>p?.kind==='RELATION'&&p.explicit!==true),domains=Array.isArray(x.domains)?x.domains:[];let complete=true;
+    // Keep provenance verification recursive, but do not replay every nested relation in the UI.
+    // The bounded domain list below is the actual local proof of the forced relation.
+    for(const p of known){const proof=premiseRelationLines(p,loc,depth+1);complete=complete&&proof.complete}
+    if(!complete)return {lines:[unsupportedRelationLine(edge.from,edge.to,loc)],complete:false};
+    const finite=Number.isFinite(count)&&count>0,countLabel=loc==='fr'?(finite?`${count} complétion${count===1?'':'s'}`:'les complétions restantes'):(finite?`${count} remaining completion${count===1?'':'s'}`:'the remaining completions'),lines=[];
+    lines.push(loc==='fr'?`Dans ${unit}, ${countLabel} ${finite&&count===1?'reste':'restent'} compatibles avec l’équilibre, la règle des trois, les indices visibles et les relations imposées par l’état courant.`:`In ${unit}, ${countLabel} satisfy balance, the no-three rule, visible clues and the relations forced by the current state.`);
+    if(domains.length){const configs=domains.map(domain=>domain.map(v=>Number(v)===1?'☀':'☾').join('')).join(loc==='fr'?' ou ':' or ');lines.push(loc==='fr'?`Configurations compatibles : ${configs}.`:`Compatible configurations: ${configs}.`)}
+    lines.push(loc==='fr'?`Dans chacune, ${humanCell(conclusion.a)} et ${humanCell(conclusion.b)} sont ${relationWord(conclusion.parity,loc)} ; cette relation est donc forcée.`:`In all of them, ${humanCell(conclusion.a)} and ${humanCell(conclusion.b)} are ${relationWord(conclusion.parity,loc)}, so the relation is forced.`);return {lines,complete:true}
+  }
+"""
+replace_once(clarity, old, new)
+
+causal = "tango-tutor-causal-atomic-r55.js"
+old = """  if(x.rule==='TRIPLE_CONSTRAINT'&&values.length>=2){const repeated=Number(values[0].value),opposite=1-repeated;return{where:fr?`Regarde les trois cases consécutives dans ${unit}.`:`Look at the three consecutive cells in ${unit}.`,why:fr?`${facts.join(' ; ')}. La règle des trois interdit un troisième ${humanPiece(repeated,true)} consécutif ; ${target} doit donc être ${humanPiece(opposite,true)}.`:`${facts.join('; ')}. The no-three rule forbids a third consecutive ${humanPiece(repeated,false)}; therefore ${target} must be ${humanPiece(opposite,false)}.`}}
+"""
+new = """  if(x.rule==='TRIPLE_CONSTRAINT'&&values.length>=2){const repeated=Number(values[0].value),opposite=1-repeated;return{where:fr?`Regarde les trois cases consécutives dans ${unit}.`:`Look at the three consecutive cells in ${unit}.`,why:fr?`${facts.join(' ; ')}. Ajouter encore ${humanPiece(repeated,true)} formerait trois symboles identiques consécutifs, ce que la règle des trois interdit ; ${target} doit donc être ${humanPiece(opposite,true)}.`:`${facts.join('; ')}. Adding another ${humanPiece(repeated,false)} would create three identical consecutive symbols, which the no-three rule forbids; therefore ${target} must be ${humanPiece(opposite,false)}.`}}
+"""
+replace_once(causal, old, new)
+old = """  if(String(d?.rule||'')==='LINE_DOMAIN_SUPPORT'&&domains&&proof?.complete){const compactDomains=(x.domains||[]).map(domain=>domain.map(v=>Number(v)===1?'☀':'☾').join('')).join(fr?' ou ':' or '),domainLine=fr?`Configurations compatibles : ${compactDomains}. Cette relation est donc maintenant démontrée.`:`Compatible configurations: ${compactDomains}. This relation is now proven.`;return{where:fr?`Regarde ${unit}.`:`Look at ${unit}.`,why:[...(proof.lines||[]),domainLine].join(' ')}}
+"""
+new = """  if(String(d?.rule||'')==='LINE_DOMAIN_SUPPORT'&&domains&&proof?.complete)return{where:fr?`Regarde ${unit}.`:`Look at ${unit}.`,why:(proof.lines||[]).join(' ')}
+"""
+replace_once(causal, old, new)
+
+test = "qa-public/tests/v319-r3ui-tango-tutor-clarity.test.js"
+marker = "\nconsole.log('v319-r3ui-tango-tutor-clarity.test.js: PASS');\n"
+addition = r'''
+// Semantic-review regression R8: a line-domain relation proof must stay local and compact.
+// Nested relation provenance is still verified for completeness, but must not be replayed in
+// the visible explanation where it created duplicated and even contextually contradictory chains.
+const domainSupport={
+  rule:'LINE_DOMAIN_SUPPORT',
+  premises:[{kind:'RELATION',a:[1,3],b:[1,4],parity:0,explicit:false,path:[{a:[1,3],b:[1,4],parity:0,explicit:true}]}],
+  conclusions:[{type:'RELATION',a:[1,0],b:[1,1],parity:1}],
+  explanationData:{family:'row',id:1,domainCount:2,domains:[[1,0,0,1,1,0],[0,1,0,1,1,0]]}
+};
+const domainEdge={from:[1,0],to:[1,1],parity:1};
+const domainProof=M._test.supportRelationLines(domainSupport,domainEdge,'fr');
+assert.strictEqual(domainProof.complete,true);
+assert(domainProof.lines.length<=3,domainProof.lines.join(' '));
+const domainText=domainProof.lines.join(' ');
+assert(domainText.includes('Configurations compatibles : ☀☾☾☀☀☾ ou ☾☀☾☀☀☾.'),domainText);
+assert(domainText.includes('B1 et B2 sont opposées'),domainText);
+assert(!domainText.includes('B4 = B5'),domainText);
+const incompleteDomain=JSON.parse(JSON.stringify(domainSupport));
+delete incompleteDomain.premises[0].path;
+const incompleteDomainProof=M._test.supportRelationLines(incompleteDomain,domainEdge,'fr');
+assert.strictEqual(incompleteDomainProof.complete,false);
+assert(incompleteDomainProof.lines.join(' ').includes('provenance nécessaire'));
+'''
+replace_once(test, marker, "\n" + addition + marker)
+
+test = "qa-public/tests/v319-hf39-r55-causal-atomic-contract.test.js"
+marker = "\nconsole.log('PASS HF3.9-R5.5 causal atomization: B4/E3 hidden nodes exposed, unsupported or already-planned intermediates preserved.');\n"
+addition = r'''
+// Semantic-review regression R8: French triple wording must be grammatical for "lune",
+// and line-domain configurations must be rendered exactly once.
+global.lang=()=> 'fr';
+const tripleText=T.atomicText({rule:'TRIPLE_CONSTRAINT',current:{cell:[3,5],value:1},deduction:{rule:'TRIPLE_CONSTRAINT',premises:[{kind:'VALUE',cell:[1,5],value:0},{kind:'VALUE',cell:[2,5],value:0}],explanationData:{family:'column',id:5}}});
+assert(tripleText.why.includes('Ajouter encore lune ☾ formerait trois symboles identiques consécutifs'),tripleText.why);
+assert(!tripleText.why.includes('troisième lune'),tripleText.why);
+assert(!tripleText.why.includes('lune ☾ consécutif'),tripleText.why);
+global.QuadludTangoTutorClarity=require('../GitHub/tango-tutor-clarity.js');
+const domainRendered=T.relationProofText(support).why;
+assert.equal((domainRendered.match(/Configurations compatibles/g)||[]).length,1,domainRendered);
+assert(domainRendered.length<700,domainRendered);
+'''
+replace_once(test, marker, "\n" + addition + marker)
