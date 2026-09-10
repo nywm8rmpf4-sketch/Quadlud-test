@@ -37,8 +37,9 @@ jobs:
           set -euo pipefail
           R="$RUNNER_TEMP/quadlud-r8-browser"
           rm -rf "$R"; mkdir -p "$R/GitHub" "$R/tests"
-          rsync -a ./ "$R/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='.gitignore' --exclude='qa-public/' --exclude='qa-release/' --exclude='LICENSE'
+          rsync -a ./ "$R/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='.gitignore' --exclude='qa-public/' --exclude='qa-release/'
           cp -a qa-public/tests/. "$R/tests/"
+          test -f "$R/GitHub/LICENSE"
           test -f "$R/GitHub/tango-runtime-pool-data.js"
           test -f "$R/GitHub/tango-tutor-cache-data-r8.js"
           test -f "$R/tests/v319-r8-integrated-browser.test.py"
