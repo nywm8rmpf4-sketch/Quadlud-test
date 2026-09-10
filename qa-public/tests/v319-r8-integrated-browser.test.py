@@ -12,13 +12,15 @@ VIEWPORT = {"width": 390, "height": 844}
 
 def main() -> None:
     console_errors: list[str] = []
+    http_errors: list[dict] = []
     report: dict = {"viewport": VIEWPORT}
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, executable_path="/usr/bin/chromium", args=["--no-sandbox"])
         context = browser.new_context(viewport=VIEWPORT, locale="fr-FR", has_touch=True, is_mobile=True)
         page = context.new_page()
         page.on("pageerror", lambda exc: console_errors.append("pageerror:" + str(exc)))
-        page.on("console", lambda msg: console_errors.append("console:" + msg.text) if msg.type == "error" else None)
+        page.on("console", lambda msg: console_errors.append(f"console:{msg.text}|location={msg.location}") if msg.type == "error" else None)
+        page.on("response", lambda response: http_errors.append({"status": response.status, "url": response.url}) if response.status >= 400 else None)
         page.goto(BASE_URL, wait_until="networkidle")
         page.wait_for_selector(".cards")
 
@@ -74,7 +76,6 @@ def main() -> None:
         )
         assert launch_state["game"] == "tango" and launch_state["diff"] == "expert", launch_state
         assert launch_state["poolStats"]["exactHits"] >= 1, launch_state
-        # Some session adapters do not retain generationStats; the authoritative pool hit is mandatory.
         if launch_state["strategy"] is not None:
             assert launch_state["strategy"] == "certified-precomputed-pool", launch_state
         report["launch"] = launch_state
@@ -100,8 +101,7 @@ def main() -> None:
         assert tutor["mode"] == "precomputed-guarded", tutor
         report["cachedTutor"] = {**tutor, "logicalTransitionMs": cached_ms}
 
-        # 5) Diverge by one correct but non-canonical visible placement. The cache must reject
-        # the new fingerprint and the same product planner must still produce a live result.
+        # 5) Diverge by one correct but non-canonical visible placement. Cache rejection + live fallback are mandatory.
         divergence = page.evaluate(
             """()=>{
               const P=QuadludTangoPlayedMovePlanner,C=QuadludTangoTutorPrecomputedCache,S=QuadludTangoTutorSinglePlannerR5;
@@ -133,8 +133,7 @@ def main() -> None:
             assert divergence["liveMode"] != "precomputed-guarded", divergence
         report["divergence"] = divergence
 
-        # 6) PWA install has cached the exact R8 assets. Reload once to guarantee SW control,
-        # then reload offline at iPhone viewport.
+        # 6) PWA exact assets survive an offline reload at iPhone viewport.
         page.evaluate("()=>navigator.serviceWorker?.ready")
         page.reload(wait_until="networkidle")
         page.wait_for_selector(".cards")
@@ -151,12 +150,14 @@ def main() -> None:
         assert offline["viewport"] == VIEWPORT, offline
         report["pwaOnline"] = pwa
         report["offlineReload"] = offline
+        report["consoleErrors"] = console_errors
+        report["httpErrors"] = http_errors
 
-        assert not console_errors, console_errors
+        out = Path(os.environ.get("QUADLUD_R8_BROWSER_REPORT", "/tmp/quadlud-r8-browser-report.json"))
+        out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        assert not console_errors, {"console": console_errors, "http": http_errors}
         context.close(); browser.close()
 
-    out = Path(os.environ.get("QUADLUD_R8_BROWSER_REPORT", "/tmp/quadlud-r8-browser-report.json"))
-    out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print("integrated exact R8 browser gate PASS — 120x4 unique bag, real launch pool hit, Tutor cache hit, divergence fallback, PWA offline")
     print(json.dumps({"cachedTutorMs": report["cachedTutor"]["logicalTransitionMs"], "divergence": report["divergence"], "pwa": report["pwaOnline"]}, ensure_ascii=False))
 
