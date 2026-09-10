@@ -39,8 +39,16 @@ jobs:
           new="return {...plan,displayProof:proof,displayDeduction,selectionStatus:frontier.frontierComplete?'human-proof-global-minimum':'human-proof-direct-minimum-budget-limited',selectedCostVector:chosen.plannerCost.slice(),candidateCount:ranked.length,frontierComplete:frontier.frontierComplete,budgetHit:!frontier.frontierComplete,humanGlobalSelection:true,humanCandidateCount:ranked.length,humanSignature:`${plan.target.join(',')}:${plan.value}|${plan.startingDeduction?.signature||plan.deduction?.signature||plan.deduction?.id||''}|${proof?.kind||'engine-proof'}|global`}"
           if s.count(old)!=1: raise SystemExit(f'unexpected chosen-plan metadata anchor count={s.count(old)}')
           p.write_text(s.replace(old,new),encoding='utf-8')
+
+          p=Path('tango-played-move-runtime.js')
+          s=p.read_text(encoding='utf-8')
+          old="return Object.freeze([Math.max(1,list.length)+relationExtra+abstractPenalty,premiseCount+relationExtra,Math.max(1,cells.size),techniqueLevel,rank,abstractPenalty])"
+          new="const advancedPenalty=list.some(d=>String(d?.rule||'')==='ASSUMPTION_CONTRADICTION'||String(d?.rule||'')==='COMMON_CONSEQUENCE')?2:0,semanticIndirection=Math.max(advancedPenalty,abstractPenalty);\n  return Object.freeze([semanticIndirection,Math.max(1,list.length)+relationExtra+abstractPenalty,premiseCount+relationExtra,Math.max(1,cells.size),techniqueLevel,rank,abstractPenalty])"
+          if s.count(old)!=1: raise SystemExit(f'unexpected humanProofCost anchor count={s.count(old)}')
+          p.write_text(s.replace(old,new),encoding='utf-8')
           PY
           node --check tango-human-pedagogy-r4.js
+          node --check tango-played-move-runtime.js
           git diff --check
       - name: Materialize canonical layout and run human-priority regressions
         run: |
@@ -55,14 +63,15 @@ jobs:
           node tests/v319-r5-frontier-validation-cache.test.js
           node tests/v319-hf36-human-next-move-policy.test.js
           node tests/v319-r3ui-tango-tutor-freeze-guard.test.js
+          node tests/v319-r3ui-tango-human-proof.test.js
       - name: Commit tested human-priority correction
         run: |
           set -euo pipefail
           git config user.name 'QUADLUD QA Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add tango-human-pedagogy-r4.js
+          git add tango-human-pedagogy-r4.js tango-played-move-runtime.js
           git diff --cached --check
           if ! git diff --cached --quiet; then
-            git commit -m 'fix(tango): prefer demonstrated direct move before contradiction'
+            git commit -m 'fix(tango): rank direct visible proof before contradiction'
             git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
           fi
