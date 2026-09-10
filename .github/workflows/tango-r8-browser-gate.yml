@@ -13,6 +13,7 @@ on:
       - 'tango-tutor-single-planner-r5.js'
       - 'tango-semantic-coherence-hf39.js'
       - 'tango-tutor-human-regression-r54.js'
+      - 'tango-tutor-causal-atomic-r55.js'
       - 'tango-pedagogy-text-finalizer.js'
       - 'qa-public/tests/v319-hf39-r54-tutor-presentation.test.js'
       - 'qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js'
