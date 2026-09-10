@@ -17,36 +17,21 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - name: Patch semantic stage invariant and regression gates
+      - name: Patch semantic stage invariant and regression tests
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
           def once(path, old, new):
               p=Path(path); s=p.read_text(encoding='utf-8'); n=s.count(old)
               if n != 1: raise SystemExit(f'{path}: expected one match, got {n}')
               p.write_text(s.replace(old,new),encoding='utf-8')
-
-          # A proof group may contain presentational/internal actions produced by
-          # lower-level traces. Only the last entry is the real player action.
           old="function normalizeGeneratedMoves(s,start){if(!s||s.base?.game!=='tango'||!Array.isArray(s.moves)||start<0||start>=s.moves.length)return false;const added=s.moves.slice(start),last=added.length-1;added.forEach((m,i)=>{const original=String(m?.pedagogyStageKind||m?.proofStage?.kind||(i===last?'action':'reasoning'));if(i!==last&&m?.proofSnapshot)m.snapshot=copy(m.proofSnapshot);normalizePresentation(m,{isFinal:i===last,originalKind:original})});return true}"
           new="function normalizeGeneratedMoves(s,start){if(!s||s.base?.game!=='tango'||!Array.isArray(s.moves)||start<0||start>=s.moves.length)return false;const added=s.moves.slice(start),last=added.length-1;added.forEach((m,i)=>{const reported=String(m?.pedagogyStageKind||m?.proofStage?.kind||(i===last?'action':'reasoning')),original=i!==last&&reported==='action'?'reasoning':reported;if(i!==last&&m?.proofSnapshot)m.snapshot=copy(m.proofSnapshot);normalizePresentation(m,{isFinal:i===last,originalKind:original})});return true}"
           once('tango-semantic-coherence-hf39.js',old,new)
-
-          # The real Expert journey must reject any action stage before the end
-          # of the currently displayed logical proof group.
           old="""                snap, sig = capture(page, evidence_dir, ordinal, \"proof\")\n                assert sig not in seen, f\"Tutor proof navigation made no observable progress at capture {ordinal}\"\n"""
           new="""                snap, sig = capture(page, evidence_dir, ordinal, \"proof\")\n                proof_contract = page.evaluate(\n                    \"\"\"()=>{const s=walkthroughSession,g=walkthroughCurrentGroup?.(),i=Number(s?.navigation?.proofStepIndex)||0,kinds=(g?.entries||[]).map(e=>String(e?.move?.pedagogyStageKind||e?.move?.proofStage?.kind||''));return {proofIndex:i,lastIndex:kinds.length-1,currentKind:kinds[i]||'',kinds}}\"\"\"\n                )\n                assert proof_contract[\"proofIndex\"] == proof_contract[\"lastIndex\"] or proof_contract[\"currentKind\"] != \"action\", (\n                    f\"premature Tutor action inside proof group at capture {ordinal}: {proof_contract}\"\n                )\n                assert sig not in seen, f\"Tutor proof navigation made no observable progress at capture {ordinal}\"\n"""
           once('qa-public/tests/v319-semantic-tango-tutor-journey-browser.test.py',old,new)
-
-          # Ensure semantic source/test changes trigger the integrated browser gate.
-          old="      - 'tango-tutor-single-planner-r5.js'\n      - 'qa-public/tests/v319-r8-integrated-browser.test.py'"
-          new="      - 'tango-tutor-single-planner-r5.js'\n      - 'tango-semantic-coherence-hf39.js'\n      - 'qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js'\n      - 'qa-public/tests/v319-r8-integrated-browser.test.py'"
-          once('.github/workflows/tango-r8-browser-gate.yml',old,new)
-          old="          R=\"$RUNNER_TEMP/quadlud-r8-browser\"; cd \"$R\"; export PYTHONPATH=\"$R/tests\"\n          python3 tests/v319-r3ui-tango-attention-continuity-browser.test.py"
-          new="          R=\"$RUNNER_TEMP/quadlud-r8-browser\"; cd \"$R\"; export PYTHONPATH=\"$R/tests\"\n          node tests/v319-hf39-r55-internal-action-continuity.test.js\n          node tests/v319-hf39-semantic-coherence.test.js\n          python3 tests/v319-r3ui-tango-attention-continuity-browser.test.py"
-          once('.github/workflows/tango-r8-browser-gate.yml',old,new)
           PY
           cat > qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js <<'NODE'
           /* QUADLUD — regression: only the final proof entry may be a real action. */
@@ -64,17 +49,17 @@ jobs:
           const action={pedagogyStageKind:'action',proofStage:{kind:'action',apply:true},proofSnapshot:snap(final),snapshot:snap(final),beforeSnapshot:snap(base),target:[0,0],deduction:{rule:'ASSUMPTION_CONTRADICTION',conclusions:[{type:'VALUE',cell:[0,0],value:0}]},presentation:presentation(),move:'A1 = lune ☾'};
           const session={base:{game:'tango'},moves:[hypothesis,internal,contradiction,rollback,action]};
           assert.strictEqual(S.normalizeGeneratedMoves(session,0),true);
-          assert.strictEqual(internal.pedagogyStageKind,'reasoning','internal presentational action must be demoted');
+          assert.strictEqual(internal.pedagogyStageKind,'reasoning');
           assert.strictEqual(internal.proofStage.kind,'reasoning');
           assert.strictEqual(internal.proofStage.apply,false);
           assert.strictEqual(internal.presentation.metadata.showTutorMove,false);
           assert.strictEqual(internal.move,'');
-          assert.strictEqual(internal.snapshot.state[0][0],1,'internal step must retain the hypothetical A1=sun branch snapshot');
-          assert.strictEqual(internal.snapshot.state[3][5],0,'internal D6 conclusion must remain visible in the hypothetical branch snapshot');
+          assert.strictEqual(internal.snapshot.state[0][0],1);
+          assert.strictEqual(internal.snapshot.state[3][5],0);
           assert.strictEqual(action.pedagogyStageKind,'action');
           assert.strictEqual(action.proofStage.apply,true);
-          assert.strictEqual(action.snapshot.state[0][0],0,'real conclusion remains confined to the final action');
-          assert.strictEqual(session.moves.filter(m=>m.pedagogyStageKind==='action').length,1,'exactly one real action per proof group');
+          assert.strictEqual(action.snapshot.state[0][0],0);
+          assert.strictEqual(session.moves.filter(m=>m.pedagogyStageKind==='action').length,1);
           console.log('PASS HF3.9-R5.5 internal action continuity — only final action is real, branch snapshot preserved.');
           NODE
           node --check tango-semantic-coherence-hf39.js
@@ -83,13 +68,12 @@ jobs:
           node qa-public/tests/v319-hf39-semantic-coherence.test.js
           python3 -m py_compile qa-public/tests/v319-semantic-tango-tutor-journey-browser.test.py
           git diff --check
-      - name: Commit tested continuity fix
+      - name: Commit tested continuity source and tests
         run: |
           set -euo pipefail
           git config user.name 'QUADLUD QA Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git rm .github/workflows/fix-r8-internal-action-continuity.yml
-          git add tango-semantic-coherence-hf39.js qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js qa-public/tests/v319-semantic-tango-tutor-journey-browser.test.py .github/workflows/tango-r8-browser-gate.yml
+          git add tango-semantic-coherence-hf39.js qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js qa-public/tests/v319-semantic-tango-tutor-journey-browser.test.py
           git diff --cached --check
           git commit -m 'fix(tango): preserve hypothesis through internal proof actions'
           git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
