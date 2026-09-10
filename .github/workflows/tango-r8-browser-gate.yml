@@ -12,6 +12,8 @@ on:
       - 'tango-tutor-precomputed-cache.js'
       - 'tango-tutor-single-planner-r5.js'
       - 'tango-semantic-coherence-hf39.js'
+      - 'tango-tutor-human-regression-r54.js'
+      - 'qa-public/tests/v319-hf39-r54-tutor-presentation.test.js'
       - 'qa-public/tests/v319-hf39-r55-internal-action-continuity.test.js'
       - 'qa-public/tests/v319-semantic-tango-tutor-journey-browser.test.py'
       - 'qa-public/tests/v319-r8-integrated-browser.test.py'
@@ -60,6 +62,7 @@ jobs:
           test -f "$R/tests/v319-r8-integrated-browser.test.py"
           test -f "$R/tests/v319-r8-browser-phase-diagnostic.py"
           test -f "$R/tests/v319-r8-service-worker-minimal-probe.py"
+          test -f "$R/tests/v319-hf39-r54-tutor-presentation.test.js"
           test -f "$R/tests/v319-hf39-r55-internal-action-continuity.test.js"
       - name: Probe service worker on minimal page
         env:
@@ -112,6 +115,7 @@ jobs:
         run: |
           set -euo pipefail
           R="$RUNNER_TEMP/quadlud-r8-browser"; cd "$R"; export PYTHONPATH="$R/tests"
+          node tests/v319-hf39-r54-tutor-presentation.test.js
           node tests/v319-hf39-r55-internal-action-continuity.test.js
           node tests/v319-hf39-semantic-coherence.test.js
           node tests/v319-hf39-r55-stage-order.test.js
@@ -120,6 +124,30 @@ jobs:
           python3 tests/v319-r3ui-pedagogy-visual-hierarchy-browser.test.py
           python3 tests/v319-r3ui-tango-tutor-clarity-browser.test.py
           python3 tests/v319-semantic-tango-tutor-journey-browser.test.py
+      - name: Audit Expert hypothetical marker uniqueness
+        env:
+          QUADLUD_SEMANTIC_EVIDENCE_DIR: ${{ runner.temp }}/r8-evidence/expert
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob, json, os, re
+          root=os.environ['QUADLUD_SEMANTIC_EVIDENCE_DIR']
+          bad=[]; checked=0
+          for path in sorted(glob.glob(os.path.join(root,'steps','*.json'))):
+              with open(path,encoding='utf-8') as fh: data=json.load(fh)
+              for cell in data.get('board',{}).get('cells',[]):
+                  cls=str(cell.get('className',''))
+                  if 'hf39-hypothesis-cell' not in cls and 'hf39-hypothetical-cell' not in cls:
+                      continue
+                  checked += 1
+                  text=str(cell.get('text',''))
+                  glyphs=len(re.findall(r'[☀☾]',text))
+                  if glyphs != 1:
+                      bad.append({'file':os.path.basename(path),'row':cell.get('row'),'column':cell.get('column'),'text':text,'glyphs':glyphs,'className':cls})
+          if bad:
+              raise SystemExit('duplicate/missing hypothetical glyphs: '+json.dumps(bad[:20],ensure_ascii=False))
+          print(f'PASS Expert evidence: {checked} hypothetical cell observations each contain exactly one glyph.')
+          PY
       - name: Upload integrated R8 evidence
         if: always()
         uses: actions/upload-artifact@v4
