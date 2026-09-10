@@ -5,7 +5,7 @@ on:
     paths:
       - '.github/workflows/tango-r8-human-priority-check.yml'
       - 'qa-public/tests/v319-r8-simple-before-contradiction.test.js'
-permissions: {contents: read}
+permissions: {contents: write}
 jobs:
   priority:
     runs-on: ubuntu-latest
@@ -16,12 +16,41 @@ jobs:
           ref: candidate/v3.1.9-tango-r8-integrated
       - uses: actions/setup-node@v5
         with: {node-version: '22'}
-      - name: Materialize canonical layout and run human-priority regression
+      - name: Align offline Node planner composition with browser runtime
         run: |
           set -euo pipefail
-          R="$RUNNER_TEMP/q"; mkdir -p "$R/GitHub" "$R/tests"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tango-human-pedagogy-r4.js')
+          s=p.read_text(encoding='utf-8')
+          old="function planner(){const p=Planner||root.QuadludTangoPlayedMovePlanner;if(!p||typeof p.nextPlayedMove!=='function')throw new Error('Soleil/Lune played-move planner unavailable');return p}"
+          new="function planner(){const p=root.QuadludTangoPlayedMovePlanner||Planner;if(!p||typeof p.nextPlayedMove!=='function')throw new Error('Soleil/Lune played-move planner unavailable');return p}"
+          if s.count(old)!=1:
+              raise SystemExit(f'unexpected planner composition anchor count={s.count(old)}')
+          p.write_text(s.replace(old,new),encoding='utf-8')
+          PY
+          node --check tango-human-pedagogy-r4.js
+          git diff --check
+      - name: Materialize canonical layout and run human-priority regressions
+        run: |
+          set -euo pipefail
+          R="$RUNNER_TEMP/q"; rm -rf "$R"; mkdir -p "$R/GitHub" "$R/tests"
           rsync -a ./ "$R/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='qa-public/' --exclude='qa-release/'
           cp -a qa-public/tests/. "$R/tests/"
           cd "$R"
           node --check tests/v319-r8-simple-before-contradiction.test.js
           node tests/v319-r8-simple-before-contradiction.test.js
+          node tests/v319-r3ui-tango-attention-fast-frontier.test.js
+          node tests/v319-r5-frontier-validation-cache.test.js
+          node tests/v319-hf36-human-next-move-policy.test.js
+      - name: Commit tested planner-composition correction
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add tango-human-pedagogy-r4.js
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(tango): align offline Tutor planner composition with browser'
+            git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
+          fi
