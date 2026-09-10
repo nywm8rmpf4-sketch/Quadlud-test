@@ -2,8 +2,7 @@ name: QUADLUD integrated Tango R8 candidate
 on:
   push:
     branches: [candidate/v3.1.9-tango-r8-integrated]
-    paths:
-      - '.github/workflows/tango-r8-integrated-candidate.yml'
+    paths: ['.github/workflows/tango-r8-integrated-candidate.yml']
 permissions:
   contents: write
 jobs:
@@ -17,98 +16,66 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - name: Wire exact R8 data into the current reviewed runtime
+      - name: Wire exact R8 into reviewed runtime
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
           def once(path,old,new):
               p=Path(path); s=p.read_text(); n=s.count(old)
-              if n != 1: raise SystemExit(f'{path}: expected 1 match, got {n}')
+              if n!=1: raise SystemExit(f'{path}: expected one match, got {n}')
               p.write_text(s.replace(old,new))
-
-          # Promote the already-private single-planner v3 behavior by narrow delta.
-          once('tango-tutor-single-planner-r5.js',"const VERSION=2;\nconst TOKEN='3.1.9-hf3.9-r5.1b-single-planner-v2';","const VERSION=3;\nconst TOKEN='3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded';")
-          once('tango-tutor-single-planner-r5.js',"function pedagogy(){const h=root.QuadludTangoHumanPedagogyR4;if(!h||typeof h?._test?.proofStagesForDeduction!=='function')throw new Error('Soleil/Lune human pedagogy unavailable');return h}\n","function pedagogy(){const h=root.QuadludTangoHumanPedagogyR4;if(!h||typeof h?._test?.proofStagesForDeduction!=='function')throw new Error('Soleil/Lune human pedagogy unavailable');return h}\nfunction precomputedCache(){const c=root.QuadludTangoTutorPrecomputedCache;return c&&typeof c.tryPlan==='function'?c:null}\n")
-          old="function humanizeTutorPlan(session,diff,options={}){\n  const P=planner(),R=runtime(),H=pedagogy(),directVisible=hasDirectVisibleDeduction(session,diff);\n"
-          new="function humanizeTutorPlan(session,diff,options={}){\n  const P=planner(),R=runtime(),H=pedagogy();\n  if(options.usePrecomputedCache!==false){\n    const cache=precomputedCache();let cached=null;\n    if(cache)try{cached=cache.tryPlan(session,diff)}catch(_){cached=null}\n    if(cached){const out=attachHumanProof(session,cached,H,R,'precomputed-guarded');if(out?.status==='move')return out}\n  }\n  const directVisible=hasDirectVisibleDeduction(session,diff);\n"
-          once('tango-tutor-single-planner-r5.js',old,new)
-          once('tango-tutor-single-planner-r5.js',"_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,attachHumanProof,humanizeTutorPlan})","_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,attachHumanProof,humanizeTutorPlan,precomputedCache})")
-
-          # Browser load order: cache before single planner; pool before app precompute.
+          f='tango-tutor-single-planner-r5.js'
+          once(f,"const VERSION=2;\nconst TOKEN='3.1.9-hf3.9-r5.1b-single-planner-v2';","const VERSION=3;\nconst TOKEN='3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded';")
+          once(f,"function pedagogy(){const h=root.QuadludTangoHumanPedagogyR4;if(!h||typeof h?._test?.proofStagesForDeduction!=='function')throw new Error('Soleil/Lune human pedagogy unavailable');return h}\n","function pedagogy(){const h=root.QuadludTangoHumanPedagogyR4;if(!h||typeof h?._test?.proofStagesForDeduction!=='function')throw new Error('Soleil/Lune human pedagogy unavailable');return h}\nfunction precomputedCache(){const c=root.QuadludTangoTutorPrecomputedCache;return c&&typeof c.tryPlan==='function'?c:null}\n")
+          once(f,"function humanizeTutorPlan(session,diff,options={}){\n  const P=planner(),R=runtime(),H=pedagogy(),directVisible=hasDirectVisibleDeduction(session,diff);\n","function humanizeTutorPlan(session,diff,options={}){\n  const P=planner(),R=runtime(),H=pedagogy();\n  if(options.usePrecomputedCache!==false){const cache=precomputedCache();let cached=null;if(cache)try{cached=cache.tryPlan(session,diff)}catch(_){cached=null}if(cached){const out=attachHumanProof(session,cached,H,R,'precomputed-guarded');if(out?.status==='move')return out}}\n  const directVisible=hasDirectVisibleDeduction(session,diff);\n")
+          once(f,"_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,attachHumanProof,humanizeTutorPlan})","_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,attachHumanProof,humanizeTutorPlan,precomputedCache})")
           p=Path('index.html'); s=p.read_text()
           old='<script src="tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v2"></script>'
           new='<script src="tango-tutor-precomputed-cache.js?v=3.1.9-r8-exact"></script><script src="tango-tutor-cache-data-r8.js?v=3.1.9-r8-exact"></script><script src="tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded"></script>'
-          if s.count(old)!=1: raise SystemExit('index single-planner marker mismatch')
-          s=s.replace(old,new)
-          old='<script src="app-precompute.js?v=3.1.8"></script>'
+          if s.count(old)!=1: raise SystemExit('index Tutor marker mismatch')
+          s=s.replace(old,new); old='<script src="app-precompute.js?v=3.1.8"></script>'
           new='<script src="tango-runtime-pool-data.js?v=3.1.9-r8-exact"></script><script src="tango-precomputed-pool-runtime.js?v=3.1.9-r8-exact"></script>'+old
-          if s.count(old)!=1: raise SystemExit('index app-precompute marker mismatch')
+          if s.count(old)!=1: raise SystemExit('index pool marker mismatch')
           p.write_text(s.replace(old,new))
-
           once('game-manifest.js',"supportModules:Object.freeze(['tango-played-move-planner.js','tango-played-move-runtime.js']),","supportModules:Object.freeze(['tango-played-move-planner.js','tango-played-move-runtime.js','tango-runtime-pool-data.js','tango-precomputed-pool-runtime.js','tango-tutor-precomputed-cache.js','tango-tutor-cache-data-r8.js']),")
-
-          # PWA cache identity + exact assets. Preserve every existing asset.
           once('sw.js',"const CACHE='quadlud-v3.1.9-tango-diversity-pilot-v13';","const CACHE='quadlud-v3.1.9-tango-r8-exact-v14';")
-          p=Path('sw.js'); s=p.read_text()
-          old="'./app-precompute.js?v=3.1.8'"
-          extra="'./tango-runtime-pool-data.js?v=3.1.9-r8-exact','./tango-precomputed-pool-runtime.js?v=3.1.9-r8-exact','./tango-tutor-precomputed-cache.js?v=3.1.9-r8-exact','./tango-tutor-cache-data-r8.js?v=3.1.9-r8-exact',"
-          if s.count(old)!=1: raise SystemExit('sw app-precompute marker mismatch')
-          s=s.replace(old,extra+old)
-          s=s.replace("./tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v2","./tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded")
-          p.write_text(s)
-
-          # Align only delivery guards that intentionally name these versions.
-          for test in Path('qa-public/tests').glob('*.test.js'):
-              t=test.read_text()
-              t=t.replace('quadlud-v3.1.9-tango-diversity-pilot-v13','quadlud-v3.1.9-tango-r8-exact-v14')
-              t=t.replace('tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v2','tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded')
-              test.write_text(t)
+          p=Path('sw.js'); s=p.read_text(); marker="'./app-precompute.js?v=3.1.8'"; extra="'./tango-runtime-pool-data.js?v=3.1.9-r8-exact','./tango-precomputed-pool-runtime.js?v=3.1.9-r8-exact','./tango-tutor-precomputed-cache.js?v=3.1.9-r8-exact','./tango-tutor-cache-data-r8.js?v=3.1.9-r8-exact',"
+          if s.count(marker)!=1: raise SystemExit('sw marker mismatch')
+          s=s.replace(marker,extra+marker).replace('./tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v2','./tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded'); p.write_text(s)
+          for t in Path('qa-public/tests').glob('*.test.js'):
+              s=t.read_text().replace('quadlud-v3.1.9-tango-diversity-pilot-v13','quadlud-v3.1.9-tango-r8-exact-v14').replace('3.1.9-hf3.9-r5.1b-single-planner-v2','3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded'); t.write_text(s)
           PY
           git diff --check
           node --check tango-tutor-single-planner-r5.js
           node --check tango-runtime-pool-data.js
           node --check tango-tutor-cache-data-r8.js
-      - name: Add integrated R8 runtime contract
+      - name: Add integrated R8 contract
         run: |
           cat > qa-public/tests/v319-r8-integrated-runtime.test.js <<'NODE'
           'use strict';
-          const assert=require('assert'),fs=require('fs'),path=require('path');
-          const WEB=path.resolve(__dirname,'../GitHub');
-          const poolData=require(path.join(WEB,'tango-runtime-pool-data.js'));
-          assert.deepStrictEqual(poolData.counts,{easy:120,medium:120,hard:120,expert:120});
-          global.QuadludTangoRuntimePoolData=poolData;
-          const pool=require(path.join(WEB,'tango-precomputed-pool-runtime.js'));
-          for(const d of ['easy','medium','hard','expert']){assert(pool.hasShard(d),d);const p=pool.takePuzzle(d,()=>0);assert(p);assert.strictEqual(p.generationStats.strategy,'certified-precomputed-pool');assert(/^qfp1-[0-9a-f]{32}$/.test(p.difficultyProfile.fingerprint));}
-          const cache=require(path.join(WEB,'tango-tutor-precomputed-cache.js'));
-          global.QuadludTangoTutorPrecomputedCache=cache;
-          const cacheData=require(path.join(WEB,'tango-tutor-cache-data-r8.js'));
-          assert(cache._test.validateData(cacheData));cache.registerData(cacheData);const info=cache.info();assert(info.registered);for(const d of ['easy','medium','hard','expert'])assert(info.steps[d]>0,d);
-          const index=fs.readFileSync(path.join(WEB,'index.html'),'utf8'),sw=fs.readFileSync(path.join(WEB,'sw.js'),'utf8'),manifest=require(path.join(WEB,'game-manifest.js')),single=fs.readFileSync(path.join(WEB,'tango-tutor-single-planner-r5.js'),'utf8');
-          const pos=x=>index.indexOf(x);assert(pos('tango-tutor-precomputed-cache.js')<pos('tango-tutor-cache-data-r8.js'));assert(pos('tango-tutor-cache-data-r8.js')<pos('tango-tutor-single-planner-r5.js'));assert(pos('tango-runtime-pool-data.js')<pos('tango-precomputed-pool-runtime.js'));assert(pos('tango-precomputed-pool-runtime.js')<pos('app-precompute.js'));
-          for(const f of ['tango-runtime-pool-data.js','tango-precomputed-pool-runtime.js','tango-tutor-precomputed-cache.js','tango-tutor-cache-data-r8.js']){assert(manifest.requireGame('tango').supportModules.includes(f),f);assert(sw.includes(`./${f}?v=3.1.9-r8-exact`),f)}
-          assert(sw.includes("const CACHE='quadlud-v3.1.9-tango-r8-exact-v14'"));assert(single.includes("'precomputed-guarded'"));assert(single.includes('P.nextPlayedMove(session,diff,options)'),'live Tutor fallback missing');
+          const assert=require('assert'),fs=require('fs'),path=require('path'),WEB=path.resolve(__dirname,'../GitHub');
+          const pd=require(path.join(WEB,'tango-runtime-pool-data.js'));assert.deepStrictEqual(pd.counts,{easy:120,medium:120,hard:120,expert:120});global.QuadludTangoRuntimePoolData=pd;const pool=require(path.join(WEB,'tango-precomputed-pool-runtime.js'));for(const d of ['easy','medium','hard','expert']){assert(pool.hasShard(d),d);const p=pool.takePuzzle(d,()=>0);assert(p);assert.strictEqual(p.generationStats.strategy,'certified-precomputed-pool')}
+          const cache=require(path.join(WEB,'tango-tutor-precomputed-cache.js'));global.QuadludTangoTutorPrecomputedCache=cache;const cd=require(path.join(WEB,'tango-tutor-cache-data-r8.js'));assert(cache._test.validateData(cd));cache.registerData(cd);for(const d of ['easy','medium','hard','expert'])assert(cache.info().steps[d]>0,d);
+          const index=fs.readFileSync(path.join(WEB,'index.html'),'utf8'),sw=fs.readFileSync(path.join(WEB,'sw.js'),'utf8'),manifest=require(path.join(WEB,'game-manifest.js')),single=fs.readFileSync(path.join(WEB,'tango-tutor-single-planner-r5.js'),'utf8'),pos=x=>index.indexOf(x);
+          assert(pos('tango-tutor-precomputed-cache.js')<pos('tango-tutor-cache-data-r8.js')&&pos('tango-tutor-cache-data-r8.js')<pos('tango-tutor-single-planner-r5.js'));assert(pos('tango-runtime-pool-data.js')<pos('tango-precomputed-pool-runtime.js')&&pos('tango-precomputed-pool-runtime.js')<pos('app-precompute.js'));
+          for(const f of ['tango-runtime-pool-data.js','tango-precomputed-pool-runtime.js','tango-tutor-precomputed-cache.js','tango-tutor-cache-data-r8.js']){assert(manifest.requireGame('tango').supportModules.includes(f),f);assert(sw.includes(`./${f}?v=3.1.9-r8-exact`),f)}assert(sw.includes("const CACHE='quadlud-v3.1.9-tango-r8-exact-v14'"));assert(single.includes("'precomputed-guarded'")&&single.includes('P.nextPlayedMove(session,diff,options)'));
           console.log('v319-r8-integrated-runtime.test.js: PASS');
           NODE
-      - name: Run targeted integrated contracts
+      - name: Run targeted contracts
         run: |
           set -euo pipefail
-          QA_ROOT="$RUNNER_TEMP/quadlud-r8-integrated"
-          mkdir -p "$QA_ROOT/GitHub" "$QA_ROOT/tests"
-          rsync -a ./ "$QA_ROOT/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='.gitignore' --exclude='qa-public/' --exclude='qa-release/' --exclude='LICENSE'
-          cp -a qa-public/tests/. "$QA_ROOT/tests/"
-          cd "$QA_ROOT"
+          R="$RUNNER_TEMP/quadlud-r8-integrated"; mkdir -p "$R/GitHub" "$R/tests"
+          rsync -a ./ "$R/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='.gitignore' --exclude='qa-public/' --exclude='qa-release/' --exclude='LICENSE'
+          cp -a qa-public/tests/. "$R/tests/"; cd "$R"
           node tests/v319-r8-integrated-runtime.test.js
           node tests/v319-r3ui-tango-tutor-clarity.test.js
           node tests/v319-r3ui-tango-contradiction-visual-integration.test.js
           node tests/v319-r3ui-pedagogy-visual-hierarchy.test.js
-      - name: Commit integrated candidate
+      - name: Commit tested product candidate
         run: |
           set -euo pipefail
-          git config user.name 'QUADLUD QA Bot'
-          git config user.email 'actions@users.noreply.github.com'
-          git rm .github/workflows/tango-r8-integrated-candidate.yml
+          git config user.name 'QUADLUD QA Bot'; git config user.email 'actions@users.noreply.github.com'
           git add index.html sw.js game-manifest.js tango-tutor-single-planner-r5.js qa-public/tests
           git diff --cached --check
           git commit -m 'feat(tango): wire exact R8 pool and Tutor cache into pilot'
