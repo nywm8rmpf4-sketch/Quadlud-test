@@ -1,0 +1,37 @@
+name: QUADLUD Tango R8 parity filter
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths: ['.github/workflows/tango-r8-parity-filter.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - name: Parameterize parity test without duplicating logic
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('qa-public/tests/v319-r8-cache-live-parity.test.js')
+          s=p.read_text()
+          old="const DIFFS=['easy','medium','hard','expert'];"
+          new="const ALL_DIFFS=['easy','medium','hard','expert'];\nconst requestedDifficulty=String(process.env.QUADLUD_PARITY_DIFFICULTY||'').trim().toLowerCase();\nif(requestedDifficulty&&!ALL_DIFFS.includes(requestedDifficulty))throw new Error(`invalid QUADLUD_PARITY_DIFFICULTY ${requestedDifficulty}`);\nconst DIFFS=requestedDifficulty?[requestedDifficulty]:ALL_DIFFS;"
+          if s.count(old)!=1: raise SystemExit('DIFFS anchor mismatch')
+          p.write_text(s.replace(old,new))
+          PY
+          node --check qa-public/tests/v319-r8-cache-live-parity.test.js
+          git diff --check
+      - name: Commit parity filter
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add qa-public/tests/v319-r8-cache-live-parity.test.js
+          git diff --cached --check
+          git commit -m 'test(tango): allow per-difficulty R8 parity audit'
+          git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
