@@ -1,0 +1,164 @@
+name: QUADLUD Tango R8 Expert 85 final rescue
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths: ['.github/workflows/tango-r8-expert-85-final-rescue.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  expert85:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: candidate/v3.1.9-tango-r8-integrated}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Build exact Expert puzzle 85
+        run: |
+          set -euo pipefail
+          test "$(sha256sum tango-runtime-pool-data.js | cut -d' ' -f1)" = "6c3b226cc4c4db089768740510113bd07db2958a14216cf98020e7b0f4f9b013"
+          mkdir -p "$RUNNER_TEMP/expert85"
+          node qa-public/tools/build_tango_tutor_sync_shard_r8.js \
+            --difficulty expert --start 85 --count 1 \
+            --pool tango-runtime-pool-data.js \
+            --output "$RUNNER_TEMP/expert85/tango-tutor-sync-expert-single-85.json" \
+            --report "$RUNNER_TEMP/expert85/expert-single-85-report.json"
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('assert');
+          const x=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/expert85/tango-tutor-sync-expert-single-85.json'));
+          assert.equal(x.entries.length,1);assert.equal(x.entries[0][0],85);
+          assert.equal(x.tutorContract.digest,'b48da5bd09ae47acffa1ba787fe26e11c4c3e4830115b931392c6e9fa2e9c45a');
+          const steps=x.entries[0][2];assert(steps.length>0);assert.equal(new Set(steps.map(s=>s[0])).size,steps.length);
+          console.log('PASS isolated Expert 85',steps.length,'states');
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-sync-expert-single-85-final
+          path: ${{ runner.temp }}/expert85/
+          if-no-files-found: error
+          retention-days: 7
+
+  assemble:
+    needs: expert85
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: candidate/v3.1.9-tango-r8-integrated}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Wait for previous rescue run to settle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: '34523915941'
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            STATUS="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')"
+            echo "previous rescue status=$STATUS"
+            [ "$STATUS" = completed ] && exit 0
+            sleep 60
+          done
+          echo 'previous rescue run did not settle within 30 minutes' >&2
+          exit 1
+      - name: Recover certified core shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tango-sync-*
+          path: ${{ runner.temp }}/core
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          repository: nywm8rmpf4-sketch/Quadlud-test
+          run-id: 34515807007
+      - name: Recover completed Expert triples
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tango-sync-expert-*
+          path: ${{ runner.temp }}/triples
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          repository: nywm8rmpf4-sketch/Quadlud-test
+          run-id: 34521904150
+      - name: Recover successful prior Expert singles
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tango-sync-expert-single-*
+          path: ${{ runner.temp }}/singles
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          repository: nywm8rmpf4-sketch/Quadlud-test
+          run-id: 34523915941
+      - name: Recover isolated Expert 85
+        uses: actions/download-artifact@v4
+        with:
+          name: tango-sync-expert-single-85-final
+          path: ${{ runner.temp }}/expert85
+      - name: Merge exact Expert 0-119 and prove coverage
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sync"
+          cp "$RUNNER_TEMP/core/tango-tutor-sync-easy.json" "$RUNNER_TEMP/sync/"
+          cp "$RUNNER_TEMP/core/tango-tutor-sync-medium.json" "$RUNNER_TEMP/sync/"
+          cp "$RUNNER_TEMP/core/tango-tutor-sync-hard.json" "$RUNNER_TEMP/sync/"
+          python3 - <<'PY'
+          import json,glob,os
+          root=os.environ['RUNNER_TEMP']
+          paths=(glob.glob(root+'/triples/tango-tutor-sync-expert-*.json')+
+                 glob.glob(root+'/singles/tango-tutor-sync-expert-single-*.json')+
+                 glob.glob(root+'/expert85/tango-tutor-sync-expert-single-85.json'))
+          docs=[json.load(open(p,encoding='utf-8')) for p in paths]
+          if not docs: raise SystemExit('no Expert artifacts recovered')
+          ident=lambda d:(d['schema'],d['version'],d['difficulty'],d['poolVersion'],json.dumps(d['tutorContract'],sort_keys=True),d['tutorPlannerToken'],d['humanPolicy'],d['proofPolicy'])
+          if len({ident(d) for d in docs})!=1: raise SystemExit('Expert artifact algorithm identity mismatch')
+          if docs[0]['tutorContract']['digest']!='b48da5bd09ae47acffa1ba787fe26e11c4c3e4830115b931392c6e9fa2e9c45a': raise SystemExit('stale Expert contract')
+          by={}
+          for d in docs:
+            for e in d['entries']:
+              i=e[0]
+              if i in by and json.dumps(by[i],separators=(',',':'))!=json.dumps(e,separators=(',',':')): raise SystemExit(f'conflicting Expert duplicate index {i}')
+              by.setdefault(i,e)
+          if sorted(by)!=list(range(120)):
+            missing=sorted(set(range(120))-set(by)); raise SystemExit(f'Expert coverage incomplete, missing {missing}')
+          entries=[by[i] for i in range(120)]
+          fps=[s[0] for e in entries for s in e[2]]
+          if len(fps)!=len(set(fps)): raise SystemExit('duplicate Expert canonical-state fingerprint')
+          out=dict(docs[0]);out['entries']=entries
+          json.dump(out,open(root+'/sync/tango-tutor-sync-expert.json','w',encoding='utf-8'),separators=(',',':'))
+          print('PASS merged Expert 120/120:',len(fps),'unique visible-state fingerprints')
+          PY
+      - name: Compact losslessly and materialize guarded cache package
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/package"
+          node qa-public/tools/compact_tango_tutor_sync_r8.js "$RUNNER_TEMP/sync" "$RUNNER_TEMP/package"
+          cp qa-public/tools/tango-tutor-precomputed-cache-sync-template.js "$RUNNER_TEMP/package/tango-tutor-precomputed-cache.js"
+          node - <<'NODE'
+          const fs=require('fs'),C=require('./qa-public/tools/tango_tutor_cache_contract.js').compute('.');
+          const R=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/package/tango-tutor-cache-r8-sync-report.json'));
+          if(C.digest!==R.tutorContract.digest||C.digest!=='b48da5bd09ae47acffa1ba787fe26e11c4c3e4830115b931392c6e9fa2e9c45a')throw new Error('Tutor contract mismatch');
+          const data={...C,tutorPlannerToken:R.tutorPlannerToken,humanPolicy:R.humanPolicy,proofPolicy:R.proofPolicy};
+          fs.writeFileSync(process.env.RUNNER_TEMP+'/package/tango-tutor-cache-contract-r8.js',`/* QUADLUD — Soleil-Lune Tutor cache contract R8. Copyright © 2026 Serge Benoliel. All rights reserved. */\n(function(root){'use strict';const c=${JSON.stringify(data)};root.QuadludTangoTutorCacheContractR8=Object.freeze(c);if(typeof module!=='undefined'&&module.exports)module.exports=Object.freeze(c);})(typeof globalThis!=='undefined'?globalThis:this);\n`);
+          NODE
+          cp "$RUNNER_TEMP/package/tango-tutor-precomputed-cache.js" ./tango-tutor-precomputed-cache.js
+          cp "$RUNNER_TEMP/package/tango-tutor-cache-contract-r8.js" ./tango-tutor-cache-contract-r8.js
+          cp "$RUNNER_TEMP/package/tango-tutor-cache-data-r8.js" ./tango-tutor-cache-data-r8.js
+          node --check tango-tutor-precomputed-cache.js
+          node --check tango-tutor-cache-contract-r8.js
+          node --check tango-tutor-cache-data-r8.js
+          node - <<'NODE'
+          const assert=require('assert'),C=require('./tango-tutor-precomputed-cache.js'),D=require('./tango-tutor-cache-data-r8.js');
+          if(!C.info().registered)C.registerData(D);const i=C.info();
+          assert.equal(i.version,3);assert.equal(i.dataSchema,8);assert.equal(i.dataVersion,'tango-tutor-cache-r8-sync2');
+          assert.equal(i.contract.digest,'b48da5bd09ae47acffa1ba787fe26e11c4c3e4830115b931392c6e9fa2e9c45a');
+          assert.deepStrictEqual(D.puzzleCounts,{easy:120,medium:120,hard:120,expert:120});
+          console.log('PASS synchronized cache package',i.steps);
+          NODE
+          (cd "$RUNNER_TEMP/package" && sha256sum tango-tutor-precomputed-cache.js tango-tutor-cache-contract-r8.js tango-tutor-cache-data-r8.js tango-tutor-cache-r8-sync-report.json > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-sync-cache-package-final85
+          path: ${{ runner.temp }}/package/
+          if-no-files-found: error
+          retention-days: 7
