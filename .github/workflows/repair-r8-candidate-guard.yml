@@ -1,0 +1,33 @@
+name: Align remaining R8 candidate delivery guard
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths: ['.github/workflows/repair-r8-candidate-guard.yml']
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - name: Align token-only delivery guard update in candidate workflow
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/tango-r8-integrated-candidate.yml'); s=p.read_text()
+          needle="              t=t.replace('tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v2','tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded')\n"
+          extra="              t=t.replace('3.1.9-hf3.9-r5.1b-single-planner-v2','3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded')\n"
+          if needle not in s: raise SystemExit('candidate workflow marker missing')
+          if extra not in s: s=s.replace(needle,needle+extra)
+          p.write_text(s)
+          PY
+      - name: Commit workflow guard correction
+        run: |
+          git config user.name 'QUADLUD QA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm .github/workflows/repair-r8-candidate-guard.yml
+          git add .github/workflows/tango-r8-integrated-candidate.yml
+          git commit -m 'ci(tango): align token-only R8 delivery guard'
+          git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
