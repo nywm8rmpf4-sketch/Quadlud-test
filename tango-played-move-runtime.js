@@ -49,7 +49,8 @@ function humanProofCost(session,deductions){
   // Abstract line-domain support is an additional human indirection layer: it
   // must not masquerade as a one-step local proof merely because the engine
   // emits it as one deduction object.
-  return Object.freeze([Math.max(1,list.length)+relationExtra+abstractPenalty,premiseCount+relationExtra,Math.max(1,cells.size),techniqueLevel,rank,abstractPenalty])
+  const advancedPenalty=list.some(d=>String(d?.rule||'')==='ASSUMPTION_CONTRADICTION'||String(d?.rule||'')==='COMMON_CONSEQUENCE')?2:0,semanticIndirection=Math.max(advancedPenalty,abstractPenalty);
+  return Object.freeze([semanticIndirection,Math.max(1,list.length)+relationExtra+abstractPenalty,premiseCount+relationExtra,Math.max(1,cells.size),techniqueLevel,rank,abstractPenalty])
 }
 function compareCostVector(a,b){for(let i=0;i<Math.max(a?.length||0,b?.length||0);i++){const x=Number(a?.[i])||0,y=Number(b?.[i])||0;if(x!==y)return x-y}return 0}
 function directProofCandidates(session,target,value){

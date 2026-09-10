@@ -21,11 +21,11 @@ const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
 const sameCell=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&a.length>=2&&b.length>=2&&Number(a[0])===Number(b[0])&&Number(a[1])===Number(b[1]);
 const moveKey=p=>Array.isArray(p?.target)?`${Number(p.target[0])},${Number(p.target[1])}:${Number(p.value)}`:'';
 const planStableKey=p=>`${String(p?.target?.[0]??999).padStart(3,'0')}:${String(p?.target?.[1]??999).padStart(3,'0')}:${Number(p?.value)}|${String(p?.deduction?.signature||p?.deduction?.id||p?.deduction?.rule||'')}`;
-function planner(){const p=Planner||root.QuadludTangoPlayedMovePlanner;if(!p||typeof p.nextPlayedMove!=='function')throw new Error('Soleil/Lune played-move planner unavailable');return p}
+function planner(){const p=root.QuadludTangoPlayedMovePlanner||Planner;if(!p||typeof p.nextPlayedMove!=='function')throw new Error('Soleil/Lune played-move planner unavailable');return p}
 function compareVector(a,b){return Base._test?.compareCostVector?Base._test.compareCostVector(a,b):(()=>{for(let i=0;i<Math.max(a?.length||0,b?.length||0);i++){const x=Number(a?.[i])||0,y=Number(b?.[i])||0;if(x!==y)return x-y}return 0})()}
 function playableDirectPlans(session,diff,options={}){
   const P=planner(),T=P._test;if(!T?.allowedDirectDeductions||!T?.evaluateStartingDeductions||!T?.buildSelectorCandidates)return null;
-  const tierIndex=P.tierIndexForDifficulty(diff),direct=T.allowedDirectDeductions(session,tierIndex),evaluation=T.evaluateStartingDeductions(session,tierIndex,direct,options,false),frontierComplete=!evaluation.truncated&&!evaluation.branchBudgetHit;
+  const tierIndex=P.tierIndexForDifficulty(diff),direct=T.allowedDirectDeductions(session,tierIndex),fastEvaluate=P._attentionTest?.evaluateDirectStartingDeductions,evaluation=typeof fastEvaluate==='function'?fastEvaluate(session,tierIndex,direct,options):T.evaluateStartingDeductions(session,tierIndex,direct,options,false),frontierComplete=!evaluation.truncated&&!evaluation.branchBudgetHit;
   const candidates=T.buildSelectorCandidates(evaluation.plans||[]).filter(c=>c?.plan?.status==='move'&&Array.isArray(c.plan.target)&&!(c.blockedBy||[]).length);
   return {tierIndex,direct,evaluation,frontierComplete,candidates,plans:candidates.map(c=>c.plan)}
 }
@@ -37,7 +37,7 @@ function evaluatePlanHumanProof(session,plan){
 function compareHumanCandidate(a,b){return compareVector(a.cost,b.cost)||compareVector(a.plannerCost,b.plannerCost)||a.stableKey.localeCompare(b.stableKey)}
 function chooseGloballySimplestPlan(session,diff,options={}){
   const frontier=playableDirectPlans(session,diff,options);
-  if(!frontier||!frontier.frontierComplete||!frontier.plans.length)return Base.planHumanMove(session,diff);
+  if(!frontier||!frontier.plans.length)return Base.planHumanMove(session,diff);
   const bestByMove=new Map();
   for(const plan of frontier.plans){
     const scored=evaluatePlanHumanProof(session,plan),key=moveKey(plan),previous=bestByMove.get(key);
@@ -47,7 +47,7 @@ function chooseGloballySimplestPlan(session,diff,options={}){
   if(!chosen)return Base.planHumanMove(session,diff);
   const plan=copy(chosen.plan),proof=copy(chosen.displayProof),displayDeduction=proof?.deduction||Base._test?.minimalDisplayDeduction?.(plan.deduction)||copy(plan.deduction);
   if(!displayDeduction)return Base.planHumanMove(session,diff);
-  return {...plan,displayProof:proof,displayDeduction,selectionStatus:'human-proof-global-minimum',selectedCostVector:chosen.plannerCost.slice(),candidateCount:ranked.length,frontierComplete:true,budgetHit:false,humanGlobalSelection:true,humanCandidateCount:ranked.length,humanSignature:`${plan.target.join(',')}:${plan.value}|${plan.startingDeduction?.signature||plan.deduction?.signature||plan.deduction?.id||''}|${proof?.kind||'engine-proof'}|global`}
+  return {...plan,displayProof:proof,displayDeduction,selectionStatus:frontier.frontierComplete?'human-proof-global-minimum':'human-proof-direct-minimum-budget-limited',selectedCostVector:chosen.plannerCost.slice(),candidateCount:ranked.length,frontierComplete:frontier.frontierComplete,budgetHit:!frontier.frontierComplete,humanGlobalSelection:true,humanCandidateCount:ranked.length,humanSignature:`${plan.target.join(',')}:${plan.value}|${plan.startingDeduction?.signature||plan.deduction?.signature||plan.deduction?.id||''}|${proof?.kind||'engine-proof'}|global`}
 }
 
 function locale(){try{return String(typeof lang==='function'?lang():'en').toLowerCase().split('-')[0]}catch(_){return'en'}}
