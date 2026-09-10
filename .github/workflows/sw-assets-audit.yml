@@ -1,0 +1,31 @@
+name: QUADLUD service-worker asset audit
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths: ['.github/workflows/sw-assets-audit.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Audit precache URL uniqueness
+        run: |
+          node <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const src=fs.readFileSync('sw.js','utf8');
+          const m=src.match(/const ASSETS=(\[[\s\S]*?\]);/);
+          if(!m)throw new Error('ASSETS not found');
+          const assets=vm.runInNewContext(m[1]);
+          const counts=new Map();for(const a of assets)counts.set(a,(counts.get(a)||0)+1);
+          const duplicates=[...counts].filter(([,n])=>n>1).map(([asset,count])=>({asset,count}));
+          console.log(JSON.stringify({assetCount:assets.length,uniqueCount:counts.size,duplicates},null,2));
+          if(duplicates.length)process.exitCode=2;
+          NODE
