@@ -14,6 +14,11 @@ const ALL_DIFFS=['easy','medium','hard','expert'];
 const requestedDifficulty=String(process.env.QUADLUD_PARITY_DIFFICULTY||'').trim().toLowerCase();
 if(requestedDifficulty&&!ALL_DIFFS.includes(requestedDifficulty))throw new Error(`invalid QUADLUD_PARITY_DIFFICULTY ${requestedDifficulty}`);
 const DIFFS=requestedDifficulty?[requestedDifficulty]:ALL_DIFFS;
+const parityStartRaw=String(process.env.QUADLUD_PARITY_START||'').trim(),parityCountRaw=String(process.env.QUADLUD_PARITY_COUNT||'').trim();
+const parityStart=parityStartRaw===''?0:Number(parityStartRaw),parityCount=parityCountRaw===''?120:Number(parityCountRaw);
+if(!Number.isInteger(parityStart)||parityStart<0||parityStart>=120)throw new Error(`invalid QUADLUD_PARITY_START ${parityStartRaw}`);
+if(!Number.isInteger(parityCount)||parityCount<1||parityStart+parityCount>120)throw new Error(`invalid QUADLUD_PARITY_COUNT ${parityCountRaw}`);
+const parityEnd=parityStart+parityCount;
 const diagnostic=process.env.QUADLUD_PARITY_DIAGNOSTIC==='1';
 const reportPath=process.env.QUADLUD_PARITY_REPORT||'';
 
@@ -58,11 +63,11 @@ function directSummary(engine,diff){
     return (Planner._test.allowedDirectDeductions(engine,tier)||[]).filter(d=>(d?.conclusions||[]).some(c=>c?.type==='VALUE')).slice(0,20).map(d=>({rule:d.rule,signature:sig(d),conclusions:clone(d.conclusions)}));
   }catch(_){return []}
 }
-const report={schema:1,kind:'tango-r8-cache-live-canonical-parity',poolCounts:pool.counts,checkedStates:0,canonicalMoves:0,cacheHits:0,lookupMisses:0,rebuildMisses:0,mismatches:0,byDifficulty:{},examples:[]};
+const report={schema:1,kind:'tango-r8-cache-live-canonical-parity',poolCounts:pool.counts,range:{start:parityStart,end:parityEnd,count:parityCount},checkedStates:0,canonicalMoves:0,cacheHits:0,lookupMisses:0,rebuildMisses:0,mismatches:0,byDifficulty:{},examples:[]};
 for(const diff of DIFFS){
   const entries=pool.pools?.[diff];assert(Array.isArray(entries)&&entries.length===120,`${diff}: exact 120-entry pool unavailable`);
-  const stats={puzzles:entries.length,states:0,hits:0,lookupMisses:0,rebuildMisses:0,mismatches:0};
-  for(let poolIndex=0;poolIndex<entries.length;poolIndex++){
+  const stats={puzzles:parityCount,start:parityStart,end:parityEnd,states:0,hits:0,lookupMisses:0,rebuildMisses:0,mismatches:0};
+  for(let poolIndex=parityStart;poolIndex<parityEnd;poolIndex++){
     const entry=entries[poolIndex],state=stateForEntry(entry);
     for(let moveIndex=0;moveIndex<72;moveIndex++){
       if(!state.some(row=>row.includes(-1)))break;
