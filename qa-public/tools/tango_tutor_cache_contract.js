@@ -8,6 +8,9 @@
  */
 const fs=require('fs'),path=require('path'),crypto=require('crypto');
 const CONTRACT_VERSION=1;
+// Only inputs that can change the canonical live Tutor move/proof belong here.
+// Cache storage/transport code is validated separately and must not force a
+// pedagogical recomputation when it changes without altering the live Tutor.
 const FILES=Object.freeze([
   'difficulty-rating.js',
   'tango-logic.js',
@@ -19,8 +22,7 @@ const FILES=Object.freeze([
   'tango-tutor-frontier-pruner-r5.js',
   'tango-played-move-runtime.js',
   'tango-human-pedagogy-r4.js',
-  'tango-tutor-single-planner-r5.js',
-  'tango-tutor-precomputed-cache.js'
+  'tango-tutor-single-planner-r5.js'
 ]);
 function sha256(buffer){return crypto.createHash('sha256').update(buffer).digest('hex')}
 function compute(root=path.resolve(__dirname,'../..')){
