@@ -65,6 +65,12 @@ jobs:
           new="assert(T.humanProofCost(transitiveSession,[direct])[1]>T.humanProofCost(session,[direct])[1],'two visible relation edges must cost more human steps than one after semantic-indirection dimension');"
           if s.count(old)!=1: raise SystemExit('legacy proof-cost vector assertion anchor mismatch')
           p.write_text(s.replace(old,new))
+
+          p=Path('qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js'); s=p.read_text()
+          old="assert.strictEqual(Bridge.VERSION,2);"
+          new="assert.strictEqual(Bridge.VERSION,3);"
+          if s.count(old)!=1: raise SystemExit('single-planner version assertion anchor mismatch')
+          p.write_text(s.replace(old,new))
           PY
           node --check tango-human-pedagogy-r4.js
           node --check qa-public/tools/tango_tutor_cache_contract.js
@@ -72,6 +78,7 @@ jobs:
           node --check qa-public/tools/compact_tango_tutor_sync_r8.js
           node --check qa-public/tools/tango-tutor-precomputed-cache-sync-template.js
           node --check qa-public/tests/v319-r3ui-tango-same-move-proof-minimization.test.js
+          node --check qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js
           git diff --check
       - name: Run focused human-pedagogy regressions
         run: |
@@ -103,7 +110,7 @@ jobs:
           set -euo pipefail
           git config user.name 'QUADLUD QA Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add tango-human-pedagogy-r4.js qa-public/tools/tango_tutor_cache_contract.js qa-public/tools/build_tango_tutor_sync_shard_r8.js qa-public/tools/compact_tango_tutor_sync_r8.js qa-public/tests/v319-r8-simple-before-contradiction.test.js qa-public/tests/v319-r8-cache-live-parity.test.js qa-public/tests/v319-r3ui-tango-same-move-proof-minimization.test.js
+          git add tango-human-pedagogy-r4.js qa-public/tools/tango_tutor_cache_contract.js qa-public/tools/build_tango_tutor_sync_shard_r8.js qa-public/tools/compact_tango_tutor_sync_r8.js qa-public/tests/v319-r8-simple-before-contradiction.test.js qa-public/tests/v319-r8-cache-live-parity.test.js qa-public/tests/v319-r3ui-tango-same-move-proof-minimization.test.js qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js
           git diff --cached --check
           git commit -m 'fix(tango): align R8 precompute with browser Tutor stack'
           git push origin HEAD:candidate/v3.1.9-tango-r8-integrated
