@@ -1,0 +1,41 @@
+name: QUADLUD Tango R8 cache/live parity diagnostic
+
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-r8-integrated]
+    paths:
+      - '.github/workflows/tango-r8-cache-live-parity-diagnostic.yml'
+      - 'qa-public/tests/v319-r8-cache-live-parity.test.js'
+      - 'qa-public/README.tango-precompute-r8.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parity-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-r8-integrated
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Run exhaustive current-cache vs current-live Tutor parity diagnostic
+        env:
+          QUADLUD_PARITY_DIAGNOSTIC: '1'
+          QUADLUD_PARITY_REPORT: ${{ runner.temp }}/r8-cache-live-parity.json
+        run: |
+          set -euo pipefail
+          node --check qa-public/tests/v319-r8-cache-live-parity.test.js
+          node qa-public/tests/v319-r8-cache-live-parity.test.js
+      - name: Upload parity diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-cache-live-parity-diagnostic
+          path: ${{ runner.temp }}/r8-cache-live-parity.json
+          if-no-files-found: warn
+          retention-days: 14
