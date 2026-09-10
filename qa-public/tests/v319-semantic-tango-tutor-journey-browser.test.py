@@ -317,6 +317,12 @@ def main() -> None:
                 proof_next.click()
                 page.wait_for_timeout(160)
                 snap, sig = capture(page, evidence_dir, ordinal, "proof")
+                proof_contract = page.evaluate(
+                    """()=>{const s=walkthroughSession,g=walkthroughCurrentGroup?.(),i=Number(s?.navigation?.proofStepIndex)||0,kinds=(g?.entries||[]).map(e=>String(e?.move?.pedagogyStageKind||e?.move?.proofStage?.kind||''));return {proofIndex:i,lastIndex:kinds.length-1,currentKind:kinds[i]||'',kinds}}"""
+                )
+                assert proof_contract["proofIndex"] == proof_contract["lastIndex"] or proof_contract["currentKind"] != "action", (
+                    f"premature Tutor action inside proof group at capture {ordinal}: {proof_contract}"
+                )
                 assert sig not in seen, f"Tutor proof navigation made no observable progress at capture {ordinal}"
                 seen.add(sig)
                 captures.append({"ordinal": ordinal, "phase": "proof", "counter": snap.get("counter")})
