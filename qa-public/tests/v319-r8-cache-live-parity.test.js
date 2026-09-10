@@ -10,7 +10,10 @@ const candidate=path.resolve(__dirname,'../GitHub');
 const repo=path.resolve(__dirname,'../..');
 const WEB=fs.existsSync(path.join(candidate,'tango-logic.js'))?candidate:repo;
 const file=name=>path.join(WEB,name);
-const DIFFS=['easy','medium','hard','expert'];
+const ALL_DIFFS=['easy','medium','hard','expert'];
+const requestedDifficulty=String(process.env.QUADLUD_PARITY_DIFFICULTY||'').trim().toLowerCase();
+if(requestedDifficulty&&!ALL_DIFFS.includes(requestedDifficulty))throw new Error(`invalid QUADLUD_PARITY_DIFFICULTY ${requestedDifficulty}`);
+const DIFFS=requestedDifficulty?[requestedDifficulty]:ALL_DIFFS;
 const diagnostic=process.env.QUADLUD_PARITY_DIAGNOSTIC==='1';
 const reportPath=process.env.QUADLUD_PARITY_REPORT||'';
 
