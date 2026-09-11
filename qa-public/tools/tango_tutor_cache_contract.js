@@ -26,6 +26,7 @@ const FILES=Object.freeze([
   'tango-cognitive-pedagogy-bridge.js',
   'tango-human-pedagogy-r4.js',
   'tango-cognitive-proof-stages-bridge.js',
+  'tango-direct-visible-priority-bridge.js',
   'tango-tutor-single-planner-r5.js'
 ]);
 function sha256(buffer){return crypto.createHash('sha256').update(buffer).digest('hex')}

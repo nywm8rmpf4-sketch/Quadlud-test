@@ -30,13 +30,13 @@ for(const file of [
   'tango-played-move-runtime.js','tango-human-cost-bridge.js',
   'cognitive-cost.js','tango-cognitive-patterns.js','tango-cognitive-pedagogy-bridge.js',
   'tango-human-pedagogy-r4.js','tango-cognitive-proof-stages-bridge.js',
-  'tango-tutor-single-planner-r5.js'
+  'tango-direct-visible-priority-bridge.js','tango-tutor-single-planner-r5.js'
 ])require(path.join(ROOT,file));
 const Planner=global.QuadludTangoPlayedMovePlanner;
 const Tutor=global.QuadludTangoTutorSinglePlannerR5;
 const Human=global.QuadludTangoHumanPedagogyR4;
 const Runtime=global.QuadludTangoPlayedMoveRuntime;
-if(!Planner||!Tutor||!Human||!Runtime||!Runtime.__quadludCognitivePedagogyR1||!Human.__quadludCognitiveProofStagesR1)throw new Error('Cognitive Soleil-Lune Tutor runtime unavailable');
+if(!Planner||!Tutor||!Human||!Runtime||!Runtime.__quadludCognitivePedagogyR1||!Human.__quadludCognitiveProofStagesR1||!Human.__quadludDirectVisiblePriorityR1)throw new Error('Cognitive Soleil-Lune Tutor runtime unavailable');
 const Contract=require(path.join(ROOT,'qa-public','tools','tango_tutor_cache_contract.js'));
 const tutorContract=Contract.compute(ROOT);
 
