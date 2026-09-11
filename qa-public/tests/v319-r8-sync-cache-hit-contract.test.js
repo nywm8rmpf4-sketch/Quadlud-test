@@ -10,7 +10,7 @@ const candidate=path.resolve(__dirname,'../GitHub');
 const repo=path.resolve(__dirname,'../..');
 const WEB=fs.existsSync(path.join(candidate,'tango-logic.js'))?candidate:repo;
 const file=name=>path.join(WEB,name);
-const ContractTool=require(path.resolve(repo,'qa-public/tools/tango_tutor_cache_contract.js'));
+const ContractTool=require(path.resolve(__dirname,'../tools/tango_tutor_cache_contract.js'));
 const generatedContract=require(file('tango-tutor-cache-contract-r8.js'));
 const recomputed=ContractTool.compute(WEB);
 assert.strictEqual(recomputed.digest,generatedContract.digest,'generated Tutor/cache contract is stale versus current live Tutor sources');
