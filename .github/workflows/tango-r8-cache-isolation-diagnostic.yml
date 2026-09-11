@@ -1,0 +1,56 @@
+name: QUADLUD Tango R8 cache isolation diagnostic
+
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/tango-r8-cache-isolation-diagnostic.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  expert-44-47:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Patch cache lookup to operate on an isolated engine clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tango-tutor-precomputed-cache.js')
+          s=p.read_text()
+          old="const {fingerprint,step}=hit,advanced=step[1]===1,startKind=step[2],target=cellFromIndex(step[3]),value=step[4],starting=resolveSeed(session,diff,startKind,step[5]);"
+          new="const work=session.clone(),{fingerprint,step}=hit,advanced=step[1]===1,startKind=step[2],target=cellFromIndex(step[3]),value=step[4],starting=resolveSeed(work,diff,startKind,step[5]);"
+          if s.count(old)!=1: raise SystemExit('cache clone patch anchor missing/non-unique')
+          s=s.replace(old,new,1)
+          old2="const displayDeduction=resolveSeed(session,diff,step[7],step[8],{display:true})"
+          new2="const displayDeduction=resolveSeed(work,diff,step[7],step[8],{display:true})"
+          if s.count(old2)!=1: raise SystemExit('display clone patch anchor missing/non-unique')
+          p.write_text(s.replace(old2,new2,1))
+          PY
+          node --check tango-tutor-precomputed-cache.js
+          grep -q 'const work=session.clone()' tango-tutor-precomputed-cache.js
+      - uses: actions/download-artifact@v4
+        with:
+          name: cognitive-r8-cache-full
+          path: certified
+          repository: nywm8rmpf4-sketch/Quadlud-test
+          run-id: 34607409416
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install exact generated cache from full build
+        run: |
+          cp certified/tango-tutor-cache-data-r8.js ./tango-tutor-cache-data-r8.js
+          cp certified/tango-tutor-cache-contract-r8.js ./tango-tutor-cache-contract-r8.js
+      - name: Reproduce formerly failing Expert 44-47 parity
+        env:
+          QUADLUD_PARITY_DIFFICULTY: expert
+          QUADLUD_PARITY_START: '44'
+          QUADLUD_PARITY_COUNT: '4'
+        run: node qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js
