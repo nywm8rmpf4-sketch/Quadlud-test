@@ -9,8 +9,8 @@
 const isNode=typeof module==='object'&&module.exports;
 const Cognitive=isNode?require('./cognitive-cost.js'):root.QuadludCognitiveCost;
 const Patterns=isNode?require('./tango-cognitive-patterns.js'):root.QuadludTangoCognitivePatterns;
-const VERSION=2;
-const TOKEN='3.1.9-cognitive-chunks-r2-no-speculative-contradiction';
+const VERSION=3;
+const TOKEN='3.1.9-cognitive-chunks-r3-engine-proof-candidate';
 if(!Cognitive||!Patterns)throw new Error('Soleil-Lune cognitive dependencies unavailable');
 
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
@@ -50,6 +50,11 @@ function directCandidates(source,session,target,value){
   }
   return out
 }
+function engineCandidate(source,session,plan){
+  const raw=plan?.deduction;if(!raw||!concludesMove(raw,plan?.target,plan?.value))return null;
+  const d=typeof source?._test?.minimalDisplayDeduction==='function'?source._test.minimalDisplayDeduction(raw):copy(raw);
+  return candidate(source,session,d,{kind:'engine'})
+}
 function contradictionCandidate(source,session,plan){
   if(Number(plan?.tierIndex)<3)return null;
   const H=humanBridge(),find=H?._test?.causalContradictionCandidate;if(typeof find!=='function')return null;
@@ -59,20 +64,30 @@ function contradictionCandidate(source,session,plan){
   }catch(_){return null}
 }
 function compareProofCandidates(a,b){return compare(a?.cognitiveCostVector,b?.cognitiveCostVector)||compare(a?.legacyCostVector,b?.legacyCostVector)||String(a?.stableKey||'').localeCompare(String(b?.stableKey||''))}
+function replacementKind(kind){
+  if(kind==='contradiction')return 'cognitive-simpler-contradiction-proof';
+  if(kind==='engine')return 'cognitive-simpler-engine-proof';
+  return 'cognitive-simpler-direct-proof'
+}
 function selectCognitiveProof(source,session,plan,rawProof){
   const proof=copy(rawProof)||{},currentDeduction=proof.deduction||plan?.deduction;if(!currentDeduction)return proof;
-  const current=candidate(source,session,currentDeduction,{kind:'current',witness:proof.witness,baseProof:proof}),direct=directCandidates(source,session,plan?.target,plan?.value),candidates=[current,...direct];
-  // Ranking is pure: only proofs already demonstrated by the engine or direct
-  // deductions already visible in this state may be compared. No new hypothesis
-  // search is launched merely to improve presentation.
+  const current=candidate(source,session,currentDeduction,{kind:'current',witness:proof.witness,baseProof:proof}),engine=engineCandidate(source,session,plan),direct=directCandidates(source,session,plan?.target,plan?.value),candidates=[current,engine,...direct];
+  // Ranking is pure: compare only proofs that are already demonstrated. In
+  // particular, keep the engine-selected proof eligible even when a legacy
+  // presentation layer has replaced it with a concrete contradiction. Patterns
+  // rank proofs; they never establish logical validity.
   const unique=[],seen=new Set();for(const c of candidates){if(!c)continue;const key=deductionKey(c.deduction);if(seen.has(key))continue;seen.add(key);unique.push(c)}
   unique.sort(compareProofCandidates);const best=unique[0]||current,replaced=deductionKey(best.deduction)!==deductionKey(current.deduction);
   const next={...proof,
-    deduction:copy(best.deduction),displayDeductions:[copy(best.deduction)],
+    deduction:copy(best.deduction),displayDeductions:[copy(best.deduction)],witness:copy(best.witness)||null,
     cognitiveProfile:copy(best.cognitiveProfile),cognitiveCostVector:best.cognitiveCostVector.slice(),legacyCostVector:best.legacyCostVector.slice(),
     costVector:best.cognitiveCostVector.slice(),cognitiveModel:Cognitive.MODEL_ID,cognitivePatternCatalog:Patterns.CATALOG_VERSION
   };
-  if(replaced){next.replaced=true;next.replacedRule=String(current.deduction?.rule||'');next.replacedCognitiveCostVector=current.cognitiveCostVector.slice();next.kind=best.kind==='contradiction'?'cognitive-simpler-contradiction-proof':'cognitive-simpler-direct-proof';if(best.witness)next.witness=copy(best.witness)}
+  if(replaced){
+    next.replaced=true;next.replacedRule=String(current.deduction?.rule||'');
+    next.replacedCognitiveCostVector=current.cognitiveCostVector.slice();next.replacedLegacyCostVector=current.legacyCostVector.slice();
+    next.kind=replacementKind(best.kind)
+  }
   return Object.freeze(next)
 }
 function scorePlan(source,session,plan,rawSelect){
@@ -110,12 +125,12 @@ function install(){
   const replacement={...source,
     selectDisplayProof(session,plan){return selectCognitiveProof(source,session,plan,rawSelect.call(source,session,plan))},
     planHumanMove(session,diff){return cognitivePlanHumanMove(source,session,diff,rawSelect,rawPlan)},
-    _test:Object.freeze({...source._test,cognitiveEvidence,directCognitiveCandidates:directCandidates,selectCognitiveProof,scoreCognitivePlan:scorePlan,compareCognitiveProofCandidates:compareProofCandidates,compareCognitiveScoredPlans:compareScoredPlans,selectLowestCognitivePlan,evaluateCognitivePlans:evaluatePlans}),
+    _test:Object.freeze({...source._test,cognitiveEvidence,directCognitiveCandidates:directCandidates,engineCognitiveCandidate:engineCandidate,selectCognitiveProof,scoreCognitivePlan:scorePlan,compareCognitiveProofCandidates:compareProofCandidates,compareCognitiveScoredPlans:compareScoredPlans,selectLowestCognitivePlan,evaluateCognitivePlans:evaluatePlans}),
     __quadludCognitivePedagogyR1:true,cognitiveModel:Cognitive.MODEL_ID,cognitivePatternCatalog:Patterns.CATALOG_VERSION
   };
   root.QuadludTangoPlayedMoveRuntime=Object.freeze(replacement);return true
 }
-const api=Object.freeze({VERSION,TOKEN,install,_test:Object.freeze({deductionKey,planKey,legacyCost,cognitiveEvidence,candidate,directCandidates,contradictionCandidate,compareProofCandidates,selectCognitiveProof,scorePlan,compareScoredPlans,selectLowestCognitivePlan,evaluatePlans,cognitivePlanHumanMove})});
+const api=Object.freeze({VERSION,TOKEN,install,_test:Object.freeze({deductionKey,planKey,legacyCost,cognitiveEvidence,candidate,directCandidates,engineCandidate,contradictionCandidate,compareProofCandidates,selectCognitiveProof,scorePlan,compareScoredPlans,selectLowestCognitivePlan,evaluatePlans,cognitivePlanHumanMove})});
 root.QuadludTangoCognitivePedagogyBridge=api;
 if(typeof document!=='undefined')install();
 if(isNode)module.exports=api;
