@@ -3,7 +3,32 @@ name: QUADLUD Tango cognitive R8 full cache
 on:
   push:
     branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
-    paths: ['.github/workflows/tango-cognitive-cache-full.yml']
+    paths:
+      - '.github/workflows/tango-cognitive-cache-full.yml'
+      - 'difficulty-rating.js'
+      - 'tango-logic.js'
+      - 'tango-difficulty.js'
+      - 'tutor-move-selector.js'
+      - 'pedagogy-next-move-policy.js'
+      - 'tango-played-move-planner.js'
+      - 'tango-attention-continuity-bridge.js'
+      - 'tango-tutor-frontier-pruner-r5.js'
+      - 'tango-played-move-runtime.js'
+      - 'tango-human-cost-bridge.js'
+      - 'cognitive-cost.js'
+      - 'tango-cognitive-patterns.js'
+      - 'tango-cognitive-pedagogy-bridge.js'
+      - 'tango-human-pedagogy-r4.js'
+      - 'tango-cognitive-proof-stages-bridge.js'
+      - 'tango-direct-visible-priority-bridge.js'
+      - 'tango-tutor-single-planner-r5.js'
+      - 'tango-runtime-pool-data.js'
+      - 'qa-public/tools/tango_tutor_cache_contract.js'
+      - 'qa-public/tools/materialize_tango_tutor_cognitive_contract.js'
+      - 'qa-public/tools/build_tango_tutor_sync_shard_r8.js'
+      - 'qa-public/tools/merge_tango_tutor_cognitive_slices.js'
+      - 'qa-public/tools/compact_tango_tutor_sync_r8.js'
+  workflow_dispatch:
 
 jobs:
   plan:
@@ -81,6 +106,7 @@ jobs:
             node qa-public/tools/merge_tango_tutor_cognitive_slices.js slices "$d" "merged/tango-tutor-sync-$d.json"
           done
           node qa-public/tools/compact_tango_tutor_sync_r8.js merged compact
+          node qa-public/tools/materialize_tango_tutor_cognitive_contract.js compact/tango-tutor-cache-contract-r8.js
           cp merged/*.json compact/
           node - <<'NODE'
           const fs=require('fs'),assert=require('assert'),crypto=require('crypto');
@@ -112,8 +138,10 @@ jobs:
         with:
           name: cognitive-r8-cache-full
           path: certified
-      - name: Install generated cognitive cache for exact-source parity
-        run: cp certified/tango-tutor-cache-data-r8.js ./tango-tutor-cache-data-r8.js
+      - name: Install generated cognitive cache + exact runtime contract for parity
+        run: |
+          cp certified/tango-tutor-cache-data-r8.js ./tango-tutor-cache-data-r8.js
+          cp certified/tango-tutor-cache-contract-r8.js ./tango-tutor-cache-contract-r8.js
       - name: Run cognitive cache/live parity slice
         env:
           QUADLUD_PARITY_DIFFICULTY: ${{ matrix.difficulty }}
@@ -139,3 +167,59 @@ jobs:
           name: cognitive-r8-cache-certified
           path: certified/*
           retention-days: 30
+
+  install-cache:
+    needs: [merge-cache,parity,certify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: cognitive-r8-cache-full
+          path: certified
+      - name: Install certified exact-source cache and bump browser cache keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp certified/tango-tutor-cache-data-r8.js ./tango-tutor-cache-data-r8.js
+          cp certified/tango-tutor-cache-contract-r8.js ./tango-tutor-cache-contract-r8.js
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ['index.html','sw.js']:
+              p=Path(name)
+              text=p.read_text()
+              text=text.replace('3.1.9-r8-sync3-cognitive','3.1.9-r8-sync3-cognitive-r4')
+              text=text.replace('3.1.9-cognitive-r3-bounded-relation-fallback','3.1.9-cognitive-r4-cache-contract-guard')
+              if name=='sw.js':
+                  text=text.replace('quadlud-v3.1.9-tango-r8-sync3-cognitive-v21','quadlud-v3.1.9-tango-r8-sync3-cognitive-v22')
+              p.write_text(text)
+          PY
+          node --check tango-tutor-single-planner-r5.js
+          node --check tango-tutor-cache-contract-r8.js
+          node --check tango-tutor-precomputed-cache.js
+          node --check tango-tutor-cache-data-r8.js
+          node qa-public/tests/v319-r8-cache-planner-contract-guard.test.js
+          node qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js
+          node qa-public/tests/v319-r8-cognitive-live-priority.test.js
+          node qa-public/tests/v319-r8-simple-before-contradiction.test.js
+          git diff --check
+      - name: Commit exact certified cache integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add tango-tutor-cache-data-r8.js tango-tutor-cache-contract-r8.js index.html sw.js
+          if git diff --cached --quiet; then
+            echo 'Certified cache already installed.'
+            exit 0
+          fi
+          git commit -m 'build(tango): install certified cognitive R8 cache'
+          git push origin HEAD:candidate/v3.1.9-tango-cognitive-chunks-r1
