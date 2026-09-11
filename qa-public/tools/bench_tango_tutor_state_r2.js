@@ -16,5 +16,6 @@ if(!P||!T)throw new Error('Tutor runtime unavailable');
 const pub={game:'tango',n:6,state:input.state.map(r=>r.slice()),edges:input.edges.map(e=>e.slice())},engine=P.sessionFromPublicBoard(pub,pub.state);
 const tier=P.tierIndexForDifficulty(input.diff||'expert'),direct=P._test.allowedDirectDeductions(engine,tier),A=P._attentionTest||{};
 const directSummary=direct.map(d=>({rule:d.rule,signature:d.signature||d.id||'',visible:typeof A.directlyPlacesVisibleValue==='function'?!!A.directlyPlacesVisibleValue(engine,d):null,conclusions:d.conclusions||[]}));
+process.stderr.write('PRE '+JSON.stringify({directCount:direct.length,visibleCount:directSummary.filter(x=>x.visible).length,directSummary})+'\n');
 const t0=performance.now(),plan=T._test.humanizeTutorPlan(engine,input.diff||'expert',{usePrecomputedCache:false}),ms=performance.now()-t0;
 console.log(JSON.stringify({status:plan?.status||null,target:plan?.target||null,value:plan?.value,rule:(plan?.startingDeduction||plan?.deduction)?.rule||null,mode:plan?.tutorPlannerMode||null,selectionStatus:plan?.selectionStatus||null,directVisibleFastPath:!!plan?.directVisibleFastPath,ms:Number(ms.toFixed(3)),directSummary}));
