@@ -1,0 +1,27 @@
+name: Export certified Tango cache
+
+on:
+  push:
+    branches:
+      - tmp/export-certified-cache
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify certified cache digest
+        run: |
+          set -euo pipefail
+          test -f tango-tutor-cache-data-r8.js
+          echo "b3a1645d7c582ebc1817967d63a52dea3f594bb68b389bda12aac391267986f8  tango-tutor-cache-data-r8.js" | sha256sum -c -
+      - name: Upload exact certified cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-certified-cache
+          path: tango-tutor-cache-data-r8.js
+          if-no-files-found: error
+          retention-days: 2
