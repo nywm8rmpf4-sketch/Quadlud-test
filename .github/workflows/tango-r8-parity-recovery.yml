@@ -1,0 +1,133 @@
+name: QUADLUD Tango R8 exhaustive parity recovery
+
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/tango-r8-parity-recovery.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  SOURCE_CACHE_RUN_ID: '34607409416'
+  EXPECTED_CACHE_SHA256: 'ddd5a8a33e6b1f20f313c9e3fc3b77665ae25dbee92d574cbbdf55c13c618953'
+  EXPECTED_CONTRACT_DIGEST: '78bbb5f7ff951fa9744964345eaa5ace0f93acab7c5e0f19438421c8e08b4647'
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: cognitive-r8-cache-full
+          path: certified
+          repository: nywm8rmpf4-sketch/Quadlud-test
+          run-id: ${{ env.SOURCE_CACHE_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify source/cache identity and cardinality
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA="$(sha256sum certified/tango-tutor-cache-data-r8.js | awk '{print $1}')"
+          test "$ACTUAL_SHA" = "$EXPECTED_CACHE_SHA256"
+          node - <<'NODE'
+          const assert=require('assert'),path=require('path');
+          const Contract=require('./qa-public/tools/tango_tutor_cache_contract.js');
+          const current=Contract.compute(process.cwd());
+          const generated=require(path.resolve('certified/tango-tutor-cache-contract-r8.js'));
+          const data=require(path.resolve('certified/tango-tutor-cache-data-r8.js'));
+          assert.strictEqual(current.digest,process.env.EXPECTED_CONTRACT_DIGEST,'current Tutor source digest drift');
+          assert.strictEqual(generated.digest,current.digest,'artifact/source Tutor contract drift');
+          assert.strictEqual(data.tutorContract.digest,current.digest,'cache/source Tutor contract drift');
+          assert.deepStrictEqual(data.puzzleCounts,{easy:120,medium:120,hard:120,expert:120});
+          const counts=Object.fromEntries(['easy','medium','hard','expert'].map(d=>[d,data.steps[d].length]));
+          assert.deepStrictEqual(counts,{easy:3469,medium:3721,hard:3811,expert:3860});
+          assert.strictEqual(Object.values(counts).reduce((a,b)=>a+b,0),14861);
+          console.log('R8_PREFLIGHT_PASS',JSON.stringify({head:process.env.GITHUB_SHA,contract:current.digest,cacheSha256:process.env.EXPECTED_CACHE_SHA256,puzzles:data.puzzleCounts,steps:counts,totalSteps:14861}));
+          NODE
+
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      parity: ${{ steps.matrix.outputs.parity }}
+    steps:
+      - id: matrix
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          parity=[]
+          for diff,count in [('easy',20),('medium',20),('hard',20),('expert',4)]:
+              for start in range(0,120,count):
+                  parity.append({'difficulty':diff,'start':start,'count':min(count,120-start)})
+          print('parity='+json.dumps({'include':parity},separators=(',',':')))
+          PY
+
+  parity:
+    needs: [preflight,plan]
+    strategy:
+      fail-fast: false
+      max-parallel: 24
+      matrix: ${{ fromJSON(needs.plan.outputs.parity) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: cognitive-r8-cache-full
+          path: certified
+          repository: nywm8rmpf4-sketch/Quadlud-test
+          run-id: ${{ env.SOURCE_CACHE_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install exact generated cache for parity only
+        run: |
+          cp certified/tango-tutor-cache-data-r8.js ./tango-tutor-cache-data-r8.js
+          cp certified/tango-tutor-cache-contract-r8.js ./tango-tutor-cache-contract-r8.js
+      - name: Run exact-stack cache/live parity slice
+        env:
+          QUADLUD_PARITY_DIFFICULTY: ${{ matrix.difficulty }}
+          QUADLUD_PARITY_START: ${{ matrix.start }}
+          QUADLUD_PARITY_COUNT: ${{ matrix.count }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js 2>&1 | tee "parity-${{ matrix.difficulty }}-${{ matrix.start }}.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parity-${{ matrix.difficulty }}-${{ matrix.start }}
+          path: parity-${{ matrix.difficulty }}-${{ matrix.start }}.log
+          retention-days: 14
+
+  certify:
+    needs: [preflight,parity]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record exhaustive parity certification
+        shell: bash
+        run: |
+          cat > CERTIFIED.txt <<EOF
+          QUADLUD Tango R8 exhaustive exact-stack cache/live parity: PASS
+          Source HEAD: $GITHUB_SHA
+          Cache source run: $SOURCE_CACHE_RUN_ID
+          Cache SHA-256: $EXPECTED_CACHE_SHA256
+          Tutor contract: $EXPECTED_CONTRACT_DIGEST
+          Canonical puzzles: 480 (120 easy + 120 medium + 120 hard + 120 expert)
+          Canonical visible states: 14861
+          Requirement: every parity matrix slice succeeded with 100% cache hits, zero lookup/validation misses and zero plan/proof metadata mismatches.
+          EOF
+          cat CERTIFIED.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-exhaustive-parity-certified
+          path: CERTIFIED.txt
+          retention-days: 30
