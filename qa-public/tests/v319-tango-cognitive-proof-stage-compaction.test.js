@@ -2,6 +2,7 @@
 'use strict';
 const assert=require('assert');
 const Bridge=require('../../tango-cognitive-proof-stages-bridge.js');
+const Human=require('../../tango-human-pedagogy-r4.js');
 
 function deduction(i){return {
   rule:'TRIPLE_CONSTRAINT',signature:`t-${i}`,focusUnits:[{family:'row',id:0}],focusCells:[[0,0],[0,1],[0,2]],
@@ -32,6 +33,18 @@ assert(compact[1].presentation.metadata.cognitiveChunk);
 assert(!compact[1].presentation.explanation.why.includes('step 98'),'raw screen-by-screen text must not leak into compact presentation');
 assert.deepStrictEqual(raw[1].deduction,trace[0],'compaction must not mutate source proof');
 
+const presenter={
+  presentation(d){return {rule:d?.rule||'',technique:null,rank:d?.rank??0,techniqueLevel:d?.techniqueLevel??0,metadata:{},explanation:{title:'',where:'',why:'',move:''}}},
+  contradictionText(){return 'dead end'},
+  conclusionText(){return 'A2 = lune ☾'}
+};
+const liveRaw=Human._test.rawProofStagesForDeduction(advanced,presenter);
+const liveCompact=Human._test.proofStagesForDeduction(advanced,presenter);
+assert.strictEqual(liveRaw.length,102,'live Tutor raw proof should reproduce the 99-micro-step contradiction');
+assert.strictEqual(liveCompact.length,4,'live Tutor/Coach proof-stage path must apply cognitive chunk compaction');
+assert.strictEqual(liveCompact[1].cognitiveChunk.rawCount,99,'live compact stage must retain all 99 audited machine deductions in its chunk');
+assert.strictEqual(liveCompact[3].kind,'action');
+
 const variedTrace=Array.from({length:12},(_,i)=>({...deduction(i),focusUnits:[{family:'row',id:i%6}],focusCells:[[i%6,0],[i%6,1],[i%6,2]]}));
 const varied={...advanced,signature:'advanced-varied',explanationData:{...advanced.explanationData,causalTrace:variedTrace}};
 const variedRaw=[hypothesis,...variedTrace.map((d,i)=>({kind:'reasoning',deduction:d,presentation:{metadata:{},explanation:{why:`v${i}`}}})),contradiction,action];
@@ -39,4 +52,4 @@ const variedCompact=Bridge.compactProofStages(varied,variedRaw);
 assert(variedCompact.length>4,'different attention zones must not collapse into one chunk');
 assert(variedCompact.length<variedRaw.length+1);
 
-console.log('PASS v319-tango-cognitive-proof-stage-compaction',JSON.stringify({raw:raw.length,compact:compact.length,members:compact[1].cognitiveChunk.rawCount,variedRaw:variedRaw.length,variedCompact:variedCompact.length}));
+console.log('PASS v319-tango-cognitive-proof-stage-compaction',JSON.stringify({raw:raw.length,compact:compact.length,members:compact[1].cognitiveChunk.rawCount,runtimeRaw:liveRaw.length,runtimeCompact:liveCompact.length,variedRaw:variedRaw.length,variedCompact:variedCompact.length}));
