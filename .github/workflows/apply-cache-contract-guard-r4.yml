@@ -1,4 +1,4 @@
-name: QUADLUD apply Tango cache contract guard R4
+name: QUADLUD apply Tango exact materialized cache R5
 
 on:
   push:
@@ -21,40 +21,28 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - name: Apply exact cache/Tutor synchronization patch
-        run: python3 qa-public/tools/apply_tango_cache_contract_guard_r4.py
-      - name: Normalize tests and generated workflow layout
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          guard=Path('qa-public/tests/v319-r8-cache-planner-contract-guard.test.js')
-          s=guard.read_text()
-          s=s.replace("const assert=require('assert');\nconst path=require('path');\nconst runtime=name=>path.join(__dirname,'..','GitHub',name);", "const assert=require('assert');\nconst fs=require('fs');\nconst path=require('path');\nconst candidate=path.resolve(__dirname,'../GitHub');\nconst repo=path.resolve(__dirname,'../..');\nconst WEB=fs.existsSync(path.join(candidate,'tango-tutor-single-planner-r5.js'))?candidate:repo;\nconst runtime=name=>path.join(WEB,name);")
-          guard.write_text(s)
-          owner=Path('qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js')
-          s=owner.read_text()
-          s=s.replace("const runtime=name=>path.join(__dirname,'..','GitHub',name);", "const candidate=path.resolve(__dirname,'../GitHub');\nconst repo=path.resolve(__dirname,'../..');\nconst WEB=fs.existsSync(path.join(candidate,'tango-tutor-single-planner-r5.js'))?candidate:repo;\nconst runtime=name=>path.join(WEB,name);")
-          owner.write_text(s)
-          workflow=Path('.github/workflows/tango-cognitive-cache-full.yml')
-          workflow.write_text(workflow.read_text().rstrip()+'\n')
-          PY
+      - name: Apply exact materialized cache patch
+        run: python3 qa-public/tools/apply_tango_cache_materialization_r5.py
       - name: Syntax and focused regression before commit
         run: |
           set -euo pipefail
-          node --check tango-tutor-single-planner-r5.js
-          node --check qa-public/tools/materialize_tango_tutor_cognitive_contract.js
-          node --check qa-public/tests/v319-r8-cache-planner-contract-guard.test.js
+          node --check tango-tutor-precomputed-cache.js
+          node --check qa-public/tools/build_tango_tutor_sync_shard_r8.js
+          node --check qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js
+          node --check qa-public/tests/v319-r8-cache-materialized-hit.test.js
+          node qa-public/tests/v319-r8-cache-materialized-hit.test.js
           node qa-public/tests/v319-r8-cache-planner-contract-guard.test.js
           node qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js
-          node qa-public/tests/v319-r8-relation-frontier-fastpath.test.js
           node qa-public/tests/v319-r8-cognitive-live-priority.test.js
           node qa-public/tests/v319-r8-simple-before-contradiction.test.js
+          mkdir -p /tmp/quadlud-r8
+          node qa-public/tools/build_tango_tutor_sync_shard_r8.js --difficulty hard --start 20 --count 5 --output /tmp/quadlud-r8/hard-20-5.json --report /tmp/quadlud-r8/hard-20-5-report.json
           git diff --check
-      - name: Commit guarded Tutor/cache source contract
+      - name: Commit exact materialized cache runtime
         run: |
           set -euo pipefail
           git config user.name 'QUADLUD QA Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add tango-tutor-single-planner-r5.js qa-public/tools/materialize_tango_tutor_cognitive_contract.js qa-public/tests/v319-r8-cache-planner-contract-guard.test.js qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js
-          git commit -m 'fix(tango): guard cache against Tutor contract drift'
+          git add tango-tutor-precomputed-cache.js qa-public/tools/build_tango_tutor_sync_shard_r8.js qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js qa-public/tests/v319-r8-cache-materialized-hit.test.js
+          git commit -m 'fix(tango): materialize exact cached Tutor plan'
           git push origin HEAD:candidate/v3.1.9-tango-cognitive-chunks-r1
