@@ -1,0 +1,83 @@
+name: Apply Tango bounded relation fallback R3
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/apply-relation-bounded-fallback-r3.yml']
+permissions: {contents: write}
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: candidate/v3.1.9-tango-cognitive-chunks-r1}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Patch exact Tutor owner
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tango-tutor-single-planner-r5.js'); s=p.read_text()
+          old="const VERSION=3;\nconst TOKEN='3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded';"
+          new="const VERSION=4;\nconst TOKEN='3.1.9-cognitive-r3-bounded-relation-fallback';"
+          if s.count(old)!=1: raise SystemExit('single planner version anchor mismatch')
+          s=s.replace(old,new)
+          anchor="function attachHumanProof(session,plan,H,R,mode){"
+          helper="""function compareVector(a,b){for(let i=0;i<Math.max(a?.length||0,b?.length||0);i++){const x=Number(a?.[i])||0,y=Number(b?.[i])||0;if(x!==y)return x-y}return 0}\nfunction relationPrunedHumanPlan(session,diff,options,H){\n  const P=planner(),T=P._test,A=P._attentionTest,tier=tierIndex(diff);\n  if(tier!==3||typeof T?.allowedDirectDeductions!=='function'||typeof A?.relationOnlyDeduction!=='function'||typeof A?.evaluateRelationFrontier!=='function')return null;\n  let direct=[];try{direct=T.allowedDirectDeductions(session,tier)||[]}catch(_){return null}\n  if(!direct.length||!direct.every(d=>A.relationOnlyDeduction(d)))return null;\n  let evaluation=null;try{evaluation=A.evaluateRelationFrontier(session,tier,direct,{...options,initialStateValidated:true})}catch(_){return null}\n  if(!evaluation?.plans?.length)return null;\n  const scored=[];for(const plan of evaluation.plans){try{const x=H._test?.evaluatePlanHumanProof?.(session,plan);if(x)scored.push(x)}catch(_){}}\n  if(!scored.length)return null;\n  const cmp=typeof H._test?.compareHumanCandidate==='function'?H._test.compareHumanCandidate:(a,b)=>compareVector(a?.cost,b?.cost)||compareVector(a?.plannerCost,b?.plannerCost);\n  scored.sort(cmp);const chosen=scored[0],plan=copy(chosen.plan),proof=copy(chosen.displayProof),displayDeduction=proof?.deduction||copy(plan.deduction);if(!displayDeduction)return null;\n  const frontierComplete=!evaluation.truncated&&!evaluation.branchBudgetHit;\n  return {...plan,displayProof:proof,displayDeduction,selectionStatus:'cognitive-relation-frontier-pruned',candidateCount:scored.length,humanCandidateCount:scored.length,humanGlobalSelection:false,frontierComplete,budgetHit:!frontierComplete,relationFrontierPruned:true,relationFrontierEstimatedCandidateCount:Number(evaluation.estimatedCandidateCount)||direct.length,relationFrontierHydratedCandidateCount:Number(evaluation.hydratedCandidateCount)||evaluation.plans.length,relationFrontierPrunedCandidateCount:Number(evaluation.prunedCandidateCount)||0,relationFrontierMinimumEngineStepCount:Number(evaluation.provenMinimumEngineStepCount)||null};\n}\n"""
+          if s.count(anchor)!=1: raise SystemExit('attach anchor mismatch')
+          s=s.replace(anchor,helper+anchor)
+          old="""  if(directVisible!==false&&typeof H.chooseGloballySimplestPlan==='function'){\n    let globalPlan=null;try{globalPlan=H.chooseGloballySimplestPlan(session,diff,options)}catch(_){globalPlan=null}\n    if(globalPlan)return attachHumanProof(session,globalPlan,H,R,'direct-human-global')\n  }\n  const plan=P.nextPlayedMove(session,diff,options),out=attachHumanProof(session,plan,H,R,'relation-pruned-single');\n"""
+          new="""  if(directVisible!==false&&typeof H.chooseGloballySimplestPlan==='function'){\n    let globalPlan=null;try{globalPlan=H.chooseGloballySimplestPlan(session,diff,options)}catch(_){globalPlan=null}\n    if(globalPlan)return attachHumanProof(session,globalPlan,H,R,'direct-human-global')\n  }\n  if(directVisible===false){let pruned=null;try{pruned=relationPrunedHumanPlan(session,diff,options,H)}catch(_){pruned=null}if(pruned)return attachHumanProof(session,pruned,H,R,'relation-cognitive-pruned')}\n  const plan=P.nextPlayedMove(session,diff,options),out=attachHumanProof(session,plan,H,R,'relation-pruned-single');\n"""
+          if s.count(old)!=1: raise SystemExit('humanize anchor mismatch')
+          s=s.replace(old,new)
+          old="_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,attachHumanProof,humanizeTutorPlan,precomputedCache})"
+          new="_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,compareVector,relationPrunedHumanPlan,attachHumanProof,humanizeTutorPlan,precomputedCache})"
+          if s.count(old)!=1: raise SystemExit('_test anchor mismatch')
+          p.write_text(s.replace(old,new))
+
+          p=Path('index.html'); s=p.read_text()
+          old='tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded'; new='tango-tutor-single-planner-r5.js?v=3.1.9-cognitive-r3-bounded-relation-fallback'
+          if s.count(old)!=1: raise SystemExit('index single planner query anchor mismatch')
+          p.write_text(s.replace(old,new))
+
+          p=Path('sw.js'); s=p.read_text()
+          old="const CACHE='quadlud-v3.1.9-tango-r8-sync3-cognitive-v20';"; new="const CACHE='quadlud-v3.1.9-tango-r8-sync3-cognitive-v21';"
+          if s.count(old)!=1: raise SystemExit('SW cache anchor mismatch')
+          s=s.replace(old,new)
+          old='./tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded'; new='./tango-tutor-single-planner-r5.js?v=3.1.9-cognitive-r3-bounded-relation-fallback'
+          if s.count(old)!=1: raise SystemExit('SW single planner query anchor mismatch')
+          p.write_text(s.replace(old,new))
+          PY
+          node --check tango-tutor-single-planner-r5.js
+          git diff --check
+      - name: Targeted bounded fallback tests
+        run: |
+          set -euo pipefail
+          node qa-public/tests/v319-r8-direct-visible-fastpath.test.js
+          node qa-public/tests/v319-r8-relation-frontier-fastpath.test.js
+          node qa-public/tests/v319-r8-cognitive-live-priority.test.js
+          node qa-public/tests/v319-r8-simple-before-contradiction.test.js
+          QUADLUD_TANGO_STATE='{"diff":"expert","state":[[0,-1,-1,-1,-1,-1],[1,-1,-1,-1,-1,-1],[1,-1,-1,-1,-1,-1],[0,-1,-1,-1,-1,-1],[-1,-1,-1,-1,-1,-1],[-1,-1,-1,-1,-1,-1]],"edges":[]}' node --check qa-public/tools/bench_tango_tutor_state_r2.js
+      - name: Slow-state Tutor owner regression
+        run: |
+          node - <<'NODE'
+          const assert=require('assert'),path=require('path'),ROOT=process.cwd();global.document={body:{classList:{contains:n=>n==='tutor-active'}}};
+          for(const f of ['tango-logic.js','tango-difficulty.js','tutor-move-selector.js','pedagogy-next-move-policy.js','tango-played-move-planner.js','tango-attention-continuity-bridge.js','tango-tutor-frontier-pruner-r5.js','tango-played-move-runtime.js','tango-human-cost-bridge.js','cognitive-cost.js','tango-cognitive-patterns.js','tango-cognitive-pedagogy-bridge.js','tango-human-pedagogy-r4.js','tango-cognitive-proof-stages-bridge.js','tango-direct-visible-priority-bridge.js','tango-tutor-single-planner-r5.js'])require(path.join(ROOT,f));
+          const P=global.QuadludTangoPlayedMovePlanner,T=global.QuadludTangoTutorSinglePlannerR5,Pool=require('./tango-runtime-pool-data.js'),entry=Pool.pools.expert[0];
+          const state=[[0,-1,-1,-1,-1,-1],[1,-1,-1,-1,-1,-1],[1,-1,-1,-1,-1,-1],[0,-1,-1,-1,-1,-1],[-1,-1,-1,-1,-1,-1],[-1,-1,-1,-1,-1,-1]],pub={game:'tango',n:6,state:state.map(r=>r.slice()),edges:entry.edges.map(e=>e.slice())},engine=P.sessionFromPublicBoard(pub,state);
+          const t0=performance.now(),plan=T._test.humanizeTutorPlan(engine,'expert',{usePrecomputedCache:false}),ms=performance.now()-t0;
+          assert.equal(plan.status,'move');assert.equal(plan.tutorPlannerMode,'relation-cognitive-pruned');assert(plan.relationFrontierPruned);assert(ms<5000,`bounded relation fallback ${ms.toFixed(1)}ms`);console.log('PASS slow-state Tutor owner',JSON.stringify({ms:Number(ms.toFixed(3)),target:plan.target,value:plan.value,rule:(plan.startingDeduction||plan.deduction)?.rule,mode:plan.tutorPlannerMode,cost:plan.displayProof?.costVector}));
+          NODE
+      - name: PWA guards
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('assert'),h=fs.readFileSync('index.html','utf8'),sw=fs.readFileSync('sw.js','utf8');assert(h.includes('tango-tutor-single-planner-r5.js?v=3.1.9-cognitive-r3-bounded-relation-fallback'));assert(sw.includes("quadlud-v3.1.9-tango-r8-sync3-cognitive-v21"));const m=sw.match(/const ASSETS=\[(.*?)\];/s),a=[...m[1].matchAll(/'([^']+)'/g)].map(x=>x[1]);assert.equal(a.length,new Set(a).size);console.log('PASS PWA',a.length);
+          NODE
+      - name: Commit bounded fallback
+        run: |
+          git config user.name 'QUADLUD QA Bot'; git config user.email 'actions@users.noreply.github.com'
+          git add tango-tutor-single-planner-r5.js index.html sw.js
+          git diff --cached --check
+          git commit -m 'perf(tango): bound relation-only Tutor fallback'
+          git push origin HEAD:candidate/v3.1.9-tango-cognitive-chunks-r1
