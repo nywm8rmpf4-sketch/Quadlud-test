@@ -75,9 +75,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        difficulty: [easy, medium, hard, expert]
+        include:
+          - {name: easy, difficulty: easy, start: 0, count: 120}
+          - {name: medium, difficulty: medium, start: 0, count: 120}
+          - {name: hard, difficulty: hard, start: 0, count: 120}
+          - {name: expert-0-29, difficulty: expert, start: 0, count: 30}
+          - {name: expert-30-59, difficulty: expert, start: 30, count: 30}
+          - {name: expert-60-89, difficulty: expert, start: 60, count: 30}
+          - {name: expert-90-119, difficulty: expert, start: 90, count: 30}
+    name: sharded-live-parity (${{ matrix.name }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v5
@@ -85,8 +93,8 @@ jobs:
       - name: Run exact sharded cache/live parity
         env:
           QUADLUD_PARITY_DIFFICULTY: ${{ matrix.difficulty }}
-          QUADLUD_PARITY_START: '0'
-          QUADLUD_PARITY_COUNT: '120'
+          QUADLUD_PARITY_START: ${{ matrix.start }}
+          QUADLUD_PARITY_COUNT: ${{ matrix.count }}
         run: node qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js
 
   chromium-iphone-pwa:
