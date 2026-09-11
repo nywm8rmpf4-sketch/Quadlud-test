@@ -36,7 +36,8 @@ jobs:
           grep -q "$EXPECTED_CONTRACT_DIGEST" tango-tutor-cache-contract-r8.js
           grep -Fq "$EXPECTED_RUNTIME_VERSION" tango-tutor-precomputed-cache.js
           grep -Fq 'const VERSION=7' tango-tutor-precomputed-cache.js
-          grep -Fq "assert.strictEqual(Cache.DATA_SCHEMA,10)" qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js
+          grep -Fq "assert.strictEqual(initial.dataSchema,10)" qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js
+          grep -Fq "assert.strictEqual(initial.dataVersion,'tango-tutor-cache-r8-sync5-cognitive-sharded-lz4')" qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js
           test -s tango-tutor-cache-r8-expert.js
       - name: Run exact Expert cache/live parity slice
         env:
