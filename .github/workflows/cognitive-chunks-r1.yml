@@ -18,9 +18,18 @@ jobs:
         run: |
           node --check cognitive-cost.js
           node --check tango-cognitive-patterns.js
+          node --check tango-cognitive-pedagogy-bridge.js
           node --check qa-public/tests/v319-cognitive-cost-model.test.js
           node --check qa-public/tests/v319-tango-cognitive-patterns.test.js
+          node --check qa-public/tests/v319-tango-cognitive-plan-ranking.test.js
+          node --check qa-public/tests/v319-r8-cognitive-live-priority.test.js
       - name: Generic cognitive model
         run: node qa-public/tests/v319-cognitive-cost-model.test.js
       - name: Tango cognitive patterns
         run: node qa-public/tests/v319-tango-cognitive-patterns.test.js
+      - name: Cognitive proven-plan ranking
+        run: node qa-public/tests/v319-tango-cognitive-plan-ranking.test.js
+      - name: Live C5 cognitive priority
+        run: node qa-public/tests/v319-r8-cognitive-live-priority.test.js
+      - name: Existing C5 human-priority regression
+        run: node qa-public/tests/v319-r8-simple-before-contradiction.test.js
