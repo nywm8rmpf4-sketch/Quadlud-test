@@ -1,5 +1,5 @@
 name: QUADLUD Tango cognitive R8 full cache
-# Exact materialized-cache rebuild trigger after e5ef8b4 (2026-09-11).
+# Exact synchronized DAG-cache rebuild. Build results are recomputed at merge if artifact transport fails.
 
 on:
   push:
@@ -24,11 +24,13 @@ on:
       - 'tango-direct-visible-priority-bridge.js'
       - 'tango-tutor-single-planner-r5.js'
       - 'tango-runtime-pool-data.js'
+      - 'tango-tutor-precomputed-cache.js'
       - 'qa-public/tools/tango_tutor_cache_contract.js'
       - 'qa-public/tools/materialize_tango_tutor_cognitive_contract.js'
       - 'qa-public/tools/build_tango_tutor_sync_shard_r8.js'
       - 'qa-public/tools/merge_tango_tutor_cognitive_slices.js'
       - 'qa-public/tools/compact_tango_tutor_sync_r8.js'
+      - 'qa-public/tools/tango_materialized_dag.js'
   workflow_dispatch:
 
 jobs:
@@ -44,7 +46,8 @@ jobs:
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           build=[]
-          for diff,count in [('easy',10),('medium',10),('hard',5),('expert',1)]:
+          # Larger bounded slices reduce artifact-service fan-out while staying well inside runner limits.
+          for diff,count in [('easy',20),('medium',20),('hard',10),('expert',4)]:
               for start in range(0,120,count):
                   build.append({'difficulty':diff,'start':start,'count':min(count,120-start)})
           parity=[]
@@ -59,10 +62,10 @@ jobs:
     needs: plan
     strategy:
       fail-fast: false
-      max-parallel: 40
+      max-parallel: 24
       matrix: ${{ fromJSON(needs.plan.outputs.build) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -77,32 +80,61 @@ jobs:
           node qa-public/tools/build_tango_tutor_sync_shard_r8.js \
             --difficulty '${{ matrix.difficulty }}' --start '${{ matrix.start }}' --count '${{ matrix.count }}' \
             --output "out/${NAME}.json" --report "out/${NAME}-report.json"
-      - uses: actions/upload-artifact@v4
+      - id: upload
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: cog-slice-${{ matrix.difficulty }}-${{ matrix.start }}
           path: out/*
           retention-days: 7
+      - name: Record recoverable artifact transport failure
+        if: steps.upload.outcome == 'failure'
+        run: echo 'WARN artifact upload failed after successful slice build; merge-cache will rebuild this exact slice.'
 
   merge-cache:
-    needs: build-slices
+    needs: [plan,build-slices]
+    if: ${{ always() && needs.plan.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
       - uses: actions/setup-node@v5
         with: {node-version: '22'}
-      - uses: actions/download-artifact@v4
+      - id: download
+        uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           pattern: cog-slice-*
           path: slices
           merge-multiple: true
-      - name: Merge exact 120-puzzle difficulties and compact
+      - name: Recover any missing exact slice, merge and compact
+        shell: bash
         run: |
           set -euo pipefail
-          mkdir -p merged compact
+          mkdir -p slices merged compact
+          recover_range() {
+            local diff="$1" count="$2" start name
+            for ((start=0; start<120; start+=count)); do
+              name="tango-tutor-sync-${diff}-${start}-${count}"
+              if [ ! -s "slices/${name}.json" ]; then
+                echo "RECOVER ${diff} ${start}+${count}: artifact absent; rebuilding exact source slice"
+                node qa-public/tools/build_tango_tutor_sync_shard_r8.js \
+                  --difficulty "$diff" --start "$start" --count "$count" \
+                  --output "slices/${name}.json" --report "slices/${name}-report.json"
+              fi
+              test -s "slices/${name}.json"
+            done
+          }
+          recover_range easy 20
+          recover_range medium 20
+          recover_range hard 10
+          recover_range expert 4
+          node --check qa-public/tools/tango_materialized_dag.js
           node --check qa-public/tools/merge_tango_tutor_cognitive_slices.js
+          node --check qa-public/tools/compact_tango_tutor_sync_r8.js
+          node qa-public/tests/v319-r8-materialized-dag.test.js
           for d in easy medium hard expert; do
             node qa-public/tools/merge_tango_tutor_cognitive_slices.js slices "$d" "merged/tango-tutor-sync-$d.json"
           done
@@ -112,8 +144,11 @@ jobs:
           node - <<'NODE'
           const fs=require('fs'),assert=require('assert'),crypto=require('crypto');
           const dataPath='compact/tango-tutor-cache-data-r8.js',report=JSON.parse(fs.readFileSync('compact/tango-tutor-cache-r8-sync-report.json'));
-          assert.deepStrictEqual(report.puzzles,{easy:120,medium:120,hard:120,expert:120});assert(report.tutorContract.version===2);assert(report.cognitiveModel==='quadlud-cognitive-load-v1');assert(report.cognitivePatternCatalog==='tango-cognitive-patterns-v1');
-          const sha=crypto.createHash('sha256').update(fs.readFileSync(dataPath)).digest('hex');fs.writeFileSync('compact/cache-sha256.txt',`${sha}  tango-tutor-cache-data-r8.js\n`);console.log('COMPACT_PASS',report,'sha256',sha)
+          assert.strictEqual(report.schema,4);assert.strictEqual(report.version,'tango-tutor-cache-r8-sync4-cognitive-dag');
+          assert.deepStrictEqual(report.puzzles,{easy:120,medium:120,hard:120,expert:120});assert.strictEqual(report.totalSteps,14861);assert.strictEqual(report.materializedDeductions,427);
+          assert.strictEqual(report.tutorContract.version,2);assert.strictEqual(report.cognitiveModel,'quadlud-cognitive-load-v1');assert.strictEqual(report.cognitivePatternCatalog,'tango-cognitive-patterns-v1');
+          assert(report.materializedPackedBytes<2500000,`materialized DAG unexpectedly large: ${report.materializedPackedBytes}`);assert(report.materializedReductionPct>90,`materialized DAG reduction regressed: ${report.materializedReductionPct}%`);assert(report.bytes<6000000,`final cache unexpectedly large: ${report.bytes}`);
+          const sha=crypto.createHash('sha256').update(fs.readFileSync(dataPath)).digest('hex');fs.writeFileSync('compact/cache-sha256.txt',`${sha}  tango-tutor-cache-data-r8.js\n`);console.log('COMPACT_DAG_PASS',JSON.stringify(report),'sha256',sha)
           NODE
       - uses: actions/upload-artifact@v4
         with:
@@ -128,7 +163,7 @@ jobs:
       max-parallel: 24
       matrix: ${{ fromJSON(needs.plan.outputs.parity) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -139,11 +174,13 @@ jobs:
         with:
           name: cognitive-r8-cache-full
           path: certified
-      - name: Install generated cognitive cache + exact runtime contract for parity
+      - name: Install generated DAG cache + exact runtime contract for parity
         run: |
           cp certified/tango-tutor-cache-data-r8.js ./tango-tutor-cache-data-r8.js
           cp certified/tango-tutor-cache-contract-r8.js ./tango-tutor-cache-contract-r8.js
-      - name: Run cognitive cache/live parity slice
+          node --check tango-tutor-precomputed-cache.js
+          node --check tango-tutor-cache-data-r8.js
+      - name: Run exact cognitive cache/live parity slice
         env:
           QUADLUD_PARITY_DIFFICULTY: ${{ matrix.difficulty }}
           QUADLUD_PARITY_START: ${{ matrix.start }}
@@ -162,7 +199,7 @@ jobs:
         run: |
           set -euo pipefail
           cat certified/cache-sha256.txt
-          echo 'COGNITIVE_R8_CACHE_PARITY_PASS: 480 puzzles, all bounded parity slices successful.' | tee certified/CERTIFIED.txt
+          echo 'COGNITIVE_R8_DAG_CACHE_PARITY_PASS: 480 puzzles, 14861 canonical visible states, 100% exact cache/live parity.' | tee certified/CERTIFIED.txt
       - uses: actions/upload-artifact@v4
         with:
           name: cognitive-r8-cache-certified
@@ -185,7 +222,7 @@ jobs:
         with:
           name: cognitive-r8-cache-full
           path: certified
-      - name: Install certified exact-source cache and bump browser cache keys
+      - name: Install certified exact-source DAG cache and bump browser cache keys
         shell: bash
         run: |
           set -euo pipefail
@@ -194,24 +231,24 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           for name in ['index.html','sw.js']:
-              p=Path(name)
-              text=p.read_text()
-              text=text.replace('3.1.9-r8-sync3-cognitive','3.1.9-r8-sync3-cognitive-r4')
+              p=Path(name); text=p.read_text()
+              text=text.replace('3.1.9-r8-sync3-cognitive','3.1.9-r8-sync4-cognitive-dag')
               text=text.replace('3.1.9-cognitive-r3-bounded-relation-fallback','3.1.9-cognitive-r4-cache-contract-guard')
               if name=='sw.js':
-                  text=text.replace('quadlud-v3.1.9-tango-r8-sync3-cognitive-v21','quadlud-v3.1.9-tango-r8-sync3-cognitive-v22')
+                  text=text.replace('quadlud-v3.1.9-tango-r8-sync3-cognitive-v21','quadlud-v3.1.9-tango-r8-sync4-cognitive-dag-v22')
               p.write_text(text)
           PY
           node --check tango-tutor-single-planner-r5.js
           node --check tango-tutor-cache-contract-r8.js
           node --check tango-tutor-precomputed-cache.js
           node --check tango-tutor-cache-data-r8.js
+          node qa-public/tests/v319-r8-materialized-dag.test.js
           node qa-public/tests/v319-r8-cache-planner-contract-guard.test.js
           node qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js
           node qa-public/tests/v319-r8-cognitive-live-priority.test.js
           node qa-public/tests/v319-r8-simple-before-contradiction.test.js
           git diff --check
-      - name: Commit exact certified cache integration
+      - name: Commit exact certified DAG cache integration
         shell: bash
         run: |
           set -euo pipefail
@@ -219,8 +256,8 @@ jobs:
           git config user.email 'actions@users.noreply.github.com'
           git add tango-tutor-cache-data-r8.js tango-tutor-cache-contract-r8.js index.html sw.js
           if git diff --cached --quiet; then
-            echo 'Certified cache already installed.'
+            echo 'Certified DAG cache already installed.'
             exit 0
           fi
-          git commit -m 'build(tango): install certified cognitive R8 cache'
+          git commit -m 'build(tango): install certified cognitive R8 DAG cache'
           git push origin HEAD:candidate/v3.1.9-tango-cognitive-chunks-r1
