@@ -17,6 +17,10 @@ jobs:
       - name: Syntax
         run: |
           node --check cognitive-cost.js
+          node --check tango-cognitive-patterns.js
           node --check qa-public/tests/v319-cognitive-cost-model.test.js
+          node --check qa-public/tests/v319-tango-cognitive-patterns.test.js
       - name: Generic cognitive model
         run: node qa-public/tests/v319-cognitive-cost-model.test.js
+      - name: Tango cognitive patterns
+        run: node qa-public/tests/v319-tango-cognitive-patterns.test.js
