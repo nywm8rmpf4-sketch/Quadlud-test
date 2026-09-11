@@ -23,6 +23,19 @@ jobs:
           node-version: '22'
       - name: Apply exact cache/Tutor synchronization patch
         run: python3 qa-public/tools/apply_tango_cache_contract_guard_r4.py
+      - name: Normalize tests for public-repo and archive layouts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          guard=Path('qa-public/tests/v319-r8-cache-planner-contract-guard.test.js')
+          s=guard.read_text()
+          s=s.replace("const assert=require('assert');\nconst path=require('path');\nconst runtime=name=>path.join(__dirname,'..','GitHub',name);", "const assert=require('assert');\nconst fs=require('fs');\nconst path=require('path');\nconst candidate=path.resolve(__dirname,'../GitHub');\nconst repo=path.resolve(__dirname,'../..');\nconst WEB=fs.existsSync(path.join(candidate,'tango-tutor-single-planner-r5.js'))?candidate:repo;\nconst runtime=name=>path.join(WEB,name);")
+          guard.write_text(s)
+          owner=Path('qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js')
+          s=owner.read_text()
+          s=s.replace("const runtime=name=>path.join(__dirname,'..','GitHub',name);", "const candidate=path.resolve(__dirname,'../GitHub');\nconst repo=path.resolve(__dirname,'../..');\nconst WEB=fs.existsSync(path.join(candidate,'tango-tutor-single-planner-r5.js'))?candidate:repo;\nconst runtime=name=>path.join(WEB,name);")
+          owner.write_text(s)
+          PY
       - name: Syntax and focused regression before commit
         run: |
           set -euo pipefail
