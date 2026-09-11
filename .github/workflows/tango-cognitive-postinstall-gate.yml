@@ -1,0 +1,155 @@
+name: QUADLUD Tango cognitive R8 post-install gate
+
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths:
+      - '.github/workflows/tango-cognitive-postinstall-gate.yml'
+      - 'qa-public/tests/v319-cognitive-r8-postinstall-browser.test.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  INSTALLED_RUNTIME_COMMIT: '63606797e3c95c3a44732d4f43f82efaab4444b4'
+  EXPECTED_CACHE_SHA256: '5357ae201d876a63f7fcc1de8b84261358f021b5ab2dcdfd1ec84436b56d06ea'
+  EXPECTED_CONTRACT_DIGEST: '78bbb5f7ff951fa9744964345eaa5ace0f93acab7c5e0f19438421c8e08b4647'
+
+jobs:
+  exact-node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Prove no runtime drift since certified install
+        shell: bash
+        run: |
+          set -euo pipefail
+          BAD="$(git diff --name-only "$INSTALLED_RUNTIME_COMMIT"..HEAD | grep -Ev '^(\.github/workflows/|qa-public/tests/)' || true)"
+          if [ -n "$BAD" ]; then echo "Unexpected runtime drift after certified install:"; echo "$BAD"; exit 1; fi
+          CACHE_ACTUAL="$(sha256sum tango-tutor-cache-data-r8.js | awk '{print $1}')"
+          test "$CACHE_ACTUAL" = "$EXPECTED_CACHE_SHA256"
+          ACTUAL_CONTRACT="$(node -e "process.stdout.write(require('./qa-public/tools/tango_tutor_cache_contract.js').compute(process.cwd()).digest)")"
+          test "$ACTUAL_CONTRACT" = "$EXPECTED_CONTRACT_DIGEST"
+          grep -Fq "tango-tutor-cache-r8-sync4-cognitive-dag" tango-tutor-precomputed-cache.js
+          grep -Fq "DATA_SCHEMA=9" tango-tutor-precomputed-cache.js
+          grep -Fq "const VERSION=6" tango-tutor-precomputed-cache.js
+          grep -Fq "quadlud-v3.1.9-tango-cognitive-sync4-dag-v22" sw.js
+          grep -Fq "tango-tutor-cache-data-r8.js?v=3.1.9-r8-sync4-cognitive-dag" index.html
+          wc -c tango-tutor-cache-data-r8.js tango-tutor-precomputed-cache.js tango-tutor-cache-contract-r8.js
+          gzip -9 -c tango-tutor-cache-data-r8.js | wc -c | awk '{print "CACHE_GZIP_BYTES=" $1}'
+          echo "PASS exact installed cache sha=$CACHE_ACTUAL contract=$ACTUAL_CONTRACT"
+      - name: Profile cognitive proof depth in installed cache
+        run: |
+          node - <<'NODE'
+          const d=require('./tango-tutor-cache-data-r8.js'),fs=require('fs');
+          const rows=(d.proofMeta||[]).map((m,i)=>({i,kind:m[0],raw:Number(m?.[13]?.[0]||0),chunks:Number(m?.[13]?.[1]||0),display:Number(m?.[13]?.[2]||0),effective:Number(m?.[13]?.[3]||0),band:Number(m?.[13]?.[8]||0)}));
+          const max=k=>rows.reduce((a,b)=>b[k]>a[k]?b:a,rows[0]||{[k]:0});
+          const bands={};for(const r of rows)bands[r.band]=(bands[r.band]||0)+1;
+          const report={proofMeta:rows.length,maxRaw:max('raw'),maxChunks:max('chunks'),maxDisplay:max('display'),maxEffective:max('effective'),bands};
+          fs.writeFileSync('cognitive-proof-depth-profile.json',JSON.stringify(report,null,2));console.log('COGNITIVE_PROOF_DEPTH_PROFILE',JSON.stringify(report));
+          NODE
+      - name: Focused runtime and regression suite
+        run: |
+          set -euo pipefail
+          node qa-public/tests/v319-cognitive-cost-model.test.js
+          node qa-public/tests/v319-tango-cognitive-patterns.test.js
+          node qa-public/tests/v319-tango-cognitive-plan-ranking.test.js
+          node qa-public/tests/v319-tango-cognitive-proof-stage-compaction.test.js
+          node qa-public/tests/v319-r8-materialized-dag.test.js
+          node qa-public/tests/v319-r8-cache-materialized-hit.test.js
+          node qa-public/tests/v319-r8-cache-planner-contract-guard.test.js
+          node qa-public/tests/v319-r8-direct-visible-fastpath.test.js
+          node qa-public/tests/v319-r8-cognitive-live-priority.test.js
+          node qa-public/tests/v319-r8-simple-before-contradiction.test.js
+          node qa-public/tests/v319-r3ui-tango-tutor-freeze-guard.test.js
+          node qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js
+          node qa-public/tests/v319-r5-frontier-validation-cache.test.js
+          node qa-public/tests/v319-hf36-human-next-move-policy.test.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cognitive-r8-postinstall-node-evidence
+          path: cognitive-proof-depth-profile.json
+          retention-days: 30
+
+  chromium-iphone-pwa:
+    needs: exact-node
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Install Chromium
+        run: |
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+      - name: Run iPhone-size browser and offline PWA gate
+        env:
+          QUADLUD_BROWSER: chromium
+          QUADLUD_R8_BROWSER_REPORT: ${{ runner.temp }}/evidence/chromium.json
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/evidence"
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/http.log" 2>&1 & SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
+          timeout 180s python3 -u qa-public/tests/v319-cognitive-r8-postinstall-browser.test.py
+      - name: Semantic Expert journey
+        env:
+          QUADLUD_SEMANTIC_EVIDENCE_DIR: ${{ runner.temp }}/evidence/expert
+        run: |
+          set -euo pipefail
+          CHROMIUM_PATH="$(python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p: print(p.chromium.executable_path)
+          PY
+          )"
+          sudo ln -sf "$CHROMIUM_PATH" /usr/bin/chromium
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/semantic-http.log" 2>&1 & SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
+          timeout 300s python3 -u qa-public/tests/v319-semantic-tango-tutor-journey-browser.test.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cognitive-r8-postinstall-chromium-evidence
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: warn
+          retention-days: 30
+
+  webkit-smoke:
+    needs: exact-node
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Install WebKit
+        run: |
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps webkit
+      - name: Run iPhone-size WebKit Tutor smoke
+        env:
+          QUADLUD_BROWSER: webkit
+          QUADLUD_SMOKE_ONLY: '1'
+          QUADLUD_R8_BROWSER_REPORT: ${{ runner.temp }}/evidence/webkit.json
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/evidence"
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/http.log" 2>&1 & SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
+          timeout 150s python3 -u qa-public/tests/v319-cognitive-r8-postinstall-browser.test.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cognitive-r8-postinstall-webkit-evidence
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: warn
+          retention-days: 30
