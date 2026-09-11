@@ -86,14 +86,29 @@ def main() -> None:
         assert direct["cache"]["stats"]["misses"] == 0, direct
         report["directTutor"] = direct
 
+        # Opening Tutor intentionally starts at step 0 with no generated move.
+        # The first cache-backed Tutor deduction is requested by the user's
+        # first Next action, matching app.js openWalkthrough/renderWalkthrough.
         page.evaluate("QuadludTangoTutorPrecomputedCache._test.resetStats()")
-        t0 = time.perf_counter()
         page.locator("#walkthroughBtn").click(timeout=15000)
         page.wait_for_selector(".walkthrough-panel", timeout=15000)
-        open_ms = round((time.perf_counter() - t0) * 1000, 2)
-        ui_state = page.evaluate("()=>({cache:QuadludTangoTutorPrecomputedCache.info(),status:walkthroughSession?.tangoTutorStatus||null,moves:walkthroughSession?.moves?.length||0})")
+        initial_ui = page.evaluate("()=>({cache:QuadludTangoTutorPrecomputedCache.info(),status:walkthroughSession?.tangoTutorStatus||null,moves:walkthroughSession?.moves?.length||0,atStart:walkthroughSession?.atStart===true})")
+        assert initial_ui["moves"] == 0 and initial_ui["atStart"] is True, initial_ui
+        assert initial_ui["cache"]["stats"]["hits"] == 0, initial_ui
+
+        t0 = time.perf_counter()
+        page.locator("#walkthroughNext").click(timeout=15000)
+        page.wait_for_function(
+            "()=>QuadludTangoTutorPrecomputedCache.info().stats.hits>=1 || (walkthroughSession?.tangoTutorStatus!=null) || ((walkthroughSession?.moves?.length||0)>0)",
+            timeout=15000,
+        )
+        first_step_ms = round((time.perf_counter() - t0) * 1000, 2)
+        ui_state = page.evaluate("()=>({cache:QuadludTangoTutorPrecomputedCache.info(),status:walkthroughSession?.tangoTutorStatus||null,moves:walkthroughSession?.moves?.length||0,atStart:walkthroughSession?.atStart===true})")
         assert ui_state["cache"]["stats"]["hits"] >= 1, ui_state
-        report["uiTutorOpen"] = {**ui_state, "elapsedMs": open_ms}
+        assert ui_state["cache"]["stats"]["misses"] == 0, ui_state
+        assert ui_state["moves"] >= 1, ui_state
+        report["uiTutorInitial"] = initial_ui
+        report["uiTutorFirstStep"] = {**ui_state, "elapsedMs": first_step_ms}
 
         if not SMOKE_ONLY:
             page.evaluate("()=>navigator.serviceWorker?.ready")
@@ -118,7 +133,7 @@ def main() -> None:
         assert not console_errors and not http_errors, {"console": console_errors, "http": http_errors}
         context.close(); browser.close()
 
-    print("COGNITIVE_R8_POSTINSTALL_BROWSER_PASS", json.dumps({"browser": BROWSER_NAME, "smokeOnly": SMOKE_ONLY, "directTutorMs": round(report["directTutor"]["ms"],2), "uiTutorOpenMs": report["uiTutorOpen"]["elapsedMs"], "profile": report["directTutor"]["profile"]}, ensure_ascii=False))
+    print("COGNITIVE_R8_POSTINSTALL_BROWSER_PASS", json.dumps({"browser": BROWSER_NAME, "smokeOnly": SMOKE_ONLY, "directTutorMs": round(report["directTutor"]["ms"],2), "uiTutorFirstStepMs": report["uiTutorFirstStep"]["elapsedMs"], "profile": report["directTutor"]["profile"]}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
