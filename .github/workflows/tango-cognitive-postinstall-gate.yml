@@ -138,6 +138,9 @@ jobs:
           QUADLUD_SEMANTIC_EVIDENCE_DIR: ${{ runner.temp }}/evidence/expert
         run: |
           set -euo pipefail
+          # Legacy semantic harness still resolves qa-public/GitHub/. Bridge it
+          # to the public-repo root without changing product/runtime sources.
+          test -e qa-public/GitHub || ln -s .. qa-public/GitHub
           python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/semantic-http.log" 2>&1 & SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
