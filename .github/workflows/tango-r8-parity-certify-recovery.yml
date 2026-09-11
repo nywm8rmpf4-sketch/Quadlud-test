@@ -1,0 +1,64 @@
+name: QUADLUD Tango R8 exhaustive parity artifact certification
+
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/tango-r8-parity-certify-recovery.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  PARITY_RUN_ID: '34613596673'
+  EXPECTED_CACHE_SHA256: 'ddd5a8a33e6b1f20f313c9e3fc3b77665ae25dbee92d574cbbdf55c13c618953'
+  EXPECTED_CONTRACT_DIGEST: '78bbb5f7ff951fa9744964345eaa5ace0f93acab7c5e0f19438421c8e08b4647'
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: parity-*
+          path: parity-artifacts
+          repository: nywm8rmpf4-sketch/Quadlud-test
+          run-id: ${{ env.PARITY_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Aggregate every strict parity result
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs'),path=require('path'),assert=require('assert');
+          function walk(dir,out=[]){for(const name of fs.readdirSync(dir)){const p=path.join(dir,name),st=fs.statSync(p);if(st.isDirectory())walk(p,out);else if(name.endsWith('.log'))out.push(p)}return out}
+          const files=walk('parity-artifacts').sort();
+          assert.strictEqual(files.length,48,`expected 48 parity logs, got ${files.length}`);
+          const expectedJobs={easy:6,medium:6,hard:6,expert:30},expectedStates={easy:3469,medium:3721,hard:3811,expert:3860};
+          const summary={easy:{jobs:0,states:0,hits:0},medium:{jobs:0,states:0,hits:0},hard:{jobs:0,states:0,hits:0},expert:{jobs:0,states:0,hits:0}};
+          const seen=new Set();
+          for(const file of files){
+            const text=fs.readFileSync(file,'utf8');
+            const name=path.basename(file),mName=/parity-(easy|medium|hard|expert)-(\d+)\.log$/.exec(name);assert(mName,`unexpected parity artifact ${file}`);
+            const diff=mName[1],start=Number(mName[2]),key=`${diff}:${start}`;assert(!seen.has(key),`duplicate parity artifact ${key}`);seen.add(key);
+            assert(text.includes('PASS cognitive R8 cache/live parity:'),`${key}: strict PASS marker missing`);
+            const m=new RegExp(`COGNITIVE_PARITY ${diff}: (\\d+) states, hits=(\\d+), misses=(\\d+), mismatches=(\\d+)`).exec(text);assert(m,`${key}: summary missing`);
+            const states=Number(m[1]),hits=Number(m[2]),misses=Number(m[3]),mismatches=Number(m[4]);
+            assert.strictEqual(hits,states,`${key}: not 100% cached`);assert.strictEqual(misses,0,`${key}: cache misses`);assert.strictEqual(mismatches,0,`${key}: parity mismatches`);
+            summary[diff].jobs++;summary[diff].states+=states;summary[diff].hits+=hits;
+          }
+          for(const diff of Object.keys(expectedJobs)){assert.strictEqual(summary[diff].jobs,expectedJobs[diff],`${diff}: wrong job count`);assert.strictEqual(summary[diff].states,expectedStates[diff],`${diff}: wrong state count`);assert.strictEqual(summary[diff].hits,expectedStates[diff],`${diff}: wrong hit count`)}
+          const totalStates=Object.values(summary).reduce((n,x)=>n+x.states,0),totalHits=Object.values(summary).reduce((n,x)=>n+x.hits,0);assert.strictEqual(totalStates,14861);assert.strictEqual(totalHits,14861);
+          const report={schema:1,sourceParityRun:Number(process.env.PARITY_RUN_ID),cacheSha256:process.env.EXPECTED_CACHE_SHA256,tutorContract:process.env.EXPECTED_CONTRACT_DIGEST,puzzles:{easy:120,medium:120,hard:120,expert:120},...summary,totalStates,totalHits,lookupOrValidationMisses:0,mismatches:0,status:'PASS'};
+          fs.writeFileSync('R8-EXHAUSTIVE-PARITY-CERTIFIED.json',JSON.stringify(report,null,2));console.log('R8_EXHAUSTIVE_ARTIFACT_CERTIFIED',JSON.stringify(report));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-exhaustive-parity-certified-recovery
+          path: R8-EXHAUSTIVE-PARITY-CERTIFIED.json
+          retention-days: 30
