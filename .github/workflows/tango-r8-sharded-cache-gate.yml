@@ -16,6 +16,8 @@ on:
       - 'tango-tutor-cache-r8-shards-report.json'
       - 'qa-public/tests/v319-r8-sharded-cache-roundtrip.test.js'
       - 'qa-public/tests/v319-r8-sharded-cache-browser.test.py'
+      - 'qa-public/tests/v319-r8-integrated-runtime.test.js'
+      - 'qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js'
   workflow_dispatch:
 
 permissions:
@@ -54,6 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           node qa-public/tests/v319-r8-sharded-cache-roundtrip.test.js
+          node qa-public/tests/v319-r8-integrated-runtime.test.js
           node qa-public/tests/v319-cognitive-cost-model.test.js
           node qa-public/tests/v319-tango-cognitive-patterns.test.js
           node qa-public/tests/v319-tango-cognitive-plan-ranking.test.js
@@ -66,6 +69,25 @@ jobs:
           node qa-public/tests/v319-r8-direct-visible-fastpath.test.js
           node qa-public/tests/v319-r8-cognitive-live-priority.test.js
           node qa-public/tests/v319-r3ui-tango-tutor-freeze-guard.test.js
+
+  sharded-live-parity:
+    needs: exact-node
+    strategy:
+      fail-fast: false
+      matrix:
+        difficulty: [easy, medium, hard, expert]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Run exact sharded cache/live parity
+        env:
+          QUADLUD_PARITY_DIFFICULTY: ${{ matrix.difficulty }}
+          QUADLUD_PARITY_START: '0'
+          QUADLUD_PARITY_COUNT: '120'
+        run: node qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js
 
   chromium-iphone-pwa:
     needs: exact-node
