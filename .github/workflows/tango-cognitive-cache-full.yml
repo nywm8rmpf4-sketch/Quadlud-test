@@ -1,0 +1,141 @@
+name: QUADLUD Tango cognitive R8 full cache
+
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/tango-cognitive-cache-full.yml']
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.matrix.outputs.build }}
+      parity: ${{ steps.matrix.outputs.parity }}
+    steps:
+      - id: matrix
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          build=[]
+          for diff,count in [('easy',10),('medium',10),('hard',5),('expert',1)]:
+              for start in range(0,120,count):
+                  build.append({'difficulty':diff,'start':start,'count':min(count,120-start)})
+          parity=[]
+          for diff,count in [('easy',20),('medium',20),('hard',20),('expert',4)]:
+              for start in range(0,120,count):
+                  parity.append({'difficulty':diff,'start':start,'count':min(count,120-start)})
+          print('build='+json.dumps({'include':build},separators=(',',':')))
+          print('parity='+json.dumps({'include':parity},separators=(',',':')))
+          PY
+
+  build-slices:
+    needs: plan
+    strategy:
+      fail-fast: false
+      max-parallel: 40
+      matrix: ${{ fromJSON(needs.plan.outputs.build) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Build bounded cognitive Tutor slice
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          NAME="tango-tutor-sync-${{ matrix.difficulty }}-${{ matrix.start }}-${{ matrix.count }}"
+          node qa-public/tools/build_tango_tutor_sync_shard_r8.js \
+            --difficulty '${{ matrix.difficulty }}' --start '${{ matrix.start }}' --count '${{ matrix.count }}' \
+            --output "out/${NAME}.json" --report "out/${NAME}-report.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cog-slice-${{ matrix.difficulty }}-${{ matrix.start }}
+          path: out/*
+          retention-days: 7
+
+  merge-cache:
+    needs: build-slices
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cog-slice-*
+          path: slices
+          merge-multiple: true
+      - name: Merge exact 120-puzzle difficulties and compact
+        run: |
+          set -euo pipefail
+          mkdir -p merged compact
+          node --check qa-public/tools/merge_tango_tutor_cognitive_slices.js
+          for d in easy medium hard expert; do
+            node qa-public/tools/merge_tango_tutor_cognitive_slices.js slices "$d" "merged/tango-tutor-sync-$d.json"
+          done
+          node qa-public/tools/compact_tango_tutor_sync_r8.js merged compact
+          cp merged/*.json compact/
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('assert'),crypto=require('crypto');
+          const dataPath='compact/tango-tutor-cache-data-r8.js',report=JSON.parse(fs.readFileSync('compact/tango-tutor-cache-r8-sync-report.json'));
+          assert.deepStrictEqual(report.puzzles,{easy:120,medium:120,hard:120,expert:120});assert(report.tutorContract.version===2);assert(report.cognitiveModel==='quadlud-cognitive-load-v1');assert(report.cognitivePatternCatalog==='tango-cognitive-patterns-v1');
+          const sha=crypto.createHash('sha256').update(fs.readFileSync(dataPath)).digest('hex');fs.writeFileSync('compact/cache-sha256.txt',`${sha}  tango-tutor-cache-data-r8.js\n`);console.log('COMPACT_PASS',report,'sha256',sha)
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cognitive-r8-cache-full
+          path: compact/*
+          retention-days: 14
+
+  parity:
+    needs: [plan,merge-cache]
+    strategy:
+      fail-fast: false
+      max-parallel: 24
+      matrix: ${{ fromJSON(needs.plan.outputs.parity) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: cognitive-r8-cache-full
+          path: certified
+      - name: Install generated cognitive cache for exact-source parity
+        run: cp certified/tango-tutor-cache-data-r8.js ./tango-tutor-cache-data-r8.js
+      - name: Run cognitive cache/live parity slice
+        env:
+          QUADLUD_PARITY_DIFFICULTY: ${{ matrix.difficulty }}
+          QUADLUD_PARITY_START: ${{ matrix.start }}
+          QUADLUD_PARITY_COUNT: ${{ matrix.count }}
+        run: node qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js
+
+  certify:
+    needs: [merge-cache,parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cognitive-r8-cache-full
+          path: certified
+      - name: Final certification marker
+        run: |
+          set -euo pipefail
+          cat certified/cache-sha256.txt
+          echo 'COGNITIVE_R8_CACHE_PARITY_PASS: 480 puzzles, all bounded parity slices successful.' | tee certified/CERTIFIED.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cognitive-r8-cache-certified
+          path: certified/*
+          retention-days: 30
