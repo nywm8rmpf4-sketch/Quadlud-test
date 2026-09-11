@@ -1,4 +1,5 @@
 name: QUADLUD Tango R8 exhaustive parity artifact certification
+# Recovery rerun after source parity run completed and all 48 parity logs became available.
 
 on:
   push:
