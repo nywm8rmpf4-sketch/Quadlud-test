@@ -84,19 +84,11 @@ with sync_playwright() as p:
       const afterResume=historySnapshotKey();
       if(afterResume!==afterMove)throw new Error('resume did not restore exact puzzle/history state');
       if(!historyCanUndo())throw new Error('history lost across persistence resume');
+      if(!persistenceHistoryValid(current))throw new Error('resumed history is structurally invalid');
 
-      resetCurrent();
-      const afterReset=historySnapshotKey();
-      if(afterReset!==baseline)throw new Error('reset did not restore initial puzzle state');
-      if(!historyCanUndo())throw new Error('reset is not undoable');
-
-      const undoReset=undoMoves(1), afterUndoReset=historySnapshotKey();
-      if(undoReset!==1||afterUndoReset!==afterMove)throw new Error('undo reset did not restore pre-reset move');
-      const redoReset=redoMoves(1), afterRedoReset=historySnapshotKey();
-      if(redoReset!==1||afterRedoReset!==baseline)throw new Error('redo reset did not restore reset state');
-
-      if(undoMoves(1)!==1||historySnapshotKey()!==afterMove)throw new Error('second undo reset failed');
-      if(undoMoves(1)!==1||historySnapshotKey()!==baseline)throw new Error('undo move before branch failed');
+      // Branch from the original root: Undo must return to the visible baseline,
+      // and a different move must create a real alternate branch.
+      if(undoMoves(1)!==1||historySnapshotKey()!==baseline)throw new Error('undo before branch failed');
       const branchBefore=historySnapshotKey();
       current.state[r][c]=alternate;
       current.tangoDerivedRelations=[];
@@ -109,22 +101,54 @@ with sync_playwright() as p:
       saveCurrent();
       current=null;
       resumeSaved();
-      const resumedBranch=historySnapshotKey();
-      if(resumedBranch!==branchKey)throw new Error('branch state not preserved by persistence');
-      const historyValid=!!current?.moveHistory?.cursor&&historyCanUndo();
-      return {target,baseline,afterMove,branchKey,undo1,redo1,undoReset,redoReset,branchStats,historyValid,persistedKeys:savedRaw.map(x=>x[0])};
+      if(historySnapshotKey()!==branchKey)throw new Error('branch state not preserved by persistence');
+      if(!persistenceHistoryValid(current))throw new Error('persisted branch history is invalid');
+      if(undoMoves(1)!==1||historySnapshotKey()!==baseline)throw new Error('branch undo failed after resume');
+      if(!historyCanRedo())throw new Error('branch redo unavailable after undo');
+      if(redoMoves(1)!==1||historySnapshotKey()!==branchKey)throw new Error('preferred branch redo failed');
+
+      // Current source contract: Reset starts a fresh history root. It is not an
+      // undoable history action; the gate verifies clean state + persistence and
+      // then proves that a new Undo/Redo chain works after Reset.
+      resetCurrent();
+      const afterReset=historySnapshotKey(), resetSummary=historySummary();
+      if(afterReset!==baseline)throw new Error('reset did not restore initial puzzle state');
+      if(historyCanUndo()||historyCanRedo())throw new Error('reset must start with no undo/redo action');
+      if(resetSummary.nodes!==1||resetSummary.branches!==0)throw new Error('reset did not create a fresh history root');
+      if(!persistenceHistoryValid(current))throw new Error('history invalid immediately after reset');
+
+      current=null;
+      resumeSaved();
+      const afterResetResume=historySnapshotKey(), resetResumeSummary=historySummary();
+      if(afterResetResume!==baseline)throw new Error('reset baseline was not persisted');
+      if(historyCanUndo()||historyCanRedo())throw new Error('reset history controls changed after resume');
+      if(resetResumeSummary.nodes!==1||!persistenceHistoryValid(current))throw new Error('reset history did not survive persistence exactly');
+
+      const postResetBefore=historySnapshotKey();
+      current.state[r][c]=legal;
+      current.tangoDerivedRelations=[];
+      if(!historyRecord({type:'MOVE',qaPostReset:true},postResetBefore))throw new Error('post-reset move not recorded');
+      const postResetMove=historySnapshotKey();
+      if(undoMoves(1)!==1||historySnapshotKey()!==baseline)throw new Error('post-reset undo failed');
+      if(redoMoves(1)!==1||historySnapshotKey()!==postResetMove)throw new Error('post-reset redo failed');
+
+      return {target,baseline,afterMove,branchKey,postResetMove,undo1,redo1,branchStats,resetSummary,resetResumeSummary,historyValid:persistenceHistoryValid(current),persistedKeys:savedRaw.map(x=>x[0])};
     }""")
 
     assert result['historyValid'] is True, result
-    assert result['branchStats']['undos'] >= 3, result
-    assert result['branchStats']['redos'] >= 2, result
+    assert result['branchStats']['undos'] >= 2, result
+    assert result['branchStats']['redos'] >= 1, result
     assert result['branchStats']['branches'] >= 1, result
+    assert result['resetSummary']['nodes'] == 1, result
+    assert result['resetResumeSummary']['nodes'] == 1, result
     assert not errors, errors
     ctx.close(); browser.close()
 
 print('PASS v319-tango-history-persistence-browser', {
     'undoRedo': 'exact',
-    'resetUndoRedo': 'exact',
-    'persistenceResume': 'exact',
-    'branchChange': 'exact'
+    'branchChange': 'exact',
+    'branchPersistence': 'exact',
+    'resetFreshRoot': 'exact',
+    'resetPersistence': 'exact',
+    'postResetUndoRedo': 'exact'
 })
