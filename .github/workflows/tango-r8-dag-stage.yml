@@ -1,0 +1,47 @@
+name: QUADLUD Tango R8 materialized DAG stage
+
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/tango-r8-dag-stage.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  dag-codec:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Syntax and unit regression
+        run: |
+          node --check qa-public/tools/tango_materialized_dag.js
+          node --check qa-public/tests/v319-r8-materialized-dag.test.js
+          node qa-public/tests/v319-r8-materialized-dag.test.js
+      - uses: actions/download-artifact@v4
+        with:
+          name: cognitive-r8-cache-full
+          path: certified
+          repository: nywm8rmpf4-sketch/Quadlud-test
+          run-id: '34607409416'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prove lossless compaction on all 427 certified materialized proofs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const assert=require('assert'),path=require('path');
+          const Dag=require('./qa-public/tools/tango_materialized_dag.js');
+          const data=require(path.resolve('certified/tango-tutor-cache-data-r8.js'));
+          const source=data.materializedDeductions,packed=Dag.pack(source),bytes=v=>Buffer.byteLength(JSON.stringify(v));
+          assert.strictEqual(source.length,427);assert(Dag.validate(packed));
+          for(let i=0;i<source.length;i++)assert.strictEqual(JSON.stringify(Dag.decode(packed,i)),JSON.stringify(source[i]),`certified materialized deduction ${i} changed`);
+          const oldBytes=bytes(source),newBytes=bytes(packed);
+          assert(newBytes<2500000,`packed materialized DAG unexpectedly large: ${newBytes}`);
+          console.log('CERTIFIED_DAG_PASS',JSON.stringify({roots:packed.roots.length,nodes:packed.nodes.length,keys:packed.keys.length,strings:packed.strings.length,oldBytes,newBytes,reductionPct:Number(((1-newBytes/oldBytes)*100).toFixed(2))}));
+          NODE
