@@ -1,0 +1,26 @@
+name: QUADLUD Tango cognitive depth diagnostic
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/tango-cognitive-depth-diagnostic.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Analyze every canonical cached state
+        run: |
+          set -euo pipefail
+          node --check qa-public/tools/analyze_tango_cognitive_cache_depth.js
+          node qa-public/tools/analyze_tango_cognitive_cache_depth.js tango-tutor-cache-data-r8.js tango-cognitive-depth-diagnostic.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-cognitive-depth-diagnostic
+          path: tango-cognitive-depth-diagnostic.json
+          retention-days: 30
