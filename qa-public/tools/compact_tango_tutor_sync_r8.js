@@ -5,19 +5,20 @@
  * Copyright © 2026 Serge Benoliel. All rights reserved.
  * Proprietary software. Copying, modification, redistribution or exploitation without prior written authorization is prohibited.
  */
-const fs=require('fs'),path=require('path');
+const fs=require('fs'),path=require('path'),Dag=require('./tango_materialized_dag.js');
 const cacheDir=path.resolve(process.argv[2]||'');
 const outDir=path.resolve(process.argv[3]||'');
 if(!cacheDir||!outDir)throw new Error('usage: compact_tango_tutor_sync_r8.js <shard-dir> <out-dir>');
 fs.mkdirSync(outDir,{recursive:true});
 const DIFFS=['easy','medium','hard','expert'];
-const data={schema:8,version:'tango-tutor-cache-r8-sync3-cognitive',sourcePoolVersion:null,tutorContract:null,tutorPlannerToken:null,humanPolicy:null,proofPolicy:null,cognitiveModel:null,cognitivePatternCatalog:null,rules:[],payloads:[],signaturePairs:[],materializedDeductions:[],selectionMeta:[],proofMeta:[],puzzleCounts:{},steps:{}};
+const data={schema:9,version:'tango-tutor-cache-r8-sync4-cognitive-dag',sourcePoolVersion:null,tutorContract:null,tutorPlannerToken:null,humanPolicy:null,proofPolicy:null,cognitiveModel:null,cognitivePatternCatalog:null,rules:[],payloads:[],signaturePairs:[],materializedDag:null,selectionMeta:[],proofMeta:[],puzzleCounts:{},steps:{}};
+const materializedDeductions=[];
 const ruleIds=new Map(),payloadIds=new Map(),sigIds=new Map(),deductionIds=new Map(),selectionIds=new Map(),proofIds=new Map();
 const idFor=(map,array,key,value)=>{if(map.has(key))return map.get(key);const id=array.length;map.set(key,id);array.push(value);return id};
 function fpKey(fp){const m=/^qfp1-([0-9a-f]{32})$/.exec(String(fp||''));if(!m)throw new Error(`invalid fingerprint ${fp}`);return Buffer.from(m[1],'hex').toString('base64url')}
 function splitSignature(signature){const s=String(signature||''),i=s.indexOf('|');return i<0?[s,'']:[s.slice(0,i),s.slice(i+1)]}
 function signatureId(signature){const [rule,suffix]=splitSignature(signature);if(!rule)throw new Error('empty deduction signature');const rid=idFor(ruleIds,data.rules,rule,rule),pid=suffix?idFor(payloadIds,data.payloads,suffix,suffix):-1,key=`${rid}:${pid}`;return idFor(sigIds,data.signaturePairs,key,[rid,pid])}
-function deductionId(d){const key=JSON.stringify(d);return idFor(deductionIds,data.materializedDeductions,key,d)}
+function deductionId(d){const key=JSON.stringify(d);return idFor(deductionIds,materializedDeductions,key,d)}
 function seedId(kind,payload){return kind===0?signatureId(payload):deductionId(payload)}
 function identity(source){return JSON.stringify([source.poolVersion,source.tutorContract?.schema,source.tutorContract?.version,source.tutorContract?.algorithm,source.tutorContract?.digest,source.tutorPlannerToken,source.humanPolicy,source.proofPolicy,source.cognitiveModel,source.cognitivePatternCatalog])}
 let expectedIdentity=null,totalSteps=0,advancedMoves=0,directStarts=0,materializedStarts=0,directDisplays=0,materializedDisplays=0;
@@ -41,9 +42,12 @@ for(const diff of DIFFS){
   }
   data.steps[diff]=out;
 }
+data.materializedDag=Dag.pack(materializedDeductions);
+if(!Dag.validate(data.materializedDag)||data.materializedDag.roots.length!==materializedDeductions.length)throw new Error('invalid materialized proof DAG');
+for(let i=0;i<materializedDeductions.length;i++)if(JSON.stringify(Dag.decode(data.materializedDag,i))!==JSON.stringify(materializedDeductions[i]))throw new Error(`materialized DAG round-trip mismatch at root ${i}`);
 function signatureFromId(id){const pair=data.signaturePairs[id];if(!Array.isArray(pair))return null;const rule=data.rules[pair[0]],suffix=pair[1]>=0?data.payloads[pair[1]]:'';return suffix?`${rule}|${suffix}`:rule}
 function fpFromKey(key){return `qfp1-${Buffer.from(key,'base64url').toString('hex')}`}
-function expandSeed(kind,id){return kind===0?signatureFromId(id):data.materializedDeductions[id]}
+function expandSeed(kind,id){return kind===0?signatureFromId(id):Dag.decode(data.materializedDag,id)}
 for(const diff of DIFFS){
   const source=JSON.parse(fs.readFileSync(path.join(cacheDir,`tango-tutor-sync-${diff}.json`),'utf8')),sourceSteps=source.entries.flatMap(e=>e[2]),out=data.steps[diff];
   if(identity(source)!==expectedIdentity||sourceSteps.length!==out.length)throw new Error(`${diff}: synchronized compaction cardinality/identity mismatch`);
@@ -51,5 +55,6 @@ for(const diff of DIFFS){
 }
 const json=JSON.stringify(data),js=`/* QUADLUD — synchronized generated Soleil-Lune cognitive Tutor cache R8. Copyright © 2026 Serge Benoliel. All rights reserved. */\n(function(root){'use strict';const d=${json};root.QuadludTangoTutorCacheDataR8=d;const c=root.QuadludTangoTutorPrecomputedCache;if(c&&typeof c.registerData==='function'){try{c.registerData(d)}catch(_){}}if(typeof module!=='undefined'&&module.exports)module.exports=d;})(typeof globalThis!=='undefined'?globalThis:this);\n`;
 fs.writeFileSync(path.join(outDir,'tango-tutor-cache-data-r8.js'),js);
-const report={schema:3,version:data.version,sourcePoolVersion:data.sourcePoolVersion,tutorContract:data.tutorContract,tutorPlannerToken:data.tutorPlannerToken,humanPolicy:data.humanPolicy,proofPolicy:data.proofPolicy,cognitiveModel:data.cognitiveModel,cognitivePatternCatalog:data.cognitivePatternCatalog,puzzles:data.puzzleCounts,steps:Object.fromEntries(DIFFS.map(d=>[d,data.steps[d].length])),totalSteps,advancedMoves,directStarts,materializedStarts,directDisplays,materializedDisplays,rules:data.rules.length,payloads:data.payloads.length,signatures:data.signaturePairs.length,materializedDeductions:data.materializedDeductions.length,selectionMeta:data.selectionMeta.length,proofMeta:data.proofMeta.length,bytes:Buffer.byteLength(js)};
+const materializedRawBytes=Buffer.byteLength(JSON.stringify(materializedDeductions)),materializedPackedBytes=Buffer.byteLength(JSON.stringify(data.materializedDag));
+const report={schema:4,version:data.version,sourcePoolVersion:data.sourcePoolVersion,tutorContract:data.tutorContract,tutorPlannerToken:data.tutorPlannerToken,humanPolicy:data.humanPolicy,proofPolicy:data.proofPolicy,cognitiveModel:data.cognitiveModel,cognitivePatternCatalog:data.cognitivePatternCatalog,puzzles:data.puzzleCounts,steps:Object.fromEntries(DIFFS.map(d=>[d,data.steps[d].length])),totalSteps,advancedMoves,directStarts,materializedStarts,directDisplays,materializedDisplays,rules:data.rules.length,payloads:data.payloads.length,signatures:data.signaturePairs.length,materializedDeductions:materializedDeductions.length,materializedDagNodes:data.materializedDag.nodes.length,materializedDagKeys:data.materializedDag.keys.length,materializedDagStrings:data.materializedDag.strings.length,materializedRawBytes,materializedPackedBytes,materializedReductionPct:Number(((1-materializedPackedBytes/materializedRawBytes)*100).toFixed(2)),selectionMeta:data.selectionMeta.length,proofMeta:data.proofMeta.length,bytes:Buffer.byteLength(js)};
 fs.writeFileSync(path.join(outDir,'tango-tutor-cache-r8-sync-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
