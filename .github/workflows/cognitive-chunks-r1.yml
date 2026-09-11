@@ -27,6 +27,7 @@ jobs:
           node --check qa-public/tests/v319-cognitive-no-speculative-contradiction.test.js
           node --check qa-public/tests/v319-r8-direct-visible-fastpath.test.js
           node --check qa-public/tests/v319-r8-relation-frontier-fastpath.test.js
+          node --check qa-public/tests/v319-r8-relation-lightweight-planner.test.js
           node --check qa-public/tests/v319-r8-cognitive-live-priority.test.js
           node --check qa-public/tests/v319-tango-cognitive-proof-stage-compaction.test.js
       - name: Generic cognitive model
@@ -39,8 +40,10 @@ jobs:
         run: node qa-public/tests/v319-cognitive-no-speculative-contradiction.test.js
       - name: Direct-visible fast path
         run: node qa-public/tests/v319-r8-direct-visible-fastpath.test.js
-      - name: Relation-only Expert fast path
+      - name: Relation-only structural fallback
         run: node qa-public/tests/v319-r8-relation-frontier-fastpath.test.js
+      - name: Lightweight relation-only planning
+        run: node qa-public/tests/v319-r8-relation-lightweight-planner.test.js
       - name: Live C5 cognitive priority
         run: node qa-public/tests/v319-r8-cognitive-live-priority.test.js
       - name: Cognitive proof-stage compaction
