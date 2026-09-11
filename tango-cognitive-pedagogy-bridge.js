@@ -61,9 +61,15 @@ function contradictionCandidate(source,session,plan){
 function compareProofCandidates(a,b){return compare(a?.cognitiveCostVector,b?.cognitiveCostVector)||compare(a?.legacyCostVector,b?.legacyCostVector)||String(a?.stableKey||'').localeCompare(String(b?.stableKey||''))}
 function selectCognitiveProof(source,session,plan,rawProof){
   const proof=copy(rawProof)||{},currentDeduction=proof.deduction||plan?.deduction;if(!currentDeduction)return proof;
-  const current=candidate(source,session,currentDeduction,{kind:'current',witness:proof.witness,baseProof:proof}),candidates=[current,...directCandidates(source,session,plan?.target,plan?.value)];
-  const contradiction=contradictionCandidate(source,session,plan);if(contradiction)candidates.push(contradiction);
-  const unique=[] ,seen=new Set();for(const c of candidates){if(!c)continue;const key=deductionKey(c.deduction);if(seen.has(key))continue;seen.add(key);unique.push(c)}
+  const current=candidate(source,session,currentDeduction,{kind:'current',witness:proof.witness,baseProof:proof}),direct=directCandidates(source,session,plan?.target,plan?.value),candidates=[current,...direct];
+  // A contradiction is never searched merely to replace an already available
+  // direct visible proof. This keeps the interactive path bounded and preserves
+  // the human-first policy. Only a move without a direct proof may compare an
+  // existing/alternative advanced explanation.
+  if(!direct.length&&currentDeduction?.rule!=='ASSUMPTION_CONTRADICTION'){
+    const contradiction=contradictionCandidate(source,session,plan);if(contradiction)candidates.push(contradiction)
+  }
+  const unique=[],seen=new Set();for(const c of candidates){if(!c)continue;const key=deductionKey(c.deduction);if(seen.has(key))continue;seen.add(key);unique.push(c)}
   unique.sort(compareProofCandidates);const best=unique[0]||current,replaced=deductionKey(best.deduction)!==deductionKey(current.deduction);
   const next={...proof,
     deduction:copy(best.deduction),displayDeductions:[copy(best.deduction)],
@@ -108,7 +114,7 @@ function install(){
   const replacement={...source,
     selectDisplayProof(session,plan){return selectCognitiveProof(source,session,plan,rawSelect.call(source,session,plan))},
     planHumanMove(session,diff){return cognitivePlanHumanMove(source,session,diff,rawSelect,rawPlan)},
-    _test:Object.freeze({...source._test,cognitiveEvidence,directCognitiveCandidates:directCandidates,selectCognitiveProof,scoreCognitivePlan:scorePlan,compareCognitiveProofCandidates:compareProofCandidates,compareCognitiveScoredPlans:compareScoredPlans,selectLowestCognitivePlan,evaluateCognitivePlans}),
+    _test:Object.freeze({...source._test,cognitiveEvidence,directCognitiveCandidates:directCandidates,selectCognitiveProof,scoreCognitivePlan:scorePlan,compareCognitiveProofCandidates:compareProofCandidates,compareCognitiveScoredPlans:compareScoredPlans,selectLowestCognitivePlan,evaluateCognitivePlans:evaluatePlans}),
     __quadludCognitivePedagogyR1:true,cognitiveModel:Cognitive.MODEL_ID,cognitivePatternCatalog:Patterns.CATALOG_VERSION
   };
   root.QuadludTangoPlayedMoveRuntime=Object.freeze(replacement);return true
