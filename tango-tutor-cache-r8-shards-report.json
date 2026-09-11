@@ -1,0 +1,58 @@
+{
+  "source": "tango-tutor-cache-data-r8.js",
+  "sourceSha256": "b3a1645d7c582ebc1817967d63a52dea3f594bb68b389bda12aac391267986f8",
+  "schema": 10,
+  "version": "tango-tutor-cache-r8-sync5-cognitive-sharded-lz4",
+  "codec": "lz4-block-v1",
+  "maxFileBytes": 1000000,
+  "difficulties": {
+    "easy": {
+      "filename": "tango-tutor-cache-r8-easy.js",
+      "bytes": 170266,
+      "rawJsonBytes": 222452,
+      "compressedBytes": 126884,
+      "contentSha256": "ccb4da3ac9702bf4256ce1bf7be1043d198a18469e880c24fbdf18e6ab97f95f",
+      "fileSha256": "f203d3e4a3ab75b843776cd82e310e0c04c4668acce70b81b80ed88435b51424",
+      "steps": 3469,
+      "puzzles": 120,
+      "dagNodes": 1240,
+      "dagRoots": 43
+    },
+    "medium": {
+      "filename": "tango-tutor-cache-r8-medium.js",
+      "bytes": 182414,
+      "rawJsonBytes": 238138,
+      "compressedBytes": 135992,
+      "contentSha256": "d1ba1c63a7a455085ba9a1a67910f24be6538f77227d58187b6434d2626d9eb5",
+      "fileSha256": "1b3309d3e6ca26268c552d1059bdbd5c8e745229b778dbfc93780a61d0a1e322",
+      "steps": 3721,
+      "puzzles": 120,
+      "dagNodes": 1304,
+      "dagRoots": 29
+    },
+    "hard": {
+      "filename": "tango-tutor-cache-r8-hard.js",
+      "bytes": 236462,
+      "rawJsonBytes": 392127,
+      "compressedBytes": 176531,
+      "contentSha256": "e81045f4c4ce0462ddc5218c017973044a4f40305a73d7bda1076caf61a743f6",
+      "fileSha256": "cfcf217392c99625c6a2abb2192c4e981ed7880349a156a36530c6cb7d2bca61",
+      "steps": 3811,
+      "puzzles": 120,
+      "dagNodes": 3362,
+      "dagRoots": 44
+    },
+    "expert": {
+      "filename": "tango-tutor-cache-r8-expert.js",
+      "bytes": 921492,
+      "rawJsonBytes": 2134434,
+      "compressedBytes": 690299,
+      "contentSha256": "ee09c770bbeb42ed928de4bee8ea228956f420479685733a7da676f4f35d1f1a",
+      "fileSha256": "2ea42098fca1eabd03c8b8a9d1e2f5f608a951bf23fdb9c6f6ab191b8b73b079",
+      "steps": 3860,
+      "puzzles": 120,
+      "dagNodes": 40023,
+      "dagRoots": 311
+    }
+  }
+}

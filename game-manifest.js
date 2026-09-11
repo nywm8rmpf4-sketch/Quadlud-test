@@ -26,7 +26,7 @@
       id:'tango',
       metadata:Object.freeze({labelKey:'gameTango',descriptionKey:'tangoSub',challengeCode:'T',icon:'☀︎'}),
       modules:Object.freeze({logic:'tango-logic.js',difficulty:'tango-difficulty.js',generator:'tango-generator.js',session:'game-session-adapters.js',ui:'tango-ui.js',runtime:'tango-runtime.js',pedagogy:'tango-pedagogy.js',reasoning:'tango-reasoning-presentation.js',i18n:'tango-i18n.js'}),
-      supportModules:Object.freeze(['tango-played-move-planner.js','tango-played-move-runtime.js','tango-runtime-pool-data.js','tango-precomputed-pool-runtime.js','tango-tutor-precomputed-cache.js','tango-tutor-cache-data-r8.js']),
+      supportModules:Object.freeze(['tango-played-move-planner.js','tango-played-move-runtime.js','tango-runtime-pool-data.js','tango-precomputed-pool-runtime.js','tango-tutor-precomputed-cache.js','tango-tutor-cache-r8-easy.js','tango-tutor-cache-r8-medium.js','tango-tutor-cache-r8-hard.js','tango-tutor-cache-r8-expert.js']),
       worker:true,offline:true
     }),
     Object.freeze({

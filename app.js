@@ -1609,8 +1609,10 @@ function renderWalkthrough(options={}){
   let pp=$('#walkthroughProofPrev'),pn=$('#walkthroughProofNext');if(pp)pp.onclick=()=>walkthroughNavigateProof(-1);if(pn)pn.onclick=()=>walkthroughNavigateProof(1);app.querySelectorAll('button').forEach(pressFeedback);walkthroughPersistResume();if(options.focusSelector)a11yRestoreFocus(options.focusSelector,options.focusFallback);if(options.announceNavigation)a11yAnnounce(walkthroughA11yAnnouncement(options.announceNavigation))
 }
 
-function openWalkthrough(){
-  if(!current||current.training)return false;let resume=walkthroughStoredResume(),root=walkthroughRootSnapshot(),work=walkthroughVisibleClone(current,root);if(!work)return false;
+function prefetchTangoTutorCache(diff){let c=globalThis.QuadludTangoTutorPrecomputedCache;if(!c||typeof c.ensureDifficulty!=='function')return Promise.resolve(false);try{return Promise.resolve(c.ensureDifficulty(diff)).catch(()=>false)}catch(_){return Promise.resolve(false)}}
+async function ensureTangoTutorCache(diff){let c=globalThis.QuadludTangoTutorPrecomputedCache;if(!c||typeof c.ensureDifficulty!=='function')return true;setBusy(true);try{return await c.ensureDifficulty(diff)}catch(_){return false}finally{setBusy(false)}}
+async function openWalkthrough(){
+  if(!current||current.training)return false;if(current.game==='tango')await ensureTangoTutorCache(current.diff);let resume=walkthroughStoredResume(),root=walkthroughRootSnapshot(),work=walkthroughVisibleClone(current,root);if(!work)return false;
   let elapsed=timerSeconds(),wasPaused=paused;stopTimer(true);current.walkthroughUsed=true;markHintUsed();updateScoreFlags();saveCurrent();
   walkthroughSession={schema:3,base:work,work,initial:walkthroughSnapshot(work),moves:[],pedagogyNavigationByMove:[],index:0,atStart:true,navigation:walkthroughNavigationApi().definePedagogyNavigation({logicalMoveIndex:0,proofStepIndex:0}),done:false,stalled:false,elapsed,wasPaused};
   gamePedagogy(work.game).walkthrough.initialize(walkthroughSession);
@@ -1656,7 +1658,7 @@ function startBackgroundPrecompute(game=current?.game,diff=current?.diff){return
 function takePrecomputed(game,diff,day=localDay()){return WebPrecompute.take(game,diff,day)}
 function precomputeStatus(){return WebPrecompute.status()}
 
-function launch(game,diff){if(!GameRegistry.hasGame(game))throw new Error(`Unknown QUADLUD game: ${game}`);let previousGame=current?.game||null,previousDifficulty=current?.diff||null;closePreviousAttempt();clearSaved();stopTimer();paused=false;setBusy(true);current={game,diff};requestAnimationFrame(()=>{try{let candidate=normalLaunchCandidate(game,diff);installGeneratedSession(game,diff,candidate,{context:'normal'});historyInit(true);diagnosticStart('normal',{previousGame,previousDifficulty});updateHistoryButtons();statsStart(current);startTimer(true,0,false);saveCurrent();haptic(8)}finally{setBusy(false);startBackgroundPrecompute(game,diff)}})}
+function launch(game,diff){if(!GameRegistry.hasGame(game))throw new Error(`Unknown QUADLUD game: ${game}`);let previousGame=current?.game||null,previousDifficulty=current?.diff||null;closePreviousAttempt();clearSaved();stopTimer();paused=false;setBusy(true);current={game,diff};if(game==='tango')prefetchTangoTutorCache(diff);requestAnimationFrame(()=>{try{let candidate=normalLaunchCandidate(game,diff);installGeneratedSession(game,diff,candidate,{context:'normal'});historyInit(true);diagnosticStart('normal',{previousGame,previousDifficulty});updateHistoryButtons();statsStart(current);startTimer(true,0,false);saveCurrent();haptic(8)}finally{setBusy(false);startBackgroundPrecompute(game,diff)}})}
 function resumeSaved(){let s=getSaved();if(!s)return home();stopTimer();let c=DataSerialization.deserializeCurrentState(s.current);current=c;historyInit(false);renderGameUi(c);if(postVictoryReviewActive(c))freezePostVictoryReviewTimer(c.postVictoryReview.officialSeconds);else startTimer(true,s.elapsed||0,false);diagnosticStart('resume',{resumed:true});updatePauseButton();refreshExplorationPanel();showToast(tr('restored'));if(!c.training)startBackgroundPrecompute(c.game,c.diff)}
 
 
