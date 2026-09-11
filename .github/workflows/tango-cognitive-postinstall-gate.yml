@@ -8,6 +8,9 @@ on:
       - 'qa-public/tests/v319-cognitive-r8-postinstall-final-browser.test.py'
       - 'qa-public/tests/v319-tango-history-persistence-browser.test.py'
       - 'qa-public/tests/v319-shared-games-smoke-browser.test.py'
+      - 'qa-public/tests/v319-r3ui-tango-tutor-freeze-guard.test.js'
+      - 'qa-public/tests/v319-r5-frontier-validation-cache.test.js'
+      - 'qa-public/tests/v319-hf36-human-next-move-policy.test.js'
   workflow_dispatch:
 
 permissions:
@@ -79,7 +82,14 @@ jobs:
           node qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js
           node qa-public/tests/v319-r5-frontier-validation-cache.test.js
           node qa-public/tests/v319-hf36-human-next-move-policy.test.js
-          node qa-public/tests/tango-runtime-data-r8-static-contract.test.js
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm'),assert=require('assert');
+          const ctx={console};ctx.globalThis=ctx;vm.createContext(ctx);
+          vm.runInContext(fs.readFileSync('tango-runtime-pool-data.js','utf8'),ctx,{filename:'tango-runtime-pool-data.js'});
+          const p=ctx.QuadludTangoRuntimePoolData;assert(p&&p.schema===2);assert.strictEqual(p.version,'tango-runtime-pool-r8');
+          for(const d of ['easy','medium','hard','expert']){assert.strictEqual(p.counts[d],120);assert.strictEqual(p.pools[d].length,120)}
+          console.log('PASS exact installed R8 pool counts 120x4');
+          NODE
       - uses: actions/upload-artifact@v4
         with:
           name: cognitive-r8-postinstall-node-evidence
