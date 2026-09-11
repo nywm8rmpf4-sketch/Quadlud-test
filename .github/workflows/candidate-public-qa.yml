@@ -71,6 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           find "$RUNNER_TEMP/quadlud-public-qa/GitHub" -maxdepth 1 -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+          node --check "$RUNNER_TEMP/quadlud-public-qa/tests/v319-r8-sync-static-contract.test.js"
           node --check "$RUNNER_TEMP/quadlud-public-qa/tests/v319-r8-sync-cache-hit-contract.test.js"
           node --check "$RUNNER_TEMP/quadlud-public-qa/tools/tango_tutor_cache_contract.js"
 
@@ -79,7 +80,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/quadlud-public-qa"
           tests=(
-            tango-runtime-data-r8-static-contract.test.js
+            v319-r8-sync-static-contract.test.js
             v319-r8-sync-cache-hit-contract.test.js
             v319-r8-simple-before-contradiction.test.js
             v319-r3ui-tango-tutor-freeze-guard.test.js
