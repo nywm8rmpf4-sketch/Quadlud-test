@@ -1,0 +1,34 @@
+name: QUADLUD Tango cognitive performance sample R2
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/tango-cognitive-perf-sample-r2.yml']
+  workflow_dispatch:
+jobs:
+  sample:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - difficulty: easy
+            start: 0
+          - difficulty: expert
+            start: 0
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: candidate/v3.1.9-tango-cognitive-chunks-r1}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Build one full canonical journey
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/${{ matrix.difficulty }}.json"
+          REPORT="$RUNNER_TEMP/${{ matrix.difficulty }}-report.json"
+          node qa-public/tools/build_tango_tutor_sync_shard_r8.js --difficulty '${{ matrix.difficulty }}' --start '${{ matrix.start }}' --count 1 --output "$OUT" --report "$REPORT"
+          node - "$REPORT" <<'NODE'
+          const fs=require('fs'),assert=require('assert');const r=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          assert.equal(r.puzzles,1);assert(r.totalSteps>0);assert.equal(r.tutorContract.version,2);assert.equal(r.cognitiveModel,'quadlud-cognitive-load-v1');
+          console.log('PERF_SAMPLE_R2',JSON.stringify({difficulty:r.difficulty,totalSteps:r.totalSteps,advancedMoves:r.advancedMoves,cognitiveBand4Moves:r.cognitiveBand4Moves,maxCognitiveDepth:r.maxCognitiveDepth,maxRawDepth:r.maxRawDepth,maxDisplaySteps:r.maxDisplaySteps,livePlannerMs:r.livePlannerMs,contract:r.tutorContract.digest}));
+          NODE
