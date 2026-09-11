@@ -50,11 +50,11 @@ jobs:
           node qa-public/tests/v319-r8-cognitive-live-priority.test.js
           node qa-public/tests/v319-r8-simple-before-contradiction.test.js
           git diff --check
-      - name: Commit guarded Tutor/cache contract and canonical gates
+      - name: Commit guarded Tutor/cache source contract
         run: |
           set -euo pipefail
           git config user.name 'QUADLUD QA Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add tango-tutor-single-planner-r5.js qa-public/tools/materialize_tango_tutor_cognitive_contract.js qa-public/tests/v319-r8-cache-planner-contract-guard.test.js qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js .github/workflows/cognitive-chunks-r1.yml .github/workflows/tango-cognitive-cache-full.yml
+          git add tango-tutor-single-planner-r5.js qa-public/tools/materialize_tango_tutor_cognitive_contract.js qa-public/tests/v319-r8-cache-planner-contract-guard.test.js qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js
           git commit -m 'fix(tango): guard cache against Tutor contract drift'
           git push origin HEAD:candidate/v3.1.9-tango-cognitive-chunks-r1
