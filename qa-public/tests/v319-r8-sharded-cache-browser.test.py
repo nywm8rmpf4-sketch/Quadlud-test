@@ -33,7 +33,8 @@ def run_one(browser_type,diff,offline_roundtrip=False):
     assert initial['version']==7 and initial['dataSchema']==10 and initial['registered'] is False,initial
     assert initial['registeredDifficulties']==[] and initial['decodedDifficulties']==[],initial
     assert initial['contract']['digest']==EXPECTED_CONTRACT,initial
-    page.evaluate("([d])=>launch('tango',d)",[diff]);page.wait_for_selector('#walkthroughBtn');wait_decoded(page,diff)
+    load_t=time.perf_counter();page.evaluate("([d])=>launch('tango',d)",[diff]);page.wait_for_selector('#walkthroughBtn');wait_decoded(page,diff)
+    load_ms=round((time.perf_counter()-load_t)*1000,2)
     ready=cache_info(page)
     assert ready['registeredDifficulties']==[diff],ready
     assert ready['decodedDifficulties']==[diff],ready
@@ -51,7 +52,7 @@ def run_one(browser_type,diff,offline_roundtrip=False):
     page.wait_for_function("()=>QuadludTangoTutorPrecomputedCache.info().stats.hits>=1 || (walkthroughSession?.moves?.length||0)>0",timeout=15000)
     ui_ms=round((time.perf_counter()-t)*1000,2);ui=page.evaluate("()=>({cache:QuadludTangoTutorPrecomputedCache.info(),moves:walkthroughSession?.moves?.length||0,status:walkthroughSession?.tangoTutorStatus||null})")
     assert ui['cache']['stats']['hits']>=1 and ui['cache']['stats']['misses']==0 and ui['moves']>=1,ui
-    result={'difficulty':diff,'directMs':round(direct['ms'],2),'uiMs':ui_ms,'scripts':scripts,'info':ready}
+    result={'difficulty':diff,'loadMs':load_ms,'directMs':round(direct['ms'],2),'uiMs':ui_ms,'scripts':scripts,'info':ready}
     if offline_roundtrip:
         page.evaluate('()=>navigator.serviceWorker.ready');page.wait_for_timeout(300)
         pwa=page.evaluate("""async()=>{const names=await caches.keys();const name=names.find(x=>x.includes('sync5-cognitive-sharded-lz4'));if(!name)return {controller:!!navigator.serviceWorker.controller,names,urls:[]};const c=await caches.open(name);const keys=await c.keys();return {controller:!!navigator.serviceWorker.controller,names,urls:keys.map(r=>r.url)}}""")
@@ -69,7 +70,11 @@ def main():
     results=[]
     with sync_playwright() as p:
         bt=getattr(p,BROWSER)
-        for diff in DIFFS:results.append(run_one(bt,diff,offline_roundtrip=(diff=='expert')))
+        for diff in DIFFS:
+            # Chromium owns the full PWA/offline reload gate. Playwright WebKit
+            # has a known internal reload failure after context.set_offline(True),
+            # so WebKit remains an online Safari-engine cache/Tutor smoke.
+            results.append(run_one(bt,diff,offline_roundtrip=(diff=='expert' and BROWSER=='chromium')))
     out=Path(os.environ.get('QUADLUD_R8_SHARD_BROWSER_REPORT',f'/tmp/quadlud-r8-shards-{BROWSER}.json'));out.write_text(json.dumps(results,ensure_ascii=False,indent=2),encoding='utf-8')
-    print('PASS v319-r8-sharded-cache-browser',json.dumps({'browser':BROWSER,'results':[{'difficulty':r['difficulty'],'directMs':r['directMs'],'uiMs':r['uiMs']} for r in results]},ensure_ascii=False))
+    print('PASS v319-r8-sharded-cache-browser',json.dumps({'browser':BROWSER,'results':[{'difficulty':r['difficulty'],'loadMs':r['loadMs'],'directMs':r['directMs'],'uiMs':r['uiMs']} for r in results]},ensure_ascii=False))
 if __name__=='__main__':main()
