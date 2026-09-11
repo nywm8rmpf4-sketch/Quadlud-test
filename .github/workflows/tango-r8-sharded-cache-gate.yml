@@ -1,0 +1,123 @@
+name: QUADLUD Tango R8 sharded cache gate
+
+on:
+  push:
+    branches:
+      - candidate/v3.1.9-tango-r8-sharded-cache-r1
+    paths:
+      - '.github/workflows/tango-r8-sharded-cache-gate.yml'
+      - 'app.js'
+      - 'build-info.json'
+      - 'game-manifest.js'
+      - 'index.html'
+      - 'sw.js'
+      - 'tango-tutor-precomputed-cache.js'
+      - 'tango-tutor-cache-r8-*.js'
+      - 'tango-tutor-cache-r8-shards-report.json'
+      - 'qa-public/tests/v319-r8-sharded-cache-roundtrip.test.js'
+      - 'qa-public/tests/v319-r8-sharded-cache-browser.test.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_MONOLITH_SHA256: 'b3a1645d7c582ebc1817967d63a52dea3f594bb68b389bda12aac391267986f8'
+  EXPECTED_CONTRACT_DIGEST: '61749a9d20f1dda8c2747e4129a480bc74323fb27dc9c84e8fd8ab49227b6c3c'
+
+jobs:
+  exact-node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Verify exact source and deterministic shards
+        run: |
+          set -euo pipefail
+          test "$(sha256sum tango-tutor-cache-data-r8.js | awk '{print $1}')" = "$EXPECTED_MONOLITH_SHA256"
+          grep -q "$EXPECTED_CONTRACT_DIGEST" tango-tutor-cache-contract-r8.js
+          grep -Fq "tango-tutor-cache-r8-sync5-cognitive-sharded-lz4" tango-tutor-precomputed-cache.js
+          grep -Fq "const VERSION=7" tango-tutor-precomputed-cache.js
+          grep -Fq "quadlud-v3.1.9-tango-r8-sync5-cognitive-sharded-lz4-v23" sw.js
+          test -z "$(grep -F 'tango-tutor-cache-data-r8.js?v=' index.html || true)"
+          mkdir -p "$RUNNER_TEMP/shards"
+          node qa-public/tools/shard_tango_tutor_cache_r8.js tango-tutor-cache-data-r8.js "$RUNNER_TEMP/shards"
+          for d in easy medium hard expert; do
+            cmp "tango-tutor-cache-r8-$d.js" "$RUNNER_TEMP/shards/tango-tutor-cache-r8-$d.js"
+            test "$(wc -c < "tango-tutor-cache-r8-$d.js")" -lt 1000000
+            sha256sum "tango-tutor-cache-r8-$d.js"
+          done
+          cmp tango-tutor-cache-r8-shards-report.json "$RUNNER_TEMP/shards/tango-tutor-cache-r8-shards-report.json"
+      - name: Run exact lossless and cognitive gates
+        run: |
+          set -euo pipefail
+          node qa-public/tests/v319-r8-sharded-cache-roundtrip.test.js
+          node qa-public/tests/v319-cognitive-cost-model.test.js
+          node qa-public/tests/v319-tango-cognitive-patterns.test.js
+          node qa-public/tests/v319-tango-cognitive-plan-ranking.test.js
+          node qa-public/tests/v319-cognitive-engine-proof-retention.test.js
+          node qa-public/tests/v319-cognitive-no-speculative-contradiction.test.js
+          node qa-public/tests/v319-tango-cognitive-proof-stage-compaction.test.js
+          node qa-public/tests/v319-r8-simple-before-contradiction.test.js
+          node qa-public/tests/v319-r8-cache-materialized-hit.test.js
+          node qa-public/tests/v319-r8-cache-planner-contract-guard.test.js
+          node qa-public/tests/v319-r8-direct-visible-fastpath.test.js
+          node qa-public/tests/v319-r8-cognitive-live-priority.test.js
+          node qa-public/tests/v319-r3ui-tango-tutor-freeze-guard.test.js
+
+  chromium-iphone-pwa:
+    needs: exact-node
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Install Chromium
+        run: |
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+          CHROMIUM_PATH="$(python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p: print(p.chromium.executable_path)
+          PY
+          )"
+          sudo ln -sf "$CHROMIUM_PATH" /usr/bin/chromium
+      - name: Run sharded cache, offline PWA and shared-game browser gates
+        env:
+          QUADLUD_BROWSER: chromium
+          QUADLUD_R8_SHARD_BROWSER_REPORT: ${{ runner.temp }}/sharded-chromium.json
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/http.log" 2>&1 & SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
+          timeout 240s python3 -u qa-public/tests/v319-r8-sharded-cache-browser.test.py
+          timeout 240s python3 -u qa-public/tests/v319-shared-games-smoke-browser.test.py
+      - name: Run history persistence regression
+        run: timeout 180s python3 -u qa-public/tests/v319-tango-history-persistence-browser.test.py
+
+  webkit-iphone-pwa:
+    needs: exact-node
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Install WebKit
+        run: |
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps webkit
+      - name: Run sharded cache and offline PWA gate in WebKit
+        env:
+          QUADLUD_BROWSER: webkit
+          QUADLUD_R8_SHARD_BROWSER_REPORT: ${{ runner.temp }}/sharded-webkit.json
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/http.log" 2>&1 & SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
+          timeout 240s python3 -u qa-public/tests/v319-r8-sharded-cache-browser.test.py
