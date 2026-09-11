@@ -1,4 +1,4 @@
-name: QUADLUD Tango R8 cache isolation diagnostic
+name: QUADLUD Tango R8 exact-stack parity diagnostic
 
 on:
   push:
@@ -22,23 +22,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v5
         with: {node-version: '22'}
-      - name: Patch cache lookup to operate on an isolated engine clone
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('tango-tutor-precomputed-cache.js')
-          s=p.read_text()
-          old="const {fingerprint,step}=hit,advanced=step[1]===1,startKind=step[2],target=cellFromIndex(step[3]),value=step[4],starting=resolveSeed(session,diff,startKind,step[5]);"
-          new="const work=session.clone(),{fingerprint,step}=hit,advanced=step[1]===1,startKind=step[2],target=cellFromIndex(step[3]),value=step[4],starting=resolveSeed(work,diff,startKind,step[5]);"
-          if s.count(old)!=1: raise SystemExit('cache clone patch anchor missing/non-unique')
-          s=s.replace(old,new,1)
-          old2="const displayDeduction=resolveSeed(session,diff,step[7],step[8],{display:true})"
-          new2="const displayDeduction=resolveSeed(work,diff,step[7],step[8],{display:true})"
-          if s.count(old2)!=1: raise SystemExit('display clone patch anchor missing/non-unique')
-          p.write_text(s.replace(old2,new2,1))
-          PY
       - uses: actions/download-artifact@v4
         with:
           name: cognitive-r8-cache-full
@@ -50,7 +33,7 @@ jobs:
         run: |
           cp certified/tango-tutor-cache-data-r8.js ./tango-tutor-cache-data-r8.js
           cp certified/tango-tutor-cache-contract-r8.js ./tango-tutor-cache-contract-r8.js
-      - name: Run one Expert puzzle in a fresh Node process
+      - name: Run one Expert puzzle with exact production Tutor stack
         env:
           QUADLUD_PARITY_DIFFICULTY: expert
           QUADLUD_PARITY_START: ${{ matrix.start }}
