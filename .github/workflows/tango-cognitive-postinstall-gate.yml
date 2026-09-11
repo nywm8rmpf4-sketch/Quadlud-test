@@ -5,16 +5,18 @@ on:
     branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
     paths:
       - '.github/workflows/tango-cognitive-postinstall-gate.yml'
-      - 'qa-public/tests/v319-cognitive-r8-postinstall-browser.test.py'
+      - 'qa-public/tests/v319-cognitive-r8-postinstall-final-browser.test.py'
+      - 'qa-public/tests/v319-tango-history-persistence-browser.test.py'
+      - 'qa-public/tests/v319-shared-games-smoke-browser.test.py'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  INSTALLED_RUNTIME_COMMIT: '63606797e3c95c3a44732d4f43f82efaab4444b4'
-  EXPECTED_CACHE_SHA256: '5357ae201d876a63f7fcc1de8b84261358f021b5ab2dcdfd1ec84436b56d06ea'
-  EXPECTED_CONTRACT_DIGEST: '78bbb5f7ff951fa9744964345eaa5ace0f93acab7c5e0f19438421c8e08b4647'
+  INSTALLED_RUNTIME_COMMIT: 'e6dd8576d9a3ccf6eca1ed54174e76feb071c713'
+  EXPECTED_CACHE_SHA256: 'b3a1645d7c582ebc1817967d63a52dea3f594bb68b389bda12aac391267986f8'
+  EXPECTED_CONTRACT_DIGEST: '61749a9d20f1dda8c2747e4129a480bc74323fb27dc9c84e8fd8ab49227b6c3c'
 
 jobs:
   exact-node:
@@ -65,6 +67,8 @@ jobs:
           node qa-public/tests/v319-tango-cognitive-patterns.test.js
           node qa-public/tests/v319-tango-cognitive-plan-ranking.test.js
           node qa-public/tests/v319-tango-cognitive-proof-stage-compaction.test.js
+          node qa-public/tests/v319-cognitive-engine-proof-retention.test.js
+          node qa-public/tests/v319-cognitive-no-speculative-contradiction.test.js
           node qa-public/tests/v319-r8-materialized-dag.test.js
           node qa-public/tests/v319-r8-cache-materialized-hit.test.js
           node qa-public/tests/v319-r8-cache-planner-contract-guard.test.js
@@ -75,6 +79,7 @@ jobs:
           node qa-public/tests/v319-r3ui-tango-tutor-single-planner-owner.test.js
           node qa-public/tests/v319-r5-frontier-validation-cache.test.js
           node qa-public/tests/v319-hf36-human-next-move-policy.test.js
+          node qa-public/tests/tango-runtime-data-r8-static-contract.test.js
       - uses: actions/upload-artifact@v4
         with:
           name: cognitive-r8-postinstall-node-evidence
@@ -84,7 +89,7 @@ jobs:
   chromium-iphone-pwa:
     needs: exact-node
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -93,7 +98,13 @@ jobs:
         run: |
           python -m pip install 'playwright==1.57.0'
           python -m playwright install --with-deps chromium
-      - name: Run iPhone-size browser and offline PWA gate
+          CHROMIUM_PATH="$(python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p: print(p.chromium.executable_path)
+          PY
+          )"
+          sudo ln -sf "$CHROMIUM_PATH" /usr/bin/chromium
+      - name: Run final iPhone-size browser and offline PWA gate
         env:
           QUADLUD_BROWSER: chromium
           QUADLUD_R8_BROWSER_REPORT: ${{ runner.temp }}/evidence/chromium.json
@@ -103,18 +114,20 @@ jobs:
           python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/http.log" 2>&1 & SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
-          timeout 180s python3 -u qa-public/tests/v319-cognitive-r8-postinstall-browser.test.py
+          timeout 180s python3 -u qa-public/tests/v319-cognitive-r8-postinstall-final-browser.test.py
+      - name: Run Tango history persistence and shared-games regressions
+        run: |
+          set -euo pipefail
+          timeout 180s python3 -u qa-public/tests/v319-tango-history-persistence-browser.test.py
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/shared-http.log" 2>&1 & SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
+          timeout 240s python3 -u qa-public/tests/v319-shared-games-smoke-browser.test.py
       - name: Semantic Expert journey
         env:
           QUADLUD_SEMANTIC_EVIDENCE_DIR: ${{ runner.temp }}/evidence/expert
         run: |
           set -euo pipefail
-          CHROMIUM_PATH="$(python - <<'PY'
-          from playwright.sync_api import sync_playwright
-          with sync_playwright() as p: print(p.chromium.executable_path)
-          PY
-          )"
-          sudo ln -sf "$CHROMIUM_PATH" /usr/bin/chromium
           python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/semantic-http.log" 2>&1 & SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
@@ -139,7 +152,7 @@ jobs:
         run: |
           python -m pip install 'playwright==1.57.0'
           python -m playwright install --with-deps webkit
-      - name: Run iPhone-size WebKit Tutor smoke
+      - name: Run final iPhone-size WebKit Tutor smoke
         env:
           QUADLUD_BROWSER: webkit
           QUADLUD_SMOKE_ONLY: '1'
@@ -150,7 +163,7 @@ jobs:
           python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/http.log" 2>&1 & SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
-          timeout 150s python3 -u qa-public/tests/v319-cognitive-r8-postinstall-browser.test.py
+          timeout 150s python3 -u qa-public/tests/v319-cognitive-r8-postinstall-final-browser.test.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
