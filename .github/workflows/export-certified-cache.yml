@@ -25,3 +25,33 @@ jobs:
           path: tango-tutor-cache-data-r8.js
           if-no-files-found: error
           retention-days: 2
+      - name: Upload certified Tango runtime subset
+        uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-certified-runtime-subset
+          path: |
+            cognitive-cost.js
+            game-manifest.js
+            index.html
+            sw.js
+            tango-cognitive-patterns.js
+            tango-cognitive-pedagogy-bridge.js
+            tango-cognitive-proof-stages-bridge.js
+            tango-direct-visible-priority-bridge.js
+            tango-diversity-pool.js
+            tango-generator.js
+            tango-human-cost-bridge.js
+            tango-human-pedagogy-r4.js
+            tango-pedagogy-text-finalizer.js
+            tango-played-move-planner.js
+            tango-played-move-runtime.js
+            tango-runtime-pool-data.js
+            tango-precomputed-pool-runtime.js
+            tango-semantic-coherence-hf39.js
+            tango-tutor-cache-contract-r8.js
+            tango-tutor-frontier-pruner-r5.js
+            tango-tutor-human-regression-r54.js
+            tango-tutor-precomputed-cache.js
+            tango-tutor-single-planner-r5.js
+          if-no-files-found: error
+          retention-days: 2
