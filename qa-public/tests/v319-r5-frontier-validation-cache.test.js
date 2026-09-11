@@ -3,8 +3,12 @@
  */
 'use strict';
 const assert=require('assert');
+const fs=require('fs');
 const path=require('path');
-const Planner=require(path.join(__dirname,'..','GitHub','tango-played-move-planner.js'));
+const candidate=path.resolve(__dirname,'../GitHub');
+const repo=path.resolve(__dirname,'../..');
+const WEB=fs.existsSync(path.join(candidate,'tango-played-move-planner.js'))?candidate:repo;
+const Planner=require(path.join(WEB,'tango-played-move-planner.js'));
 const T=Planner._test;
 
 function deduction(id,cell,value){return {id,signature:id,rule:'TRIPLE_CONSTRAINT',rank:0,techniqueLevel:0,premises:[],conclusions:[{type:'VALUE',cell:cell.slice(),value}]}}
@@ -56,9 +60,6 @@ assert.equal(prevalidated.status,'move');
 assert.equal(prevalidatedLog.diagnose,0,'a caller that just validated the same immutable start state may skip only that duplicate first diagnosis');
 assert(prevalidated.engineVisiblePlacements.some(x=>x.cell?.[0]===1&&x.cell?.[1]===1&&x.to===1),'prevalidated planning must preserve full simulation consequences');
 
-// Advanced rule families are ordered: a demonstrated contradiction candidate
-// outranks a common-consequence scan. Do not synchronously rescan every branch
-// for a family that cannot replace the already available candidates.
 let assumptionCalls=0,commonCalls=0;
 const assumption=deduction('assumption',[1,0],1);assumption.rule='ASSUMPTION_CONTRADICTION';assumption.rank=3;
 const advanced=T.advancedDeductionsDetailed({
