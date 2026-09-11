@@ -101,7 +101,7 @@ function patternsForDeduction(d){
   if(d.rule==='COMMON_CONSEQUENCE')return patternsForCommonConsequence(d);
   return [directPattern(d)];
 }
-function profileForDeduction(d,options={}){const patterns=patternsForDeduction(d);return Cognitive.profileFromPatterns(patterns,{...options,displaySteps:patterns.length})}
+function profileForDeduction(d,options={}){return Cognitive.profileFromPatterns(patternsForDeduction(d),options)}
 function costVectorForDeduction(d,legacy=[],options={}){return Cognitive.costVector(profileForDeduction(d,options),legacy)}
 
 return Object.freeze({VERSION,CATALOG_VERSION,BASE,directPattern,patternsForContradiction,patternsForCommonConsequence,patternsForDeduction,profileForDeduction,costVectorForDeduction,_test:Object.freeze({cellKey,unitKey,sortedCells,localityKey,relationPathLength,relationExplicit,descriptor,hypothesisPattern,witnessPattern})});
