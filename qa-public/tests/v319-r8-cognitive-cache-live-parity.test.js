@@ -26,21 +26,21 @@ const cognitiveKey=p=>JSON.stringify([p?.displayProof?.cognitiveCostVector||p?.c
 function stateFor(entry){const state=Array.from({length:6},()=>Array(6).fill(-1));for(const i of entry.givens||[])state[Math.floor(i/6)][i%6]=entry.solution[Math.floor(i/6)][i%6];return state}
 function puzzle(entry,state){return {game:'tango',n:6,state:clone(state),edges:clone(entry.edges||[])}}
 function humanized(engine,raw){return raw?Tutor._test.attachHumanProof(engine,raw,Human,Runtime,'precomputed-cognitive-parity'):null}
-const report={schema:1,checkedStates:0,hits:0,lookupMisses:0,rebuildMisses:0,mismatches:0,maxCacheMs:0,maxLiveMs:0,byDifficulty:{},examples:[]};
-for(const diff of DIFFS){const entries=pool.pools?.[diff];assert(Array.isArray(entries)&&entries.length===120);const stats={puzzles:count,states:0,hits:0,lookupMisses:0,rebuildMisses:0,mismatches:0,maxCacheMs:0,maxLiveMs:0};
+const report={schema:2,checkedStates:0,hits:0,lookupMisses:0,validationMisses:0,mismatches:0,maxCacheMs:0,maxLiveMs:0,byDifficulty:{},examples:[]};
+for(const diff of DIFFS){const entries=pool.pools?.[diff];assert(Array.isArray(entries)&&entries.length===120);const stats={puzzles:count,states:0,hits:0,lookupMisses:0,validationMisses:0,mismatches:0,maxCacheMs:0,maxLiveMs:0};
   for(let poolIndex=start;poolIndex<end;poolIndex++){const entry=entries[poolIndex],state=stateFor(entry);
     for(let moveIndex=0;moveIndex<72;moveIndex++){if(!state.some(r=>r.includes(-1)))break;const engine=Planner.sessionFromPublicBoard(puzzle(entry,state),state),lookup=Cache.lookup(engine,diff);Cache._test.resetStats();
       let t0=performance.now(),raw=Cache.tryPlan(engine,diff),cacheMs=performance.now()-t0,cached=humanized(engine,raw);t0=performance.now();const live=Tutor._test.humanizeTutorPlan(engine,diff,{usePrecomputedCache:false}),liveMs=performance.now()-t0;
       stats.states++;report.checkedStates++;stats.maxCacheMs=Math.max(stats.maxCacheMs,cacheMs);stats.maxLiveMs=Math.max(stats.maxLiveMs,liveMs);report.maxCacheMs=Math.max(report.maxCacheMs,cacheMs);report.maxLiveMs=Math.max(report.maxLiveMs,liveMs);
-      if(raw){stats.hits++;report.hits++}else if(!lookup){stats.lookupMisses++;report.lookupMisses++}else{stats.rebuildMisses++;report.rebuildMisses++}
+      if(raw){stats.hits++;report.hits++}else if(!lookup){stats.lookupMisses++;report.lookupMisses++}else{stats.validationMisses++;report.validationMisses++}
       let reason=null;if(live?.status!=='move')reason=`live-${live?.status||'invalid'}`;else if(!cached)reason=lookup?'cache-rebuild-reject':'cache-key-miss';else if(cached.target?.[0]!==live.target?.[0]||cached.target?.[1]!==live.target?.[1]||cached.value!==live.value)reason='target-value';else if(sig(cached.startingDeduction||cached.deduction)!==sig(live.startingDeduction||live.deduction))reason='starting-deduction';else if(JSON.stringify(cached.displayDeduction)!==JSON.stringify(live.displayDeduction))reason='display-deduction';else if(cognitiveKey(cached)!==cognitiveKey(live))reason='cognitive-proof-metadata';
       if(reason){stats.mismatches++;report.mismatches++;if(report.examples.length<50)report.examples.push({diff,poolIndex,moveIndex,reason,cacheMs:Number(cacheMs.toFixed(3)),liveMs:Number(liveMs.toFixed(3)),cached:cognitiveKey(cached),live:cognitiveKey(live)})}
       if(live?.status!=='move'||!Planner.applyPlayedMoveToState(state,live))throw new Error(`${diff}[${poolIndex}] move ${moveIndex}: live canonical Tutor failed`)
     }
     if(state.some(r=>r.includes(-1)))throw new Error(`${diff}[${poolIndex}]: canonical Tutor did not solve`)
   }
-  report.byDifficulty[diff]=stats;console.error(`COGNITIVE_PARITY ${diff}: ${stats.states} states, hits=${stats.hits}, misses=${stats.lookupMisses+stats.rebuildMisses}, mismatches=${stats.mismatches}, maxCacheMs=${stats.maxCacheMs.toFixed(2)}, maxLiveMs=${stats.maxLiveMs.toFixed(2)}`)
+  report.byDifficulty[diff]=stats;console.error(`COGNITIVE_PARITY ${diff}: ${stats.states} states, hits=${stats.hits}, misses=${stats.lookupMisses+stats.validationMisses}, mismatches=${stats.mismatches}, maxCacheMs=${stats.maxCacheMs.toFixed(2)}, maxLiveMs=${stats.maxLiveMs.toFixed(2)}`)
 }
 console.log(JSON.stringify(report,null,2));
-assert.strictEqual(report.lookupMisses,0,'canonical cognitive cache must have zero key misses');assert.strictEqual(report.rebuildMisses,0,'canonical cognitive cache must have zero rebuild misses');assert.strictEqual(report.mismatches,0,'cognitive cache/live plan, proof and cost metadata must be identical');assert.strictEqual(report.hits,report.checkedStates,'canonical cognitive path must be 100% cached');
+assert.strictEqual(report.lookupMisses,0,'canonical cognitive cache must have zero key misses');assert.strictEqual(report.validationMisses,0,'canonical cognitive cache must have zero materialized-plan validation misses');assert.strictEqual(report.mismatches,0,'cognitive cache/live plan, proof and cost metadata must be identical');assert.strictEqual(report.hits,report.checkedStates,'canonical cognitive path must be 100% cached');
 console.log(`PASS cognitive R8 cache/live parity: ${report.checkedStates} states`);
