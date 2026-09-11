@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# R8 sync2-7d: this gate targets the exact synchronized cache certified by exhaustive parity.
 import json
 import os
 import time
