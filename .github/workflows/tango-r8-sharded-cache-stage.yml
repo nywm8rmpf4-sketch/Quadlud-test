@@ -34,15 +34,28 @@ jobs:
           node --check qa-public/tools/apply_tango_r8_sharded_cache_r1.js
           node --check qa-public/tests/v319-r8-sharded-cache-roundtrip.test.js
           python -m py_compile qa-public/tests/v319-r8-sharded-cache-browser.test.py
-      - name: Apply sharded runtime and build four difficulty caches
+      - name: Apply once or verify installed sharded runtime
         run: |
           set -euo pipefail
-          node qa-public/tools/apply_tango_r8_sharded_cache_r1.js .
-          node qa-public/tools/shard_tango_tutor_cache_r8.js tango-tutor-cache-data-r8.js .
-          for d in easy medium hard expert; do
-            test -s "tango-tutor-cache-r8-$d.js"
-            test "$(wc -c < "tango-tutor-cache-r8-$d.js")" -lt 1000000
-          done
+          if grep -Fq "tango-tutor-cache-r8-sync5-cognitive-sharded-lz4" tango-tutor-precomputed-cache.js; then
+            echo "Sharded runtime already installed; verifying deterministic generated files"
+            tmp="$(mktemp -d)"
+            node qa-public/tools/shard_tango_tutor_cache_r8.js tango-tutor-cache-data-r8.js "$tmp"
+            for d in easy medium hard expert; do
+              test -s "tango-tutor-cache-r8-$d.js"
+              test "$(wc -c < "tango-tutor-cache-r8-$d.js")" -lt 1000000
+              cmp "tango-tutor-cache-r8-$d.js" "$tmp/tango-tutor-cache-r8-$d.js"
+            done
+            cmp tango-tutor-cache-r8-shards-report.json "$tmp/tango-tutor-cache-r8-shards-report.json"
+          else
+            echo "Installing sharded runtime from certified sync4 baseline"
+            node qa-public/tools/apply_tango_r8_sharded_cache_r1.js .
+            node qa-public/tools/shard_tango_tutor_cache_r8.js tango-tutor-cache-data-r8.js .
+            for d in easy medium hard expert; do
+              test -s "tango-tutor-cache-r8-$d.js"
+              test "$(wc -c < "tango-tutor-cache-r8-$d.js")" -lt 1000000
+            done
+          fi
       - name: Run lossless and cognitive regressions
         run: |
           set -euo pipefail
