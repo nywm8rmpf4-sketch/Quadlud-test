@@ -96,6 +96,7 @@ function chunkPatterns(patterns){
       localKey:p.localKey,
       branchKey:p.branchKey,
       attentionKey:p.attentionKey,
+      mergeable:p.mergeable,
       dependencyKeys:p.dependencyKeys.slice(),
       sourceIndices:[p.sourceIndex],
       rawCount:1
@@ -122,8 +123,7 @@ function longestWeightedPath(chunks){
   if(!list.length)return 0;
   // v1 supports explicit chunk dependencies when available. A flat proof falls
   // back to the ordered causal chain, which is conservative and deterministic.
-  const byKey=new Map(),scores=new Map();
-  list.forEach((chunk,index)=>{byKey.set(chunk.id,chunk);byKey.set(String(index),chunk)});
+  const scores=new Map();
   let running=0,max=0;
   for(let i=0;i<list.length;i++){
     const chunk=list[i],weight=nonNegative(chunk.memoryWeight,1),deps=chunk.dependencyKeys||[];
