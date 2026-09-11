@@ -20,5 +20,7 @@ const t0=performance.now(),evaluation=A.evaluateRelationFrontier(session,tier,di
 assert(evaluation&&evaluation.plans.length>0,'pruned relation frontier must produce a move plan');
 const scored=evaluation.plans.map(plan=>H._test.evaluatePlanHumanProof(session,plan)).filter(Boolean).sort(H._test.compareHumanCandidate),chosen=scored[0];
 assert(chosen?.plan?.status==='move','cognitive scoring must select a pruned move');
-assert(ms<3000,`relation frontier pruner too slow: ${ms.toFixed(1)} ms`);
-console.log('PASS v319-r8-relation-frontier-fastpath',JSON.stringify({ms:Number(ms.toFixed(3)),direct:direct.length,hydrated:evaluation.hydratedCandidateCount,pruned:evaluation.prunedCandidateCount,minimumSteps:evaluation.provenMinimumEngineStepCount,target:chosen.plan.target,value:chosen.plan.value,rule:(chosen.plan.startingDeduction||chosen.plan.deduction)?.rule,cost:chosen.cost}));
+const metrics={ms:Number(ms.toFixed(3)),direct:direct.length,plans:evaluation.plans.length,hydrated:evaluation.hydratedCandidateCount,pruned:evaluation.prunedCandidateCount,estimated:evaluation.estimatedCandidateCount,minimumSteps:evaluation.provenMinimumEngineStepCount,target:chosen.plan.target,value:chosen.plan.value,rule:(chosen.plan.startingDeduction||chosen.plan.deduction)?.rule,cost:chosen.cost};
+console.log('RELATION_FRONTIER_METRICS',JSON.stringify(metrics));
+assert(ms<3000,`relation frontier pruner too slow: ${ms.toFixed(1)} ms; ${JSON.stringify(metrics)}`);
+console.log('PASS v319-r8-relation-frontier-fastpath');
