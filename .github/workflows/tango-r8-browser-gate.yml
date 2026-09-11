@@ -8,6 +8,7 @@ on:
       - 'index.html'
       - 'tango-runtime-pool-data.js'
       - 'tango-tutor-cache-data-r8.js'
+      - 'tango-tutor-cache-contract-r8.js'
       - 'tango-precomputed-pool-runtime.js'
       - 'tango-tutor-precomputed-cache.js'
       - 'tango-tutor-single-planner-r5.js'
@@ -62,6 +63,8 @@ jobs:
           test -f "$R/GitHub/LICENSE"
           test -f "$R/GitHub/tango-runtime-pool-data.js"
           test -f "$R/GitHub/tango-tutor-cache-data-r8.js"
+          test -f "$R/GitHub/tango-tutor-cache-contract-r8.js"
+          test -f "$R/GitHub/tango-tutor-precomputed-cache.js"
           test -f "$R/tests/v319-r8-integrated-browser.test.py"
           test -f "$R/tests/v319-r8-browser-phase-diagnostic.py"
           test -f "$R/tests/v319-r8-service-worker-minimal-probe.py"
@@ -191,17 +194,27 @@ jobs:
           DEST="$RUNNER_TEMP/r8-evidence/r8-data"
           mkdir -p "$DEST"
           cp "$SOURCE/tango-runtime-pool-data.js" "$DEST/tango-runtime-pool-data.js"
+          cp "$SOURCE/tango-tutor-precomputed-cache.js" "$DEST/tango-tutor-precomputed-cache.js"
+          cp "$SOURCE/tango-tutor-cache-contract-r8.js" "$DEST/tango-tutor-cache-contract-r8.js"
           cp "$SOURCE/tango-tutor-cache-data-r8.js" "$DEST/tango-tutor-cache-data-r8.js"
           POOL_EXPECTED='6c3b226cc4c4db089768740510113bd07db2958a14216cf98020e7b0f4f9b013'
-          CACHE_EXPECTED='60d7030a1d2f4840764b24e18102d13e0aa997d9ca39fa59ddd531da8f466346'
+          RUNTIME_EXPECTED='6e367a790eab7cabf4c240606f7f5f6537c5026b33b432bebdcf336a5be6973b'
+          CONTRACT_EXPECTED='2939bf083ea6b694160f57f4a9d89281b04f103f48d402e837863ffb0fea3d6d'
+          CACHE_EXPECTED='d8cbd1c118ba924397bfd579170456a35f2d46dcb581f2b239b315f149acfcbb'
           POOL_ACTUAL="$(sha256sum "$DEST/tango-runtime-pool-data.js" | awk '{print $1}')"
+          RUNTIME_ACTUAL="$(sha256sum "$DEST/tango-tutor-precomputed-cache.js" | awk '{print $1}')"
+          CONTRACT_ACTUAL="$(sha256sum "$DEST/tango-tutor-cache-contract-r8.js" | awk '{print $1}')"
           CACHE_ACTUAL="$(sha256sum "$DEST/tango-tutor-cache-data-r8.js" | awk '{print $1}')"
           test "$POOL_ACTUAL" = "$POOL_EXPECTED"
+          test "$RUNTIME_ACTUAL" = "$RUNTIME_EXPECTED"
+          test "$CONTRACT_ACTUAL" = "$CONTRACT_EXPECTED"
           test "$CACHE_ACTUAL" = "$CACHE_EXPECTED"
           printf '%s  %s\n' "$POOL_ACTUAL" 'tango-runtime-pool-data.js' > "$DEST/SHA256SUMS"
+          printf '%s  %s\n' "$RUNTIME_ACTUAL" 'tango-tutor-precomputed-cache.js' >> "$DEST/SHA256SUMS"
+          printf '%s  %s\n' "$CONTRACT_ACTUAL" 'tango-tutor-cache-contract-r8.js' >> "$DEST/SHA256SUMS"
           printf '%s  %s\n' "$CACHE_ACTUAL" 'tango-tutor-cache-data-r8.js' >> "$DEST/SHA256SUMS"
-          printf '{"headSha":"%s","poolSha256":"%s","cacheSha256":"%s"}\n' "$GITHUB_SHA" "$POOL_ACTUAL" "$CACHE_ACTUAL" > "$DEST/provenance.json"
-          echo "PASS exact R8 data provenance: pool=$POOL_ACTUAL cache=$CACHE_ACTUAL head=$GITHUB_SHA"
+          printf '{"headSha":"%s","poolSha256":"%s","runtimeSha256":"%s","contractSha256":"%s","cacheSha256":"%s"}\n' "$GITHUB_SHA" "$POOL_ACTUAL" "$RUNTIME_ACTUAL" "$CONTRACT_ACTUAL" "$CACHE_ACTUAL" > "$DEST/provenance.json"
+          echo "PASS exact synchronized R8 provenance: pool=$POOL_ACTUAL runtime=$RUNTIME_ACTUAL contract=$CONTRACT_ACTUAL cache=$CACHE_ACTUAL head=$GITHUB_SHA"
       - name: Upload integrated R8 evidence
         if: always()
         uses: actions/upload-artifact@v4
