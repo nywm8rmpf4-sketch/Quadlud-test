@@ -13,7 +13,7 @@ VIEWPORT = {"width": 390, "height": 844}
 EXPECTED_COUNTS = {"easy": 120, "medium": 120, "hard": 120, "expert": 120}
 EXPECTED_CONTRACT = "78bbb5f7ff951fa9744964345eaa5ace0f93acab7c5e0f19438421c8e08b4647"
 EXPECTED_PLANNER_TOKEN = "3.1.9-cognitive-r4-cache-contract-guard"
-EXPECTED_SW_CACHE = "quadlud-v3.1.9-tango-cognitive-sync4-dag-v22"
+EXPECTED_SW_CACHE = "quadlud-v3.1.9-tango-r8-sync4-cognitive-dag-v22"
 
 
 def main() -> None:
@@ -68,7 +68,6 @@ def main() -> None:
         assert loaded["directVisible"] is True, loaded
         report["loaded"] = loaded
 
-        # Real product launch followed by the exact browser Tutor owner path.
         page.evaluate("QuadludTangoPrecomputedPoolRuntime._test.resetForTests()")
         page.evaluate("launch('tango','expert')")
         page.wait_for_selector("#walkthroughBtn")
@@ -87,7 +86,6 @@ def main() -> None:
         assert direct["cache"]["stats"]["misses"] == 0, direct
         report["directTutor"] = direct
 
-        # Exercise the actual Tutor UI transition at iPhone dimensions.
         page.evaluate("QuadludTangoTutorPrecomputedCache._test.resetStats()")
         t0 = time.perf_counter()
         page.locator("#walkthroughBtn").click(timeout=15000)
@@ -98,7 +96,6 @@ def main() -> None:
         report["uiTutorOpen"] = {**ui_state, "elapsedMs": open_ms}
 
         if not SMOKE_ONLY:
-            # Offline/PWA proof on the exact current cache namespace.
             page.evaluate("()=>navigator.serviceWorker?.ready")
             page.reload(wait_until="networkidle")
             page.wait_for_selector(".cards")
