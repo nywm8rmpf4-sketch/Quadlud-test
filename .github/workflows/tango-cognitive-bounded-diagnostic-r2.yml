@@ -1,0 +1,35 @@
+name: QUADLUD Tango bounded Expert diagnostic R2
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/tango-cognitive-bounded-diagnostic-r2.yml']
+  workflow_dispatch:
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: candidate/v3.1.9-tango-cognitive-chunks-r1}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Walk Expert puzzle 0 with 3s per-state hard timeout
+        run: |
+          node - <<'NODE'
+          const {spawnSync}=require('child_process'),assert=require('assert');
+          const Pool=require('./tango-runtime-pool-data.js'),entry=Pool.pools.expert[0],sol=entry.solution||entry.sol;
+          const state=Array.from({length:6},()=>Array(6).fill(-1));for(const i of entry.givens||[])state[Math.floor(i/6)][i%6]=sol[Math.floor(i/6)][i%6];
+          const edges=entry.edges||[];let slow=null;
+          for(let moveIndex=0;moveIndex<72&&state.some(r=>r.includes(-1));moveIndex++){
+            const payload={diff:'expert',state:state.map(r=>r.slice()),edges:edges.map(e=>e.slice())};
+            const r=spawnSync(process.execPath,['qa-public/tools/bench_tango_tutor_state_r2.js'],{encoding:'utf8',timeout:3000,env:{...process.env,QUADLUD_TANGO_STATE:JSON.stringify(payload)},maxBuffer:8*1024*1024});
+            if(r.error&&r.error.code==='ETIMEDOUT'){
+              slow={moveIndex,state:payload.state,stderr:r.stderr||'',timeoutMs:3000};console.log('SLOW_STATE',JSON.stringify(slow));break;
+            }
+            if(r.status!==0)throw new Error(`state ${moveIndex} failed status=${r.status}\n${r.stderr}\n${r.stdout}`);
+            const lines=String(r.stdout||'').trim().split(/\n/).filter(Boolean),x=JSON.parse(lines[lines.length-1]);
+            console.log('STATE_OK',JSON.stringify({moveIndex,ms:x.ms,target:x.target,value:x.value,rule:x.rule,mode:x.mode,directVisibleFastPath:x.directVisibleFastPath,directCount:x.directSummary.length,visibleCount:x.directSummary.filter(d=>d.visible).length}));
+            assert.equal(x.status,'move');const [rr,cc]=x.target;assert.equal(state[rr][cc],-1);state[rr][cc]=x.value;
+          }
+          if(!slow)console.log('NO_SLOW_STATE',JSON.stringify({solved:!state.some(r=>r.includes(-1))}));
+          NODE
