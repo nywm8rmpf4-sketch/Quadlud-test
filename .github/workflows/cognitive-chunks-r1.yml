@@ -1,0 +1,22 @@
+name: QUADLUD cognitive chunks R1
+
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+  workflow_dispatch:
+
+jobs:
+  cognitive-r1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check cognitive-cost.js
+          node --check qa-public/tests/v319-cognitive-cost-model.test.js
+      - name: Generic cognitive model
+        run: node qa-public/tests/v319-cognitive-cost-model.test.js
