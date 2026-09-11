@@ -10,6 +10,8 @@ const fs=require('fs'),path=require('path'),crypto=require('crypto');
 const CONTRACT_VERSION=2;
 // Only inputs that can change the canonical live Tutor move/proof/pedagogical
 // chunking belong here. Cache storage/transport code is validated separately.
+// Keep this tool in the full-cache workflow trigger set so QA-only commits can
+// request a fresh exact-source rebuild without perturbing the runtime contract.
 const FILES=Object.freeze([
   'difficulty-rating.js',
   'tango-logic.js',
