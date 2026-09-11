@@ -13,10 +13,10 @@ global.document={body:{classList:{contains:name=>name==='tutor-active'}}};
 for(const name of [
   'tango-logic.js','tango-difficulty.js','tutor-move-selector.js','pedagogy-next-move-policy.js','tango-played-move-planner.js','tango-attention-continuity-bridge.js','tango-tutor-frontier-pruner-r5.js',
   'tango-played-move-runtime.js','tango-human-cost-bridge.js','cognitive-cost.js','tango-cognitive-patterns.js','tango-cognitive-pedagogy-bridge.js','tango-human-pedagogy-r4.js','tango-cognitive-proof-stages-bridge.js',
-  'tango-tutor-precomputed-cache.js','tango-tutor-single-planner-r5.js'
+  'tango-direct-visible-priority-bridge.js','tango-tutor-precomputed-cache.js','tango-tutor-single-planner-r5.js'
 ])require(file(name));
 const Cache=global.QuadludTangoTutorPrecomputedCache,Tutor=global.QuadludTangoTutorSinglePlannerR5,Planner=global.QuadludTangoPlayedMovePlanner,Human=global.QuadludTangoHumanPedagogyR4,Runtime=global.QuadludTangoPlayedMoveRuntime;
-assert(Cache&&Tutor&&Planner&&Human&&Runtime?.__quadludCognitivePedagogyR1&&Human.__quadludCognitiveProofStagesR1,'cognitive Tango Tutor stack unavailable');
+assert(Cache&&Tutor&&Planner&&Human&&Runtime?.__quadludCognitivePedagogyR1&&Human.__quadludCognitiveProofStagesR1&&Human.__quadludDirectVisiblePriorityR1,'exact cognitive Tango Tutor stack unavailable');
 const data=require(file('tango-tutor-cache-data-r8.js'));if(!Cache.info().registered)Cache.registerData(data);const info=Cache.info();
 assert.strictEqual(info.dataVersion,'tango-tutor-cache-r8-sync3-cognitive');assert.strictEqual(info.contract?.version,2);assert.strictEqual(data.cognitiveModel,'quadlud-cognitive-load-v1');assert.strictEqual(data.cognitivePatternCatalog,'tango-cognitive-patterns-v1');
 const pool=require(file('tango-runtime-pool-data.js'));assert.deepStrictEqual(pool.counts,{easy:120,medium:120,hard:120,expert:120});
