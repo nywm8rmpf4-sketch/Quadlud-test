@@ -11,7 +11,11 @@ permissions:
   contents: read
 
 jobs:
-  expert-44-47:
+  expert-single:
+    strategy:
+      fail-fast: false
+      matrix:
+        start: [44,45,46,47]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -35,8 +39,6 @@ jobs:
           if s.count(old2)!=1: raise SystemExit('display clone patch anchor missing/non-unique')
           p.write_text(s.replace(old2,new2,1))
           PY
-          node --check tango-tutor-precomputed-cache.js
-          grep -q 'const work=session.clone()' tango-tutor-precomputed-cache.js
       - uses: actions/download-artifact@v4
         with:
           name: cognitive-r8-cache-full
@@ -48,9 +50,9 @@ jobs:
         run: |
           cp certified/tango-tutor-cache-data-r8.js ./tango-tutor-cache-data-r8.js
           cp certified/tango-tutor-cache-contract-r8.js ./tango-tutor-cache-contract-r8.js
-      - name: Reproduce formerly failing Expert 44-47 parity
+      - name: Run one Expert puzzle in a fresh Node process
         env:
           QUADLUD_PARITY_DIFFICULTY: expert
-          QUADLUD_PARITY_START: '44'
-          QUADLUD_PARITY_COUNT: '4'
+          QUADLUD_PARITY_START: ${{ matrix.start }}
+          QUADLUD_PARITY_COUNT: '1'
         run: node qa-public/tests/v319-r8-cognitive-cache-live-parity.test.js
