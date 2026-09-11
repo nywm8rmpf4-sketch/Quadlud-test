@@ -15,6 +15,6 @@ for(const file of [
 ])require(path.join(ROOT,file));
 const Contract=require('./tango_tutor_cache_contract.js'),base=Contract.compute(ROOT),Tutor=global.QuadludTangoTutorSinglePlannerR5,Human=global.QuadludTangoHumanPedagogyR4,Runtime=global.QuadludTangoPlayedMoveRuntime;
 if(!Tutor||!Human||!Runtime?.__quadludCognitivePedagogyR1||!Human.__quadludCognitiveProofStagesR1)throw new Error('Cognitive Tutor stack not active while materializing contract');
-const c={...base,tutorPlannerToken:Tutor.TOKEN||null,humanPolicy:Human.POLICY||null,proofPolicy:Runtime.HUMAN_PROOF_POLICY||null,cognitiveModel:Runtime.cognitiveModel||null,cognitivePatternCatalog:Runtime.cognitivePatternCatalog||null};
+const c={...base,tutorPlannerVersion:Number(Tutor.VERSION)||null,tutorPlannerToken:Tutor.TOKEN||null,humanPolicy:Human.POLICY||null,proofPolicy:Runtime.HUMAN_PROOF_POLICY||null,cognitiveModel:Runtime.cognitiveModel||null,cognitivePatternCatalog:Runtime.cognitivePatternCatalog||null};
 const js=`/* QUADLUD — Soleil-Lune cognitive Tutor cache contract R8. Copyright © 2026 Serge Benoliel. All rights reserved. */\n(function(root){'use strict';const c=${JSON.stringify(c)};root.QuadludTangoTutorCacheContractR8=Object.freeze(c);if(typeof module!=='undefined'&&module.exports)module.exports=Object.freeze(c);})(typeof globalThis!=='undefined'?globalThis:this);\n`;
 fs.writeFileSync(out,js);console.log(JSON.stringify(c,null,2));

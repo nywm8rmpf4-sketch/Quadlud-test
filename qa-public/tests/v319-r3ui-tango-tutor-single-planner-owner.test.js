@@ -6,7 +6,10 @@
 const assert=require('assert');
 const fs=require('fs');
 const path=require('path');
-const runtime=name=>path.join(__dirname,'..','GitHub',name);
+const candidate=path.resolve(__dirname,'../GitHub');
+const repo=path.resolve(__dirname,'../..');
+const WEB=fs.existsSync(path.join(candidate,'tango-tutor-single-planner-r5.js'))?candidate:repo;
+const runtime=name=>path.join(WEB,name);
 
 const valueDeduction={id:'visible',rule:'RELATION_PROPAGATION',conclusions:[{type:'VALUE',cell:[2,5],value:1}]};
 const relationDeduction={id:'relation',rule:'LINE_DOMAIN_SUPPORT',conclusions:[{type:'RELATION',a:[0,0],b:[0,1],parity:1}]};
@@ -32,7 +35,8 @@ global.QuadludTangoHumanPedagogyR4={
 };
 
 const Bridge=require(runtime('tango-tutor-single-planner-r5.js'));
-assert.strictEqual(Bridge.VERSION,3);
+assert.strictEqual(Bridge.VERSION,5);
+assert.strictEqual(Bridge.TOKEN,'3.1.9-cognitive-r4-cache-contract-guard');
 
 const direct=Bridge._test.humanizeTutorPlan({directVisible:true},'expert');
 assert.strictEqual(globalCalls,1,'direct visible frontier must preserve the validated human-global selector');

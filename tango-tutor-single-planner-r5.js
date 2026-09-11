@@ -7,14 +7,22 @@
 (function(root){
 'use strict';
 
-const VERSION=4;
-const TOKEN='3.1.9-cognitive-r3-bounded-relation-fallback';
+const VERSION=5;
+const TOKEN='3.1.9-cognitive-r4-cache-contract-guard';
 const DIFF_TO_TIER=Object.freeze({easy:0,medium:1,hard:2,expert:3,facile:0,moyen:1,difficile:2});
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function planner(){const p=root.QuadludTangoPlayedMovePlanner;if(!p||typeof p.nextPlayedMove!=='function'||typeof p.sessionFromPublicBoard!=='function')throw new Error('Soleil/Lune played-move planner unavailable');return p}
 function runtime(){const r=root.QuadludTangoPlayedMoveRuntime;if(!r||typeof r.selectDisplayProof!=='function')throw new Error('Soleil/Lune played-move runtime unavailable');return r}
 function pedagogy(){const h=root.QuadludTangoHumanPedagogyR4;if(!h||typeof h?._test?.proofStagesForDeduction!=='function')throw new Error('Soleil/Lune human pedagogy unavailable');return h}
-function precomputedCache(){const c=root.QuadludTangoTutorPrecomputedCache;return c&&typeof c.tryPlan==='function'?c:null}
+function precomputedCache(){
+  const c=root.QuadludTangoTutorPrecomputedCache;
+  if(!c||typeof c.tryPlan!=='function'||typeof c.info!=='function')return null;
+  let info=null;try{info=c.info()}catch(_){return null}
+  const contract=info?.contract||null;
+  if(info?.registered!==true||!contract)return null;
+  if(Number(contract.tutorPlannerVersion)!==VERSION||String(contract.tutorPlannerToken||'')!==TOKEN)return null;
+  return c
+}
 function tierIndex(diff){if(Number.isInteger(diff)&&diff>=0&&diff<=3)return diff;return DIFF_TO_TIER[String(diff||'').trim().toLowerCase()]}
 function hasDirectVisibleDeduction(session,diff){
   const P=planner(),T=P._test,A=P._attentionTest,tier=tierIndex(diff);
