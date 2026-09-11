@@ -54,7 +54,7 @@ jobs:
           set -euo pipefail
           QA_ROOT="$RUNNER_TEMP/quadlud-public-qa"
           rm -rf "$QA_ROOT"
-          mkdir -p "$QA_ROOT/GitHub" "$QA_ROOT/tests"
+          mkdir -p "$QA_ROOT/GitHub" "$QA_ROOT/tests" "$QA_ROOT/tools"
           rsync -a ./ "$QA_ROOT/GitHub/" \
             --exclude='.git/' \
             --exclude='.github/' \
@@ -63,24 +63,63 @@ jobs:
             --exclude='qa-release/' \
             --exclude='LICENSE'
           cp -a qa-public/tests/. "$QA_ROOT/tests/"
+          cp -a qa-public/tools/. "$QA_ROOT/tools/"
           test -f "$QA_ROOT/GitHub/index.html"
-          test -n "$(find "$QA_ROOT/tests" -maxdepth 1 -type f \( -name '*.test.py' -o -name '*.test.js' \) -print -quit)"
+          test -f "$QA_ROOT/tools/tango_tutor_cache_contract.js"
 
-      - name: Check runtime JavaScript syntax
+      - name: Check current runtime and QA syntax
         run: |
           set -euo pipefail
           find "$RUNNER_TEMP/quadlud-public-qa/GitHub" -maxdepth 1 -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+          node --check "$RUNNER_TEMP/quadlud-public-qa/tests/v319-r8-sync-cache-hit-contract.test.js"
+          node --check "$RUNNER_TEMP/quadlud-public-qa/tools/tango_tutor_cache_contract.js"
 
-      - name: Run all exported public QA suites
+      - name: Gate synchronized R8 cache and Tutor contracts
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          tests=(
+            tango-runtime-data-r8-static-contract.test.js
+            v319-r8-sync-cache-hit-contract.test.js
+            v319-r8-simple-before-contradiction.test.js
+            v319-r3ui-tango-tutor-freeze-guard.test.js
+            v319-r3ui-tango-attention-fast-frontier.test.js
+            v319-r5-frontier-validation-cache.test.js
+            v319-hf36-human-next-move-policy.test.js
+            v319-r5-tutor-action-atomicity.test.js
+            v319-r3ui-tango-text-finalizer.test.js
+            v319-hf39-semantic-coherence.test.js
+          )
+          for test in "${tests[@]}"; do
+            echo "CURRENT R8 QA: tests/$test"
+            node "tests/$test"
+          done
+
+      - name: Gate shared runtime regressions
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          node tests/stage27-generic-session-orchestration.test.js
+          node tests/v318-f1-victory-presentation.test.js
+
+      - name: Gate integrated R8 browser journey
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/quadlud-public-qa"
           export PYTHONPATH="$PWD/tests"
-          while IFS= read -r test; do
-            echo "PUBLIC QA JS: $test"
-            node "$test"
-          done < <(find tests -maxdepth 1 -type f -name '*.test.js' | sort)
-          while IFS= read -r test; do
-            echo "PUBLIC QA PY: $test"
-            python "$test"
-          done < <(find tests -maxdepth 1 -type f -name '*.test.py' | sort)
+          timeout 20m python tests/v319-r8-integrated-browser.test.py
+
+      - name: Gate semantic Tango Tutor journey
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          timeout 25m python tests/v319-semantic-tango-tutor-journey-browser.test.py
+
+      - name: Gate shared-game Tutor smoke tests
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/quadlud-public-qa"
+          export PYTHONPATH="$PWD/tests"
+          timeout 15m python tests/stage32-nonogram-tutor-browser.test.py
+          timeout 15m python tests/sudoku-tutor-browser.test.py
