@@ -20,9 +20,13 @@ jobs:
           node --check tango-cognitive-patterns.js
           node --check tango-cognitive-pedagogy-bridge.js
           node --check tango-cognitive-proof-stages-bridge.js
+          node --check tango-direct-visible-priority-bridge.js
           node --check qa-public/tests/v319-cognitive-cost-model.test.js
           node --check qa-public/tests/v319-tango-cognitive-patterns.test.js
           node --check qa-public/tests/v319-tango-cognitive-plan-ranking.test.js
+          node --check qa-public/tests/v319-cognitive-no-speculative-contradiction.test.js
+          node --check qa-public/tests/v319-r8-direct-visible-fastpath.test.js
+          node --check qa-public/tests/v319-r8-relation-frontier-fastpath.test.js
           node --check qa-public/tests/v319-r8-cognitive-live-priority.test.js
           node --check qa-public/tests/v319-tango-cognitive-proof-stage-compaction.test.js
       - name: Generic cognitive model
@@ -31,6 +35,12 @@ jobs:
         run: node qa-public/tests/v319-tango-cognitive-patterns.test.js
       - name: Cognitive proven-plan ranking
         run: node qa-public/tests/v319-tango-cognitive-plan-ranking.test.js
+      - name: No speculative contradiction ranking
+        run: node qa-public/tests/v319-cognitive-no-speculative-contradiction.test.js
+      - name: Direct-visible fast path
+        run: node qa-public/tests/v319-r8-direct-visible-fastpath.test.js
+      - name: Relation-only Expert fast path
+        run: node qa-public/tests/v319-r8-relation-frontier-fastpath.test.js
       - name: Live C5 cognitive priority
         run: node qa-public/tests/v319-r8-cognitive-live-priority.test.js
       - name: Cognitive proof-stage compaction
