@@ -1,4 +1,5 @@
 name: QUADLUD Tango cognitive R8 full cache
+# Exact materialized-cache rebuild trigger after e5ef8b4 (2026-09-11).
 
 on:
   push:
