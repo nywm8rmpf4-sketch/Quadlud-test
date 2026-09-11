@@ -7,8 +7,8 @@
 (function(root){
 'use strict';
 
-const VERSION=3;
-const TOKEN='3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded';
+const VERSION=4;
+const TOKEN='3.1.9-cognitive-r3-bounded-relation-fallback';
 const DIFF_TO_TIER=Object.freeze({easy:0,medium:1,hard:2,expert:3,facile:0,moyen:1,difficile:2});
 function copy(value){return value==null?value:JSON.parse(JSON.stringify(value))}
 function planner(){const p=root.QuadludTangoPlayedMovePlanner;if(!p||typeof p.nextPlayedMove!=='function'||typeof p.sessionFromPublicBoard!=='function')throw new Error('Soleil/Lune played-move planner unavailable');return p}
@@ -20,6 +20,21 @@ function hasDirectVisibleDeduction(session,diff){
   const P=planner(),T=P._test,A=P._attentionTest,tier=tierIndex(diff);
   if(!Number.isInteger(tier)||typeof T?.allowedDirectDeductions!=='function'||typeof A?.directlyPlacesVisibleValue!=='function')return null;
   try{return (T.allowedDirectDeductions(session,tier)||[]).some(d=>A.directlyPlacesVisibleValue(session,d))}catch(_){return null}
+}
+function compareVector(a,b){for(let i=0;i<Math.max(a?.length||0,b?.length||0);i++){const x=Number(a?.[i])||0,y=Number(b?.[i])||0;if(x!==y)return x-y}return 0}
+function relationPrunedHumanPlan(session,diff,options,H){
+  const P=planner(),T=P._test,A=P._attentionTest,tier=tierIndex(diff);
+  if(tier!==3||typeof T?.allowedDirectDeductions!=='function'||typeof A?.relationOnlyDeduction!=='function'||typeof A?.evaluateRelationFrontier!=='function')return null;
+  let direct=[];try{direct=T.allowedDirectDeductions(session,tier)||[]}catch(_){return null}
+  if(!direct.length||!direct.every(d=>A.relationOnlyDeduction(d)))return null;
+  let evaluation=null;try{evaluation=A.evaluateRelationFrontier(session,tier,direct,{...options,initialStateValidated:true})}catch(_){return null}
+  if(!evaluation?.plans?.length)return null;
+  const scored=[];for(const plan of evaluation.plans){try{const x=H._test?.evaluatePlanHumanProof?.(session,plan);if(x)scored.push(x)}catch(_){}}
+  if(!scored.length)return null;
+  const cmp=typeof H._test?.compareHumanCandidate==='function'?H._test.compareHumanCandidate:(a,b)=>compareVector(a?.cost,b?.cost)||compareVector(a?.plannerCost,b?.plannerCost);
+  scored.sort(cmp);const chosen=scored[0],plan=copy(chosen.plan),proof=copy(chosen.displayProof),displayDeduction=proof?.deduction||copy(plan.deduction);if(!displayDeduction)return null;
+  const frontierComplete=!evaluation.truncated&&!evaluation.branchBudgetHit;
+  return {...plan,displayProof:proof,displayDeduction,selectionStatus:'cognitive-relation-frontier-pruned',candidateCount:scored.length,humanCandidateCount:scored.length,humanGlobalSelection:false,frontierComplete,budgetHit:!frontierComplete,relationFrontierPruned:true,relationFrontierEstimatedCandidateCount:Number(evaluation.estimatedCandidateCount)||direct.length,relationFrontierHydratedCandidateCount:Number(evaluation.hydratedCandidateCount)||evaluation.plans.length,relationFrontierPrunedCandidateCount:Number(evaluation.prunedCandidateCount)||0,relationFrontierMinimumEngineStepCount:Number(evaluation.provenMinimumEngineStepCount)||null};
 }
 function attachHumanProof(session,plan,H,R,mode){
   if(plan?.status!=='move')return plan||{status:'error',reason:'empty-plan'};
@@ -47,6 +62,7 @@ function humanizeTutorPlan(session,diff,options={}){
     let globalPlan=null;try{globalPlan=H.chooseGloballySimplestPlan(session,diff,options)}catch(_){globalPlan=null}
     if(globalPlan)return attachHumanProof(session,globalPlan,H,R,'direct-human-global')
   }
+  if(directVisible===false){let pruned=null;try{pruned=relationPrunedHumanPlan(session,diff,options,H)}catch(_){pruned=null}if(pruned)return attachHumanProof(session,pruned,H,R,'relation-cognitive-pruned')}
   const plan=P.nextPlayedMove(session,diff,options),out=attachHumanProof(session,plan,H,R,'relation-pruned-single');
   if(out?.status==='move'){
     out.humanGlobalSelection=false;
@@ -93,7 +109,7 @@ function install(){
   root.walkthroughGenerateTangoNext=walkthroughGenerateTutorPlannerNext;
   return true
 }
-const api=Object.freeze({VERSION,TOKEN,install,humanizeTutorPlan,walkthroughGenerateTutorPlannerNext,_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,attachHumanProof,humanizeTutorPlan,precomputedCache})});
+const api=Object.freeze({VERSION,TOKEN,install,humanizeTutorPlan,walkthroughGenerateTutorPlannerNext,_test:Object.freeze({tierIndex,hasDirectVisibleDeduction,compareVector,relationPrunedHumanPlan,attachHumanProof,humanizeTutorPlan,precomputedCache})});
 root.QuadludTangoTutorSinglePlannerR5=api;
 if(typeof document!=='undefined')install();
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
