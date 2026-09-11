@@ -103,6 +103,21 @@ jobs:
           node tests/stage27-generic-session-orchestration.test.js
           node tests/v318-f1-victory-presentation.test.js
 
+      - name: Start local candidate runtime server
+        run: |
+          set -euo pipefail
+          QA_ROOT="$RUNNER_TEMP/quadlud-public-qa"
+          nohup python -m http.server 8765 --bind 127.0.0.1 --directory "$QA_ROOT/GitHub" >"$RUNNER_TEMP/quadlud-http.log" 2>&1 &
+          echo $! >"$RUNNER_TEMP/quadlud-http.pid"
+          for i in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8765/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/quadlud-http.log"
+          exit 1
+
       - name: Gate integrated R8 browser journey
         run: |
           set -euo pipefail
