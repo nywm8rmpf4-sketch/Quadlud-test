@@ -7,10 +7,9 @@
  * without prior written authorization is prohibited.
  */
 const fs=require('fs'),path=require('path'),crypto=require('crypto');
-const CONTRACT_VERSION=1;
-// Only inputs that can change the canonical live Tutor move/proof belong here.
-// Cache storage/transport code is validated separately and must not force a
-// pedagogical recomputation when it changes without altering the live Tutor.
+const CONTRACT_VERSION=2;
+// Only inputs that can change the canonical live Tutor move/proof/pedagogical
+// chunking belong here. Cache storage/transport code is validated separately.
 const FILES=Object.freeze([
   'difficulty-rating.js',
   'tango-logic.js',
@@ -22,7 +21,11 @@ const FILES=Object.freeze([
   'tango-tutor-frontier-pruner-r5.js',
   'tango-played-move-runtime.js',
   'tango-human-cost-bridge.js',
+  'cognitive-cost.js',
+  'tango-cognitive-patterns.js',
+  'tango-cognitive-pedagogy-bridge.js',
   'tango-human-pedagogy-r4.js',
+  'tango-cognitive-proof-stages-bridge.js',
   'tango-tutor-single-planner-r5.js'
 ]);
 function sha256(buffer){return crypto.createHash('sha256').update(buffer).digest('hex')}
