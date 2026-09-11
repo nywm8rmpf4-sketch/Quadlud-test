@@ -1,0 +1,48 @@
+name: QUADLUD Tango R8 cache size profile
+
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/tango-r8-cache-size-profile.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: cognitive-r8-cache-full
+          path: certified
+          repository: nywm8rmpf4-sketch/Quadlud-test
+          run-id: '34607409416'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Measure exact schema-8 payload contributors
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE' | tee cache-size-profile.json
+          const fs=require('fs'),path=require('path');
+          const p=path.resolve('certified/tango-tutor-cache-data-r8.js');
+          const data=require(p),bytes=v=>Buffer.byteLength(JSON.stringify(v));
+          const top=Object.fromEntries(Object.keys(data).map(k=>[k,bytes(data[k])]).sort((a,b)=>b[1]-a[1]));
+          const deductions=data.materializedDeductions||[],propertyBytes=new Map(),propertyOccurrences=new Map();
+          for(const d of deductions){for(const [k,v] of Object.entries(d||{})){propertyBytes.set(k,(propertyBytes.get(k)||0)+bytes(v));propertyOccurrences.set(k,(propertyOccurrences.get(k)||0)+1)}}
+          const deductionProperties=[...propertyBytes].map(([key,totalBytes])=>({key,totalBytes,occurrences:propertyOccurrences.get(key),avgBytes:Math.round(totalBytes/propertyOccurrences.get(key))})).sort((a,b)=>b.totalBytes-a.totalBytes);
+          const largestDeductions=deductions.map((d,index)=>({index,rule:String(d?.rule||''),bytes:bytes(d),premises:Array.isArray(d?.premises)?d.premises.length:0,conclusions:Array.isArray(d?.conclusions)?d.conclusions.length:0,focusCells:Array.isArray(d?.focusCells)?d.focusCells.length:0,keys:Object.keys(d||{})})).sort((a,b)=>b.bytes-a.bytes).slice(0,20);
+          const report={schema:1,fileBytes:fs.statSync(p).size,jsonBytes:bytes(data),topLevelBytes:top,deductionCount:deductions.length,deductionBytes:bytes(deductions),deductionPropertyBytes:deductionProperties.slice(0,30),largestDeductions,proofMetaCount:(data.proofMeta||[]).length,proofMetaBytes:bytes(data.proofMeta||[]),selectionMetaBytes:bytes(data.selectionMeta||[]),stepBytes:Object.fromEntries(['easy','medium','hard','expert'].map(d=>[d,bytes(data.steps?.[d]||[])]))};
+          console.log(JSON.stringify(report,null,2));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tango-r8-cache-size-profile
+          path: cache-size-profile.json
+          retention-days: 14
