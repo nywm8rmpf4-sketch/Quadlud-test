@@ -27,8 +27,8 @@ jobs:
           node --check qa-public/tests/v319-cognitive-no-speculative-contradiction.test.js
           node --check qa-public/tests/v319-r8-direct-visible-fastpath.test.js
           node --check qa-public/tests/v319-r8-relation-frontier-fastpath.test.js
-          node --check qa-public/tests/v319-r8-relation-lightweight-planner.test.js
           node --check qa-public/tests/v319-r8-cognitive-live-priority.test.js
+          node --check qa-public/tests/v319-r8-cache-planner-contract-guard.test.js
           node --check qa-public/tests/v319-tango-cognitive-proof-stage-compaction.test.js
       - name: Generic cognitive model
         run: node qa-public/tests/v319-cognitive-cost-model.test.js
@@ -42,10 +42,12 @@ jobs:
         run: node qa-public/tests/v319-r8-direct-visible-fastpath.test.js
       - name: Relation-only structural fallback
         run: node qa-public/tests/v319-r8-relation-frontier-fastpath.test.js
-      - name: Lightweight relation-only planning
-        run: node qa-public/tests/v319-r8-relation-lightweight-planner.test.js
+      # Superseded prototype heuristic: current bounded fallback is covered by
+      # relation-frontier + live-priority tests against the real Tutor owner.
       - name: Live C5 cognitive priority
         run: node qa-public/tests/v319-r8-cognitive-live-priority.test.js
+      - name: Exact cache/planner contract guard
+        run: node qa-public/tests/v319-r8-cache-planner-contract-guard.test.js
       - name: Cognitive proof-stage compaction
         run: node qa-public/tests/v319-tango-cognitive-proof-stage-compaction.test.js
       - name: Existing C5 human-priority regression
