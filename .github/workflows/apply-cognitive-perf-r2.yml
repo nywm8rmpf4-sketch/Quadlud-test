@@ -1,0 +1,97 @@
+name: Apply Tango cognitive performance R2
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/apply-cognitive-perf-r2.yml']
+permissions: {contents: write}
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: candidate/v3.1.9-tango-cognitive-chunks-r1}
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Patch runtime and cache identity
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('tango-cognitive-pedagogy-bridge.js'); s=p.read_text()
+          old="const VERSION=1;\nconst TOKEN='3.1.9-cognitive-chunks-r1';"
+          new="const VERSION=2;\nconst TOKEN='3.1.9-cognitive-chunks-r2-no-speculative-contradiction';"
+          if s.count(old)!=1: raise SystemExit('cognitive version anchor mismatch')
+          s=s.replace(old,new)
+          old="  const contradiction=contradictionCandidate(source,session,plan);if(contradiction)candidates.push(contradiction);\n"
+          if s.count(old)!=1: raise SystemExit('speculative contradiction anchor mismatch')
+          s=s.replace(old,"  // Ranking is pure: do not search for a new contradiction merely to compare presentation costs.\n  // A contradiction may still be ranked when it is the engine-proven current plan.\n")
+          p.write_text(s)
+
+          p=Path('qa-public/tools/tango_tutor_cache_contract.js'); s=p.read_text()
+          anchor="  'tango-cognitive-proof-stages-bridge.js',\n  'tango-tutor-single-planner-r5.js'"
+          repl="  'tango-cognitive-proof-stages-bridge.js',\n  'tango-direct-visible-priority-bridge.js',\n  'tango-tutor-single-planner-r5.js'"
+          if s.count(anchor)!=1: raise SystemExit('contract file-list anchor mismatch')
+          p.write_text(s.replace(anchor,repl))
+
+          p=Path('qa-public/tools/build_tango_tutor_sync_shard_r8.js'); s=p.read_text()
+          anchor="  'tango-human-pedagogy-r4.js','tango-cognitive-proof-stages-bridge.js',\n  'tango-tutor-single-planner-r5.js'"
+          repl="  'tango-human-pedagogy-r4.js','tango-cognitive-proof-stages-bridge.js',\n  'tango-direct-visible-priority-bridge.js','tango-tutor-single-planner-r5.js'"
+          if s.count(anchor)!=1: raise SystemExit('builder load-order anchor mismatch')
+          s=s.replace(anchor,repl)
+          old="if(!Planner||!Tutor||!Human||!Runtime||!Runtime.__quadludCognitivePedagogyR1||!Human.__quadludCognitiveProofStagesR1)throw new Error('Cognitive Soleil-Lune Tutor runtime unavailable');"
+          new="if(!Planner||!Tutor||!Human||!Runtime||!Runtime.__quadludCognitivePedagogyR1||!Human.__quadludCognitiveProofStagesR1||!Human.__quadludDirectVisiblePriorityR1)throw new Error('Cognitive Soleil-Lune Tutor runtime unavailable');"
+          if s.count(old)!=1: raise SystemExit('builder runtime guard anchor mismatch')
+          p.write_text(s.replace(old,new))
+
+          p=Path('index.html'); s=p.read_text()
+          s=s.replace('tango-cognitive-pedagogy-bridge.js?v=3.1.9-cognitive-ranking-r1','tango-cognitive-pedagogy-bridge.js?v=3.1.9-cognitive-ranking-r2')
+          anchor='<script src="tango-cognitive-proof-stages-bridge.js?v=3.1.9-cognitive-stages-r1"></script><script src="tango-tutor-cache-contract-r8.js?v=3.1.9-r8-sync3-cognitive"></script>'
+          repl='<script src="tango-cognitive-proof-stages-bridge.js?v=3.1.9-cognitive-stages-r1"></script><script src="tango-direct-visible-priority-bridge.js?v=3.1.9-direct-visible-priority-r1"></script><script src="tango-tutor-cache-contract-r8.js?v=3.1.9-r8-sync3-cognitive"></script>'
+          if s.count(anchor)!=1: raise SystemExit('index direct-visible anchor mismatch')
+          p.write_text(s.replace(anchor,repl))
+
+          p=Path('sw.js'); s=p.read_text()
+          if s.count("const CACHE='quadlud-v3.1.9-tango-r8-sync3-cognitive-v19';")!=1: raise SystemExit('SW cache anchor mismatch')
+          s=s.replace("const CACHE='quadlud-v3.1.9-tango-r8-sync3-cognitive-v19';","const CACHE='quadlud-v3.1.9-tango-r8-sync3-cognitive-v20';")
+          s=s.replace('./tango-cognitive-pedagogy-bridge.js?v=3.1.9-cognitive-ranking-r1','./tango-cognitive-pedagogy-bridge.js?v=3.1.9-cognitive-ranking-r2')
+          anchor="'./tango-cognitive-proof-stages-bridge.js?v=3.1.9-cognitive-stages-r1','./tango-tutor-single-planner-r5.js"
+          repl="'./tango-cognitive-proof-stages-bridge.js?v=3.1.9-cognitive-stages-r1','./tango-direct-visible-priority-bridge.js?v=3.1.9-direct-visible-priority-r1','./tango-tutor-single-planner-r5.js"
+          if s.count(anchor)!=1: raise SystemExit('SW direct-visible anchor mismatch')
+          p.write_text(s.replace(anchor,repl))
+          PY
+          node --check tango-cognitive-pedagogy-bridge.js
+          node --check tango-direct-visible-priority-bridge.js
+          node --check qa-public/tools/tango_tutor_cache_contract.js
+          node --check qa-public/tools/build_tango_tutor_sync_shard_r8.js
+          node --check qa-public/tests/v319-cognitive-no-speculative-contradiction.test.js
+          node --check qa-public/tests/v319-r8-direct-visible-fastpath.test.js
+          git diff --check
+      - name: Targeted cognitive regressions
+        run: |
+          set -euo pipefail
+          node qa-public/tests/v319-cognitive-cost-model.test.js
+          node qa-public/tests/v319-tango-cognitive-patterns.test.js
+          node qa-public/tests/v319-tango-cognitive-plan-ranking.test.js
+          node qa-public/tests/v319-cognitive-no-speculative-contradiction.test.js
+          node qa-public/tests/v319-r8-direct-visible-fastpath.test.js
+          node qa-public/tests/v319-r8-cognitive-live-priority.test.js
+          node qa-public/tests/v319-r8-simple-before-contradiction.test.js
+      - name: Browser load-order and SW uniqueness
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('assert');const h=fs.readFileSync('index.html','utf8'),sw=fs.readFileSync('sw.js','utf8');
+          const names=['tango-human-pedagogy-r4.js','tango-cognitive-proof-stages-bridge.js','tango-direct-visible-priority-bridge.js','tango-tutor-single-planner-r5.js'];let last=-1;for(const n of names){const i=h.indexOf(n);assert(i>last,`browser load order invalid at ${n}`);last=i}
+          assert(sw.includes("quadlud-v3.1.9-tango-r8-sync3-cognitive-v20"));assert(sw.includes('tango-direct-visible-priority-bridge.js?v=3.1.9-direct-visible-priority-r1'));
+          const body=sw.match(/const ASSETS=\[(.*?)\];/s)[1],assets=[...body.matchAll(/'([^']+)'/g)].map(x=>x[1]);assert.equal(assets.length,new Set(assets).size,'duplicate SW asset');console.log('PASS browser/SW',assets.length);
+          NODE
+      - name: Commit performance fix
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'; git config user.email 'actions@users.noreply.github.com'
+          git add tango-cognitive-pedagogy-bridge.js qa-public/tools/tango_tutor_cache_contract.js qa-public/tools/build_tango_tutor_sync_shard_r8.js index.html sw.js
+          git diff --cached --check
+          git commit -m 'perf(tango): bound direct-visible Tutor selection'
+          git push origin HEAD:candidate/v3.1.9-tango-cognitive-chunks-r1
