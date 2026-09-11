@@ -1,0 +1,69 @@
+name: QUADLUD Tango cognitive cache sample
+
+on:
+  push:
+    branches: [candidate/v3.1.9-tango-cognitive-chunks-r1]
+    paths: ['.github/workflows/tango-cognitive-cache-sample.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Materialize current cognitive contract
+        run: |
+          set -euo pipefail
+          node --check qa-public/tools/materialize_tango_tutor_cognitive_contract.js
+          node --check qa-public/tools/build_tango_tutor_sync_shard_r8.js
+          node --check qa-public/tools/compact_tango_tutor_sync_r8.js
+          node qa-public/tools/materialize_tango_tutor_cognitive_contract.js tango-tutor-cache-contract-r8.js > "$RUNNER_TEMP/contract.json"
+          node - <<'NODE'
+          const c=require('./tango-tutor-cache-contract-r8.js'),assert=require('assert');
+          assert.equal(c.version,2);assert(/^[0-9a-f]{64}$/.test(c.digest));assert(c.files['cognitive-cost.js']);assert(c.files['tango-cognitive-patterns.js']);assert(c.files['tango-cognitive-pedagogy-bridge.js']);assert(c.files['tango-cognitive-proof-stages-bridge.js']);assert(c.cognitiveModel==='quadlud-cognitive-load-v1');assert(c.cognitivePatternCatalog==='tango-cognitive-patterns-v1');console.log('CONTRACT_PASS',c.digest)
+          NODE
+      - name: Commit generated contract
+        run: |
+          set -euo pipefail
+          git config user.name 'QUADLUD QA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add tango-tutor-cache-contract-r8.js
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'build(tango): materialize cognitive Tutor cache contract v2'
+            git push origin HEAD:candidate/v3.1.9-tango-cognitive-chunks-r1
+          fi
+
+  sample:
+    needs: contract
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - difficulty: easy
+            index: 0
+          - difficulty: expert
+            index: 0
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/v3.1.9-tango-cognitive-chunks-r1
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - name: Build one canonical puzzle
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/${{ matrix.difficulty }}.json"
+          REPORT="$RUNNER_TEMP/${{ matrix.difficulty }}-report.json"
+          node qa-public/tools/build_tango_tutor_sync_shard_r8.js --difficulty '${{ matrix.difficulty }}' --start '${{ matrix.index }}' --count 1 --output "$OUT" --report "$REPORT"
+          node - "$OUT" "$REPORT" <<'NODE'
+          const fs=require('fs'),assert=require('assert');const x=JSON.parse(fs.readFileSync(process.argv[2])),r=JSON.parse(fs.readFileSync(process.argv[3]));
+          assert.equal(x.schema,3);assert.equal(x.version,'tango-tutor-sync-shard-r3-cognitive');assert.equal(x.entries.length,1);assert.equal(x.tutorContract.version,2);assert.equal(x.cognitiveModel,'quadlud-cognitive-load-v1');assert.equal(x.cognitivePatternCatalog,'tango-cognitive-patterns-v1');assert(r.totalSteps>0);assert(r.maxDisplaySteps>=1);console.log('SAMPLE_PASS',r)
+          NODE
