@@ -85,7 +85,10 @@ jobs:
           while IFS= read -r test; do
             echo "PUBLIC QA JS: $test"
             node "$test"
-          done < <(find tests -maxdepth 1 -type f -name '*.test.js' | sort)
+          # Artifact-backed R8 ordinal audit is not a standalone exported suite:
+          # it requires four generated JSON caches passed by its dedicated workflow.
+          echo "NOT_EXECUTED / not applicable here: tests/tango-cache-ordinal-r8.test.js (dedicated R8 artifact audit)"
+          done < <(find tests -maxdepth 1 -type f -name '*.test.js' ! -name 'tango-cache-ordinal-r8.test.js' | sort)
           while IFS= read -r test; do
             echo "PUBLIC QA PY: $test"
             python "$test"
