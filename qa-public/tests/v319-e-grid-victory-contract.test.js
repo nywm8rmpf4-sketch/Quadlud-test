@@ -6,7 +6,7 @@ const root=path.resolve(__dirname,'..','GitHub');
 const VP=require(path.join(root,'victory-presentation.js'));
 const css=fs.readFileSync(path.join(root,'styles-core.css'),'utf8');
 const app=fs.readFileSync(path.join(root,'app.js'),'utf8');
-assert.strictEqual(VP.VERSION,4);assert.strictEqual(VP.profileForGame('tango').id,'tango-balance');assert.strictEqual(VP.profileForGame('sudoku').id,'sudoku-scan');
+assert.strictEqual(VP.VERSION,5);assert.strictEqual(VP.profileForGame('tango').id,'tango-balance');assert.strictEqual(VP.profileForGame('sudoku').id,'sudoku-scan');
 for(const token of ['tangoVictoryCell','tangoVictoryBalance','sudokuVictoryScan','sudokuVictoryBoardWave','sensorialVictoryReduced'])assert(css.includes(token),`${token} missing`);
 assert(css.includes('.tango-victory-sun')&&css.includes('.tango-victory-moon'),'warm/cold Tango phases missing');
 assert(css.includes('var(--victory-delay')&&css.includes('var(--victory-ring'),'scan/wave timings missing');
