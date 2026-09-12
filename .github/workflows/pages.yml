@@ -2,7 +2,7 @@ name: QUADLUD public QA + pre-production deploy
 
 on:
   push:
-    branches: [main, candidate/tango-diversity-pilot-v1]
+    branches: [main, candidate/tango-diversity-pilot-v1, candidate/v3.1.9-f-rectangles-mosaic]
   workflow_dispatch:
 
 permissions:
