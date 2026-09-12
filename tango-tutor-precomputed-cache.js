@@ -126,7 +126,7 @@
   }
   function shardUrl(diff){const d=difficultyKey(diff);return `tango-tutor-cache-r8-${d}.js?v=${SHARD_URL_VERSION}`}
   function ensureDifficulty(diff){
-    const d=difficultyKey(diff);if(!DIFFICULTIES.includes(d))return Promise.resolve(false);if(shards.has(d)){try{materializeDifficulty(d);return Promise.resolve(true)}catch(_){return Promise.resolve(false)}}if(legacyPayload)return Promise.resolve(true);if(typeof document==='undefined')return Promise.resolve(false);if(loading.has(d))return loading.get(d);
+    const d=difficultyKey(diff);if(!DIFFICULTIES.includes(d))return Promise.resolve(false);if(shards.has(d)){try{materializeDifficulty(d);return Promise.resolve(true)}catch(_){return Promise.resolve(false)}}if(legacyPayload)return Promise.resolve(true);const transport=root?.QuadludTangoTutorGzipChunkTransportR8;if(transport&&typeof transport.ensureDifficulty==='function')return Promise.resolve(transport.ensureDifficulty(d));if(typeof document==='undefined')return Promise.resolve(false);if(loading.has(d))return loading.get(d);
     const promise=new Promise(resolve=>{const script=document.createElement('script');script.src=shardUrl(d);script.async=true;script.dataset.quadludTangoCacheShard=d;script.onload=()=>{loading.delete(d);try{const ok=!!materializeDifficulty(d);if(!ok)stats.shardLoadFailures++;resolve(ok)}catch(_){stats.shardLoadFailures++;resolve(false)}};script.onerror=()=>{loading.delete(d);stats.shardLoadFailures++;resolve(false)};(document.head||document.documentElement).appendChild(script)});loading.set(d,promise);return promise
   }
   function info(){
