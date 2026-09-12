@@ -1,0 +1,48 @@
+name: Export v3.1.9-A certified runtime
+
+on:
+  push:
+    branches:
+      - tmp/export-v319a-certified-runtime
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact human-validated source
+        uses: actions/checkout@v4
+        with:
+          ref: 93a32f2404040eab48f1fcebf5e64e64627b2aeb
+      - name: Build deployable runtime export
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf export
+          mkdir -p export/runtime
+          find . -maxdepth 1 -type f \
+            ! -name '.gitignore' \
+            ! -name 'tango-tutor-cache-data-r8.js' \
+            ! -name 'tango-tutor-cache-r8-shards-report.json' \
+            -print0 | sort -z | xargs -0 -I{} cp '{}' export/runtime/
+          printf '%s\n' '93a32f2404040eab48f1fcebf5e64e64627b2aeb' > export/PUBLIC_HEAD.txt
+          printf '%s\n' 'e633e7fbb6ef2ab90a6f8599a2bc3cdf99e24bbf' > export/RUNTIME_COMMIT.txt
+          (cd export/runtime && sha256sum * | sort) > export/runtime-sha256.txt
+          test ! -e export/runtime/tango-tutor-cache-data-r8.js
+          test ! -e export/runtime/tango-tutor-cache-r8-shards-report.json
+          test -e export/runtime/tango-tutor-cache-r8-easy.js
+          test -e export/runtime/tango-tutor-cache-r8-medium.js
+          test -e export/runtime/tango-tutor-cache-r8-hard.js
+          test -e export/runtime/tango-tutor-cache-r8-expert.js
+          cat export/PUBLIC_HEAD.txt
+          cat export/RUNTIME_COMMIT.txt
+          wc -c export/runtime/tango-tutor-cache-r8-*.js
+      - name: Upload exact runtime export
+        uses: actions/upload-artifact@v4
+        with:
+          name: v319a-certified-runtime
+          path: export/
+          if-no-files-found: error
+          retention-days: 7
