@@ -13,7 +13,7 @@ def load(page,game):
     page.set_content(HTML);page.add_style_tag(content=CSS)
     page.add_script_tag(content="""(()=>{const d=new Map();Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>d.get(String(k))??null,setItem:(k,v)=>d.set(String(k),String(v)),removeItem:k=>d.delete(String(k)),clear:()=>d.clear()}})})()""")
     for source in SCRIPTS:page.add_script_tag(content=source)
-    page.evaluate("""game=>withSeed(`v319-f-${game}`,()=>{const p=prefs();p.sound=false;savePrefs(p);launch(game,'easy');historyInit(true);statsStart(current);const before=historySnapshotKey();if(game==='patches')current.paint=current.reg.map(row=>[...row]);else current.state=current.validationState.solutionGrid.map(row=>row.map(v=>v?NonogramLogic.FILLED:NonogramLogic.EMPTY));drawGameUi(current);historyRecord({type:'QA_F_WIN'},before);window.__fVisible=game==='patches'?JSON.stringify(current.paint):JSON.stringify(current.state);finish('QA F')})""",game)
+    page.evaluate("""game=>withSeed(`v319-f-${game}`,()=>{const p=prefs();p.sound=false;savePrefs(p);const g=generateRegisteredCandidate(game,'easy');installGeneratedSession(game,'easy',g,{context:'normal'});historyInit(true);statsStart(current);const before=historySnapshotKey();if(game==='patches')current.paint=current.reg.map(row=>[...row]);else current.state=current.validationState.solutionGrid.map(row=>row.map(v=>v?NonogramLogic.FILLED:NonogramLogic.EMPTY));drawGameUi(current);historyRecord({type:'QA_F_WIN'},before);window.__fVisible=game==='patches'?JSON.stringify(current.paint):JSON.stringify(current.state);finish('QA F')})""",game)
     page.wait_for_timeout(80)
 
 with sync_playwright() as p:
