@@ -39,5 +39,6 @@ global.QuadludTangoPedagogyTextFinalizer=Finalizer;
   assert.strictEqual(global.walkthroughNavigateProof(1),1);
   assert.deepStrictEqual(order,['lower','canonical','projected'],'the final stabilizer must restore projected causal markers after canonical overlays');
 }
-assert.strictEqual(Stabilizer.VERSION,2);assert.strictEqual(Stabilizer.TOKEN,'3.1.9-hf3.9-r4-marker-projection-v2');
+// VERSION 3 adds causal closure (5d32ce4); the R4 normalization and marker-order contract above remains mandatory.
+assert.strictEqual(Stabilizer.VERSION,3);assert.strictEqual(Stabilizer.TOKEN,'3.1.9-hf3.9-r4-marker-projection-v3-causal-closure');
 console.log('HF3.9-R4 semantic stabilizer PASS — final marker ordering, late French normalization, action visibility');
