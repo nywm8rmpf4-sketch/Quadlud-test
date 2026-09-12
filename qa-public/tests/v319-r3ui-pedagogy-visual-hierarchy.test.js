@@ -69,7 +69,7 @@ assert(css.includes('.walkthrough-proof-chain-active .walkthrough-proof-navigati
 assert(css.includes('body.tutor-active:not(:has(.walkthrough-proof-chain-active)) .walkthrough-help-note{margin:2px 0 4px;padding:4px 8px}'),'R5.3 must compact ordinary help-note spacing without shrinking text');
 assert(css.includes('body.tutor-active:not(:has(.walkthrough-proof-chain-active)) .walkthrough-explanation{margin-top:5px;padding:8px 10px}'),'R5.3 must compact ordinary explanation spacing without shrinking text');
 
-const unitToken='3.1.9-r3ui-causal-focus-r4',cssToken='3.1.9-hf3.9-r5.3-message-fit-r3',navigationToken='3.1.9-hf3.9-r5.2-action-atomicity-r1',bridgeToken='3.1.9-r3ui-progressive-proof-r7-derived-provenance',playedToken='3.1.9-a13r6-single-proof',singlePlannerToken='3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded';
+const unitToken='3.1.9-r3ui-causal-focus-r4',cssToken='3.1.9-hf3.9-r5.3-message-fit-r3',navigationToken='3.1.9-hf3.9-r5.2-action-atomicity-r1',bridgeToken='3.1.9-r3ui-progressive-proof-r7-derived-provenance',playedToken='3.1.9-a13r6-single-proof',singlePlannerToken='3.1.9-cognitive-r4-cache-contract-guard';
 const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8'),sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
 assert(index.includes(`tutor-action-first-navigation.css?v=${cssToken}`));assert(sw.includes(`./tutor-action-first-navigation.css?v=${cssToken}`));
 assert(index.includes(`tutor-action-first-navigation.js?v=${navigationToken}`));assert(sw.includes(`./tutor-action-first-navigation.js?v=${navigationToken}`));
