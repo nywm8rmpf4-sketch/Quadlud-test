@@ -16,14 +16,14 @@ const nav=fs.readFileSync(path.join(RUNTIME,'tutor-action-first-navigation.js'),
 
 const visualUrl='tango-contradiction-visuals.js?v=3.1.9-r3ui-contradiction-visual-r1';
 const cssUrl='tango-human-pedagogy-r4.css?v=3.1.9-r3ui-relation-balance-mobile-layout-v2';
-const singlePlannerUrl='tango-tutor-single-planner-r5.js?v=3.1.9-hf3.9-r5.1b-single-planner-v3-precomputed-guarded';
+const singlePlannerUrl='tango-tutor-single-planner-r5.js?v=3.1.9-cognitive-r4-cache-contract-guard';
 assert(index.includes(`<script src="${visualUrl}"></script>`),'index must load contradiction visuals');
 assert(index.includes(`<link rel="stylesheet" href="${cssUrl}" />`),'index must load contradiction visual CSS cache-bust');
 assert(sw.includes(`./${visualUrl}`),'service worker must precache contradiction visual module');
 assert(sw.includes(`./${cssUrl}`),'service worker must precache matching contradiction visual CSS');
-assert(index.includes(`<script src="${singlePlannerUrl}"></script>`),'index must load current Tutor single-planner v2');
-assert(sw.includes(`./${singlePlannerUrl}`),'service worker must precache current Tutor single-planner v2');
-assert(sw.includes("const CACHE='quadlud-v3.1.9-tango-r8-exact-v15'"),'service-worker cache identity must match the current iPhone Tango delivery');
+assert(index.includes(`<script src="${singlePlannerUrl}"></script>`),'index must load current Tutor single-planner contract');
+assert(sw.includes(`./${singlePlannerUrl}`),'service worker must precache current Tutor single-planner contract');
+assert(sw.includes("const CACHE='quadlud-v3.1.9-f-rectangles-mosaic-r1-v27'"),'service-worker cache identity must match the current v3.1.9-F delivery');
 assert(index.indexOf('tutor-action-first-navigation.js')<index.indexOf('tango-contradiction-visuals.js'),'contradiction decorator must load after Tutor action projection');
 
 assert(/\.walkthrough-hypothetical-symbol\s*\{[^}]*opacity:\s*\.5\s*;/s.test(css),'hypothetical sun/moon symbols must render at exactly 50% opacity');
