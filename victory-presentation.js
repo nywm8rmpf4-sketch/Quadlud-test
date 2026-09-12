@@ -11,12 +11,14 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const VERSION=4;
+  const VERSION=5;
   const GENERIC_PROFILE=Object.freeze({id:'generic',confettiCount:22,cleanupMs:1700});
   const LIGHTHOUSES_PROFILE=Object.freeze({id:'lighthouses',confettiCount:0,cleanupMs:1650,reducedCleanupMs:900,beamRangeCells:3});
   const TANGO_PROFILE=Object.freeze({id:'tango-balance',confettiCount:0,cleanupMs:1500,reducedCleanupMs:550});
   const SUDOKU_PROFILE=Object.freeze({id:'sudoku-scan',confettiCount:0,cleanupMs:1500,reducedCleanupMs:550});
-  const PROFILE_BY_GAME=Object.freeze({queens:LIGHTHOUSES_PROFILE,tango:TANGO_PROFILE,sudoku:SUDOKU_PROFILE});
+  const PATCHES_PROFILE=Object.freeze({id:'patches-assembly',confettiCount:0,cleanupMs:1500,reducedCleanupMs:550});
+  const NONOGRAM_PROFILE=Object.freeze({id:'nonogram-reveal',confettiCount:0,cleanupMs:1650,reducedCleanupMs:600});
+  const PROFILE_BY_GAME=Object.freeze({queens:LIGHTHOUSES_PROFILE,tango:TANGO_PROFILE,sudoku:SUDOKU_PROFILE,patches:PATCHES_PROFILE,nonogram:NONOGRAM_PROFILE});
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback}
   function clamp(value,min,max){return Math.max(min,Math.min(max,value))}
@@ -35,7 +37,8 @@
       try{board?.querySelectorAll?.('.lighthouses-victory-halo')?.forEach?.(halo=>halo.classList.remove('lighthouses-victory-halo'))}catch(_){}
       try{board?.querySelectorAll?.('.win-pop')?.forEach?.(cell=>{cell.classList.remove('win-pop');cell.style?.removeProperty?.('--win-delay')})}catch(_){}
       try{board?.querySelectorAll?.('.tango-victory-cell,.sudoku-victory-cell')?.forEach?.(cell=>{cell.classList.remove('tango-victory-cell','tango-victory-sun','tango-victory-moon','sudoku-victory-cell');cell.style?.removeProperty?.('--victory-delay');cell.style?.removeProperty?.('--victory-ring')})}catch(_){}
-      try{board?.classList?.remove('tango-victory-active','sudoku-victory-active','sensorial-victory-reduced')}catch(_){ }
+      try{board?.querySelectorAll?.('.patches-victory-cell,.nonogram-victory-cell')?.forEach?.(cell=>{cell.classList.remove('patches-victory-cell','nonogram-victory-cell','nonogram-victory-filled','nonogram-victory-empty');cell.style?.removeProperty?.('--victory-delay')})}catch(_){ }
+      try{board?.classList?.remove('tango-victory-active','sudoku-victory-active','patches-victory-active','nonogram-victory-active','sensorial-victory-reduced')}catch(_){ }
       active=null;return true
     }
 
@@ -124,12 +127,30 @@
       return {started:true,profile:profile.id,confettiCount:0,cleanupMs,cellCount:cells.length,reducedMotion:reduced}
     }
 
+    function boardColumns(board,cells){
+      const declared=String(board.closest?.('[data-ng-size]')?.dataset?.ngSize||'').match(/^\d+x(\d+)$/);if(declared)return Math.max(1,Number(declared[1]));
+      const square=Math.sqrt(cells.length);return Number.isInteger(square)&&square>0?square:Math.max(1,cells.length)
+    }
+
+    function celebrateAssemblySignature({board,victoryClass,profile}){
+      const reduced=reducedMotionRequested(window),cells=[...(board.children||[])],cols=boardColumns(board,cells),cleanupMs=reduced?profile.reducedCleanupMs:profile.cleanupMs;
+      board.classList.add('board-complete',profile.id==='patches-assembly'?'patches-victory-active':'nonogram-victory-active');if(victoryClass)board.classList.add(victoryClass);if(reduced)board.classList.add('sensorial-victory-reduced');
+      let filledCount=0;
+      cells.forEach((cell,index)=>{const r=Math.floor(index/cols),c=index%cols;cell.style?.setProperty?.('--victory-delay',`${(r+c)*38}ms`);
+        if(profile.id==='patches-assembly')cell.classList.add('patches-victory-cell');
+        else{const filled=cell.classList?.contains?.('ng-filled');cell.classList.add('nonogram-victory-cell',filled?'nonogram-victory-filled':'nonogram-victory-empty');if(filled)filledCount++}
+      });
+      active={board,layer:null,victoryClass,profile};cleanupTimer=setTimer(()=>cleanupTransient(),cleanupMs);
+      return {started:true,profile:profile.id,confettiCount:0,cleanupMs,cellCount:cells.length,filledCount,reducedMotion:reduced}
+    }
+
     function celebrate({gameId='',board=null,victoryClass=''}={}){
       if(!board||!document?.body)return {started:false,reason:'board-unavailable'};
       cleanupTransient();
       const profile=profileForGame(gameId);
       if(profile.id==='lighthouses')return celebrateLighthouses({board,victoryClass,profile});
       if(profile.id==='tango-balance'||profile.id==='sudoku-scan')return celebrateGridSignature({board,victoryClass,profile});
+      if(profile.id==='patches-assembly'||profile.id==='nonogram-reveal')return celebrateAssemblySignature({board,victoryClass,profile});
       return celebrateGeneric({board,victoryClass,profile})
     }
 
@@ -141,5 +162,5 @@
     })
   }
 
-  return Object.freeze({VERSION,GENERIC_PROFILE,LIGHTHOUSES_PROFILE,TANGO_PROFILE,SUDOKU_PROFILE,profileForGame,createController})
+  return Object.freeze({VERSION,GENERIC_PROFILE,LIGHTHOUSES_PROFILE,TANGO_PROFILE,SUDOKU_PROFILE,PATCHES_PROFILE,NONOGRAM_PROFILE,profileForGame,createController})
 });
