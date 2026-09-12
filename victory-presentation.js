@@ -11,10 +11,12 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const VERSION=3;
+  const VERSION=4;
   const GENERIC_PROFILE=Object.freeze({id:'generic',confettiCount:22,cleanupMs:1700});
   const LIGHTHOUSES_PROFILE=Object.freeze({id:'lighthouses',confettiCount:0,cleanupMs:1650,reducedCleanupMs:900,beamRangeCells:3});
-  const PROFILE_BY_GAME=Object.freeze({queens:LIGHTHOUSES_PROFILE});
+  const TANGO_PROFILE=Object.freeze({id:'tango-balance',confettiCount:0,cleanupMs:1500,reducedCleanupMs:550});
+  const SUDOKU_PROFILE=Object.freeze({id:'sudoku-scan',confettiCount:0,cleanupMs:1500,reducedCleanupMs:550});
+  const PROFILE_BY_GAME=Object.freeze({queens:LIGHTHOUSES_PROFILE,tango:TANGO_PROFILE,sudoku:SUDOKU_PROFILE});
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback}
   function clamp(value,min,max){return Math.max(min,Math.min(max,value))}
@@ -32,6 +34,8 @@
       try{board?.classList?.remove('board-complete','lighthouses-victory-active','lighthouses-victory-reduced')}catch(_){}
       try{board?.querySelectorAll?.('.lighthouses-victory-halo')?.forEach?.(halo=>halo.classList.remove('lighthouses-victory-halo'))}catch(_){}
       try{board?.querySelectorAll?.('.win-pop')?.forEach?.(cell=>{cell.classList.remove('win-pop');cell.style?.removeProperty?.('--win-delay')})}catch(_){}
+      try{board?.querySelectorAll?.('.tango-victory-cell,.sudoku-victory-cell')?.forEach?.(cell=>{cell.classList.remove('tango-victory-cell','tango-victory-sun','tango-victory-moon','sudoku-victory-cell');cell.style?.removeProperty?.('--victory-delay');cell.style?.removeProperty?.('--victory-ring')})}catch(_){}
+      try{board?.classList?.remove('tango-victory-active','sudoku-victory-active','sensorial-victory-reduced')}catch(_){ }
       active=null;return true
     }
 
@@ -106,11 +110,27 @@
       return {started:true,profile:profile.id,confettiCount:0,cleanupMs,lighthouseCount,beamCount,cascadeStepMs,reducedMotion:reduced}
     }
 
+    function celebrateGridSignature({board,victoryClass,profile}){
+      const reduced=reducedMotionRequested(window),cells=[...(board.children||[])],cleanupMs=reduced?profile.reducedCleanupMs:profile.cleanupMs;
+      board.classList.add('board-complete',profile.id==='tango-balance'?'tango-victory-active':'sudoku-victory-active');if(victoryClass)board.classList.add(victoryClass);if(reduced)board.classList.add('sensorial-victory-reduced');
+      cells.forEach((cell,index)=>{const r=Math.floor(index/6),c=index%6;
+        if(profile.id==='tango-balance'){
+          const symbol=String(cell.querySelector?.('.tango-symbol')?.textContent||'');cell.classList.add('tango-victory-cell',symbol.includes('☀')?'tango-victory-sun':'tango-victory-moon');cell.style?.setProperty?.('--victory-delay',`${(symbol.includes('☀')?r+c:8+r+c)*35}ms`)
+        }else{
+          const ring=Math.max(Math.abs(r-2.5),Math.abs(c-2.5));cell.classList.add('sudoku-victory-cell');cell.style?.setProperty?.('--victory-delay',`${(r+c)*45}ms`);cell.style?.setProperty?.('--victory-ring',`${ring*90}ms`)
+        }
+      });
+      active={board,layer:null,victoryClass,profile};cleanupTimer=setTimer(()=>cleanupTransient(),cleanupMs);
+      return {started:true,profile:profile.id,confettiCount:0,cleanupMs,cellCount:cells.length,reducedMotion:reduced}
+    }
+
     function celebrate({gameId='',board=null,victoryClass=''}={}){
       if(!board||!document?.body)return {started:false,reason:'board-unavailable'};
       cleanupTransient();
       const profile=profileForGame(gameId);
-      return profile.id==='lighthouses'?celebrateLighthouses({board,victoryClass,profile}):celebrateGeneric({board,victoryClass,profile})
+      if(profile.id==='lighthouses')return celebrateLighthouses({board,victoryClass,profile});
+      if(profile.id==='tango-balance'||profile.id==='sudoku-scan')return celebrateGridSignature({board,victoryClass,profile});
+      return celebrateGeneric({board,victoryClass,profile})
     }
 
     return Object.freeze({
@@ -121,5 +141,5 @@
     })
   }
 
-  return Object.freeze({VERSION,GENERIC_PROFILE,LIGHTHOUSES_PROFILE,profileForGame,createController})
+  return Object.freeze({VERSION,GENERIC_PROFILE,LIGHTHOUSES_PROFILE,TANGO_PROFILE,SUDOKU_PROFILE,profileForGame,createController})
 });

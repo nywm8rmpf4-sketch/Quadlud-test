@@ -5,7 +5,7 @@
  */
 'use strict';
 const $=s=>document.querySelector(s), app=$('#app'), toast=$('#toast'), timerEl=$('#timer');
-const VERSION='3.1.9-D';
+const VERSION='3.1.9-E';
 const UI_FEATURES=Object.freeze({inlineRules:false,exploration:false,pause:false,liveTimer:false,unjustifiedHighlights:false,verifyAction:false});
 const WebPlatform=QuadludWebPlatform.getWebPlatform();
 const AudioBackend=QuadludWebAudio.createWebAudioBackend(window,{maxVoices:24});

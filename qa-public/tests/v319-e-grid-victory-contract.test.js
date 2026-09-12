@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('assert');
+const fs=require('fs');
+const path=require('path');
+const root=path.resolve(__dirname,'..','GitHub');
+const VP=require(path.join(root,'victory-presentation.js'));
+const css=fs.readFileSync(path.join(root,'styles-core.css'),'utf8');
+const app=fs.readFileSync(path.join(root,'app.js'),'utf8');
+assert.strictEqual(VP.VERSION,4);assert.strictEqual(VP.profileForGame('tango').id,'tango-balance');assert.strictEqual(VP.profileForGame('sudoku').id,'sudoku-scan');
+for(const token of ['tangoVictoryCell','tangoVictoryBalance','sudokuVictoryScan','sudokuVictoryBoardWave','sensorialVictoryReduced'])assert(css.includes(token),`${token} missing`);
+assert(css.includes('.tango-victory-sun')&&css.includes('.tango-victory-moon'),'warm/cold Tango phases missing');
+assert(css.includes('var(--victory-delay')&&css.includes('var(--victory-ring'),'scan/wave timings missing');
+assert.strictEqual((app.match(/AudioEvents\.emit\('VICTORY'\)/g)||[]).length,1,'shared VICTORY sound must remain unique');
+const src=fs.readFileSync(path.join(root,'victory-presentation.js'),'utf8');assert(!/solutionGrid|hiddenSolution|validationState|current\.sol/.test(src),'visual signatures must stay hidden-state-free');assert(!/AudioEvents|AudioContext|QuadludAudio/.test(src),'visual signatures must not specialize audio');
+console.log('v3.1.9-E Soleil-Lune + Grille 6 victory contract: PASS');
