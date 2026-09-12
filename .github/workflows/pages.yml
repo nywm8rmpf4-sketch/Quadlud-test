@@ -69,6 +69,7 @@ jobs:
             --exclude='qa-release/' \
             --exclude='LICENSE'
           cp -a qa-public/tests/. "$QA_ROOT/qa-public/tests/"
+          ln -s ../GitHub "$QA_ROOT/qa-public/GitHub"
           # Legacy exported audits resolve runtime modules two levels above tests.
           # Mirror the exact runtime into that compatibility root for the QA process only.
           cp -a "$QA_ROOT/GitHub/." "$QA_ROOT/"
