@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('assert');
+const fs=require('fs');
+const path=require('path');
+const root=path.resolve(__dirname,'..','GitHub');
+const js=fs.readFileSync(path.join(root,'victory-presentation.js'),'utf8');
+const css=fs.readFileSync(path.join(root,'styles-core.css'),'utf8');
+const app=fs.readFileSync(path.join(root,'app.js'),'utf8');
+assert(js.includes("--lh-delay',`${Math.min(index,12)*35}ms`"),'row-major lighthouse cascade missing');
+assert(css.includes('lighthouseVictoryOutline')&&css.includes('lighthouseVictoryOutlineDark'),'light/dark outline halo missing');
+assert(css.includes('var(--lh-delay,0ms)'),'cascade delay not consumed by animation');
+assert(css.includes('@media(prefers-reduced-motion:reduce)'),'reduced-motion contract missing');
+assert(!/solutionGrid|hiddenSolution|validationState|current\.sol/.test(js),'victory presentation must remain hidden-state-free');
+assert.strictEqual((app.match(/AudioEvents\.emit\('VICTORY'\)/g)||[]).length,1,'shared VICTORY audio must stay unique');
+assert(!/QuadludAudio|AudioEvents|AudioContext/.test(js),'LIGHTHOUSES visual specialization must not own audio');
+console.log('v3.1.9-D LIGHTHOUSES static contract: PASS');

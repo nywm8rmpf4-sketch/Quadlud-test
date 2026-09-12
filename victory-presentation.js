@@ -11,7 +11,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const VERSION=2;
+  const VERSION=3;
   const GENERIC_PROFILE=Object.freeze({id:'generic',confettiCount:22,cleanupMs:1700});
   const LIGHTHOUSES_PROFILE=Object.freeze({id:'lighthouses',confettiCount:0,cleanupMs:1650,reducedCleanupMs:900,beamRangeCells:3});
   const PROFILE_BY_GAME=Object.freeze({queens:LIGHTHOUSES_PROFILE});
@@ -70,7 +70,7 @@
       layer.style?.setProperty?.('--lh-board-height',`${Math.max(0,finite(boardRect?.height,0))}px`);
       layer.style?.setProperty?.('pointer-events','none');
       let beamCount=0;
-      for(const piece of pieces){
+      for(const [index,piece] of pieces.entries()){
         const rect=piece.getBoundingClientRect?.();
         if(!boardRect||!rect)continue;
         const cell=piece.closest?.('.cell')||piece.parentElement,cellRect=cell?.getBoundingClientRect?.();
@@ -78,6 +78,7 @@
         const cellSize=Math.max(1,Math.min(finite(cellRect?.width,fallbackWidth),finite(cellRect?.height,fallbackHeight)));
         const range=cellSize*profile.beamRangeCells;
         const origin=document.createElement('span');origin.className='lighthouses-victory-origin';
+        origin.style?.setProperty?.('--lh-delay',`${Math.min(index,12)*35}ms`);
         origin.style?.setProperty?.('--lh-x',`${rect.left-boardRect.left+rect.width/2}px`);
         origin.style?.setProperty?.('--lh-y',`${rect.top-boardRect.top+rect.height/2}px`);
         origin.style?.setProperty?.('--lh-range',`${range}px`);
@@ -86,23 +87,23 @@
         }
         layer.appendChild(origin)
       }
-      return {layer,lighthouseCount:layer.children?.length||0,beamCount}
+      return {layer,lighthouseCount:layer.children?.length||0,beamCount,cascadeStepMs:35}
     }
 
     function celebrateLighthouses({board,victoryClass,profile}){
       board.classList.add('board-complete');
       if(victoryClass)board.classList.add(victoryClass);
       const reduced=reducedMotionRequested(window),cleanupMs=reduced?profile.reducedCleanupMs:profile.cleanupMs;
-      let layer=null,lighthouseCount=0,beamCount=0;
+      let layer=null,lighthouseCount=0,beamCount=0,cascadeStepMs=0;
       if(reduced){
         board.classList.add('lighthouses-victory-reduced');
         const halos=[...(board.querySelectorAll?.('.lighthouse-halo')||[])];halos.forEach(halo=>halo.classList?.add?.('lighthouses-victory-halo'));lighthouseCount=halos.length
       }else{
         board.classList.add('lighthouses-victory-active');
-        const built=lighthouseGeometry(board,profile);layer=built.layer;lighthouseCount=built.lighthouseCount;beamCount=built.beamCount;document.body.appendChild?.(layer)
+        const built=lighthouseGeometry(board,profile);layer=built.layer;lighthouseCount=built.lighthouseCount;beamCount=built.beamCount;cascadeStepMs=built.cascadeStepMs;document.body.appendChild?.(layer)
       }
       active={board,layer,victoryClass,profile};cleanupTimer=setTimer(()=>cleanupTransient(),cleanupMs);
-      return {started:true,profile:profile.id,confettiCount:0,cleanupMs,lighthouseCount,beamCount,reducedMotion:reduced}
+      return {started:true,profile:profile.id,confettiCount:0,cleanupMs,lighthouseCount,beamCount,cascadeStepMs,reducedMotion:reduced}
     }
 
     function celebrate({gameId='',board=null,victoryClass=''}={}){

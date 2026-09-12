@@ -4,7 +4,7 @@ const path=require('path');
 const VP=require('../GitHub/victory-presentation.js');
 const Manifest=require('../GitHub/game-manifest.js');
 
-assert.strictEqual(VP.VERSION,2);
+assert.strictEqual(VP.VERSION,3);
 assert.strictEqual(VP.profileForGame('queens').id,'lighthouses');
 for(const game of Manifest.IDS.filter(game=>game!=='queens'))assert.strictEqual(VP.profileForGame(game).id,'generic');
 assert.strictEqual(VP.GENERIC_PROFILE.confettiCount,22);
@@ -51,10 +51,11 @@ function lighthouseBoard(){
 timers.clear();const normal=lighthouseBoard();
 controller=VP.createController({document,window:{matchMedia:()=>({matches:false})},setTimer:timer,clearTimer:clear});
 const started=controller.celebrate({gameId:'queens',board:normal.board,victoryClass:'queens-win'});
-assert.strictEqual(started.profile,'lighthouses');assert.strictEqual(started.confettiCount,0);assert.strictEqual(started.lighthouseCount,2);assert.strictEqual(started.beamCount,8);assert.strictEqual(started.cleanupMs,1650);assert.strictEqual(started.reducedMotion,false);
+assert.strictEqual(started.profile,'lighthouses');assert.strictEqual(started.confettiCount,0);assert.strictEqual(started.lighthouseCount,2);assert.strictEqual(started.beamCount,8);assert.strictEqual(started.cascadeStepMs,35);assert.strictEqual(started.cleanupMs,1650);assert.strictEqual(started.reducedMotion,false);
 assert(normal.board.classList.contains('lighthouses-victory-active'));assert(normal.board.classList.contains('queens-win'));assert(normal.cells.every(c=>!c.classList.contains('win-pop')));
 const layer=body.children.at(-1);assert.strictEqual(layer.className,'lighthouses-victory-layer');assert.strictEqual(layer.children.length,2);assert.strictEqual(normal.board.children.length,2);assert.strictEqual(layer.style.getPropertyValue('--lh-board-width'),'300px');assert.strictEqual(layer.style.getPropertyValue('--lh-board-height'),'300px');
 for(const origin of layer.children){assert.strictEqual(origin.children.length,4);assert.strictEqual(origin.style.getPropertyValue('--lh-range'),'300px');assert.deepStrictEqual(origin.children.map(b=>b.style.getPropertyValue('--lh-angle')),['0deg','90deg','180deg','270deg'])}
+assert.deepStrictEqual(layer.children.map(origin=>origin.style.getPropertyValue('--lh-delay')),['0ms','35ms']);
 controller.cancel({removeFinal:false,board:normal.board,victoryClass:'queens-win'});assert(layer.removed);assert(normal.board.classList.contains('queens-win'));assert(!normal.board.classList.contains('lighthouses-victory-active'));
 controller.cancel({removeFinal:true,board:normal.board,victoryClass:'queens-win'});assert(!normal.board.classList.contains('queens-win'));
 
@@ -62,7 +63,7 @@ controller.cancel({removeFinal:true,board:normal.board,victoryClass:'queens-win'
 timers.clear();const reduced=lighthouseBoard();
 controller=VP.createController({document,window:{matchMedia:()=>({matches:true})},setTimer:timer,clearTimer:clear});
 const r=controller.celebrate({gameId:'queens',board:reduced.board,victoryClass:'queens-win'});
-assert.strictEqual(r.reducedMotion,true);assert.strictEqual(r.beamCount,0);assert.strictEqual(r.cleanupMs,900);assert.strictEqual(r.lighthouseCount,2);assert(reduced.cells.every(c=>c.halo.classList.contains('lighthouses-victory-halo')));assert(reduced.board.classList.contains('queens-win'));
+assert.strictEqual(r.reducedMotion,true);assert.strictEqual(r.beamCount,0);assert.strictEqual(r.cascadeStepMs,0);assert.strictEqual(r.cleanupMs,900);assert.strictEqual(r.lighthouseCount,2);assert(reduced.cells.every(c=>c.halo.classList.contains('lighthouses-victory-halo')));assert(reduced.board.classList.contains('queens-win'));
 const cleanup=[...timers.values()].find(x=>x.ms===900);assert(cleanup);cleanup.fn();assert(reduced.cells.every(c=>!c.halo.classList.contains('lighthouses-victory-halo')));assert(reduced.board.classList.contains('queens-win'));assert(!reduced.board.classList.contains('board-complete'));
 
 // Audio is owned exclusively by SND-3; victory presentation remains visual-only.
@@ -76,4 +77,4 @@ timers.clear();const empty=node();empty.getBoundingClientRect=()=>({left:10,top:
 controller=VP.createController({document,window:{},setTimer:timer,clearTimer:clear});const noPieces=controller.celebrate({gameId:'queens',board:empty,victoryClass:'queens-win'});assert.strictEqual(noPieces.started,true);assert.strictEqual(noPieces.lighthouseCount,0);assert.strictEqual(noPieces.beamCount,0);controller.cancel({removeFinal:true,board:empty,victoryClass:'queens-win'});
 timers.clear();const throwing=lighthouseBoard();controller=VP.createController({document,window:{matchMedia(){throw new Error('unsupported')}},setTimer:timer,clearTimer:clear});assert.strictEqual(controller.celebrate({gameId:'queens',board:throwing.board,victoryClass:'queens-win'}).reducedMotion,false);controller.cancel({removeFinal:true,board:throwing.board,victoryClass:'queens-win'});
 
-console.log('v3.1.9-C victory presentation: generic parity + LIGHTHOUSES override + visual-only SND-3 boundary PASS');
+console.log('v3.1.9-D LIGHTHOUSES victory: cascade + beams + outline + reduced motion + visual-only SND-3 boundary PASS');

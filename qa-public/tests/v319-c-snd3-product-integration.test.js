@@ -12,9 +12,10 @@ assert.strictEqual(Audio.VERSION,2);assert.strictEqual(Web.VERSION,2);assert.str
 assert.deepStrictEqual(Bridge.EVENT_KEYS,Object.keys(Audio.EVENTS));assert.strictEqual(Bridge.EVENT_KEYS.length,15);
 
 const index=read('GitHub/index.html'),sw=read('GitHub/sw.js'),app=read('GitHub/app.js'),victory=read('GitHub/victory-presentation.js');
-const ordered=['audio-web.js?v=3.1.9-c-snd3-r1','audio-service.js?v=3.1.9-c-snd3-r1','audio-event-bridge.js?v=3.1.9-c-snd3-r1','app.js?v=3.1.9-c-snd3-r1'];
+const ordered=['audio-web.js?v=3.1.9-c-snd3-r1','audio-service.js?v=3.1.9-c-snd3-r1','audio-event-bridge.js?v=3.1.9-c-snd3-r1'];
 for(const asset of ordered){assert(index.includes(asset),`${asset} absent from index`);assert(sw.includes(`./${asset}`),`${asset} absent from service worker`)}
 for(let i=1;i<ordered.length;i++)assert(index.indexOf(ordered[i-1])<index.indexOf(ordered[i]),'SND-3 load order invalid');
+const appAsset=(index.match(/app\.js\?v=[^"']+/)||[])[0];assert(appAsset,'versioned app.js absent from index');assert(sw.includes(`./${appAsset}`),'versioned app.js absent from service worker');assert(index.indexOf(ordered.at(-1))<index.indexOf(appAsset),'SND-3 bridge must load before app');
 assert(!/playTone|playApplause/.test(app));assert(!/AudioContext|webkitAudioContext/.test(app));assert(!/AudioContext|webkitAudioContext|playApplause|buildApplausePlan/.test(victory));
 assert.strictEqual((app.match(/AudioEvents\.emit\('VICTORY'\)/g)||[]).length,1,'victory must emit exactly once from finish');
 for(const event of ['NEW_GAME','UNDO','REDO','RESET','INVALID','COACH_HINT','LOGIC_STEP','TUTOR_START','TUTOR_CONCLUSION'])assert(app.includes(`'${event}'`),`${event} product integration missing`);
