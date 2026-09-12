@@ -52,8 +52,10 @@ def main():
    if i:page.evaluate('(i)=>{walkthroughSetPosition(1,i);renderWalkthrough();}',i);page.wait_for_timeout(80)
    s=state(page);states.append(s);page.screenshot(path=str(EVIDENCE/f'a3-proof-{i+1:02d}-of-15.png'),full_page=False);(EVIDENCE/f'a3-proof-{i+1:02d}-of-15.json').write_text(json.dumps(s,ensure_ascii=False,indent=2),encoding='utf-8')
   assert not errors,errors;assert states[0]['markers']==[{'label':'H','cell':'A3'}],states[0];expected=['B3','B4','A4','B5','E3','E5','F5','A5'];reasoning=[s for s in states if s['kind']=='reasoning' and s['produced']];relation_proofs=[s for s in states if s['kind']=='reasoning' and not s['produced']];assert [s['produced'] for s in reasoning]==expected,[(s['produced'],s['text']) for s in reasoning];assert [s['rule'] for s in relation_proofs]==['LINE_DOMAIN_SUPPORT']*3,relation_proofs
+  # R8 semantic review (a8a5dee) made the bounded domain enumeration the
+  # visible proof and replaced the superseded "maintenant démontrée" copy.
   for s in relation_proofs:
-   low=s['text'].lower();assert 'configurations' in low and 'maintenant démontrée' in low and 'relation démontrée impose' not in low,s['text']
+   low=s['text'].lower();assert 'configurations compatibles' in low and 'cette relation est donc forcée' in low and 'relation démontrée impose' not in low,s['text']
   for n,s in enumerate(reasoning,1):
    assert s['produced'] in s['text'],s;nums={m['label']:m['cell'] for m in s['markers'] if m['label'].isdigit()};assert nums.get(str(n))==s['produced'],(n,s['produced'],s['markers']);assert 'conduit à une contradiction' not in s['text'].lower(),s['text'];assert not s['actionVisible'],s
   b3=next(s for s in reasoning if s['produced']=='B3');assert 'A3' in b3['text'] and 'B3' in b3['text'];e5=next(s for s in reasoning if s['produced']=='E5');assert 'E3' in e5['text'] and 'E5' in e5['text'];assert states[-3]['kind']=='contradiction' and 'colonne 5' in states[-3]['text'].lower();assert states[-2]['kind']=='rollback' and 'contradiction vient d’être établie' in states[-2]['text'];assert states[-1]['kind']=='action' and states[-1]['actionVisible'] and 'conclusion réelle' in states[-1]['text'].lower() and 'A3' in states[-1]['text'];context.close();browser.close()
