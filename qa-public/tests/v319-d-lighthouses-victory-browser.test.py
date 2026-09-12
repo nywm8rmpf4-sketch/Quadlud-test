@@ -14,7 +14,7 @@ def load(page):
     page.set_content(HTML);page.add_style_tag(content=CSS)
     page.add_script_tag(content="""(()=>{const d=new Map();Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>d.get(String(k))??null,setItem:(k,v)=>d.set(String(k),String(v)),removeItem:k=>d.delete(String(k)),clear:()=>d.clear()}})})()""")
     for source in SCRIPTS: page.add_script_tag(content=source)
-    page.evaluate("""()=>{const p=prefs();p.sound=false;savePrefs(p);const g=QuadludQueensQpool4.snapshot().tiers.easy[0];installGeneratedSession('queens','easy',g,{context:'normal'});historyInit(true);statsStart(current);const before=historySnapshotKey();current.state=Array.from({length:current.n},()=>Array(current.n).fill(0));for(let r=0;r<current.n;r++)current.state[r][current.sol[r]]=2;drawGameUi(current);historyRecord({type:'QA_D_LIGHTHOUSES_WIN'},before);finish('QA D')}""")
+    page.evaluate("""()=>withSeed('v319-d-lighthouses',()=>{const p=prefs();p.sound=false;savePrefs(p);const g=generateRegisteredCandidate('queens','easy');installGeneratedSession('queens','easy',g,{context:'normal'});historyInit(true);statsStart(current);const before=historySnapshotKey();current.state=Array.from({length:current.n},()=>Array(current.n).fill(0));for(let r=0;r<current.n;r++)current.state[r][current.sol[r]]=2;drawGameUi(current);historyRecord({type:'QA_D_LIGHTHOUSES_WIN'},before);finish('QA D')})""")
     page.wait_for_timeout(80)
 
 with sync_playwright() as p:
