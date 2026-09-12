@@ -92,6 +92,9 @@ jobs:
               tango-cache-ordinal-r8.test.js|tango-cache-target-uniqueness-r7.test.js)
                 echo "NOT_EXECUTED / not applicable here: $test (dedicated generated-cache artifact audit)"
                 ;;
+              tango-precompute-pool-v5-contract.test.js)
+                echo "NOT_EXECUTED / obsolete: $test (superseded pre-R8 pool schema 3 contract)"
+                ;;
               tango-runtime-data-r8-static-contract.test.js)
                 node "$test" "$PWD/GitHub"
                 ;;
