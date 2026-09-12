@@ -12,6 +12,7 @@ on:
       - 'manifest.webmanifest'
       - 'build-info.json'
       - 'qa-public/tests/sound-audio-*'
+      - 'qa-public/tests/manual/sound-preview.html'
       - 'qa-public/tests/v319-c-snd3-product-integration.test.js'
       - 'qa-public/tests/v318-f1-victory-presentation.test.js'
       - 'qa-public/tests/data-serialization.test.js'
