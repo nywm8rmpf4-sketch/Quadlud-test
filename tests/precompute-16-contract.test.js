@@ -1,0 +1,72 @@
+const assert=require('assert');
+const fs=require('fs');
+const path=require('path');
+const vm=require('vm');
+const Manifest=require('../GitHub/game-manifest.js');
+
+const ROOT=path.resolve(__dirname,'..','GitHub');
+const VERSION=JSON.parse(fs.readFileSync(path.join(ROOT,'manifest.webmanifest'),'utf8')).version;
+function noop(){}
+function classList(){return {add:noop,remove:noop,toggle:noop,contains:()=>false}}
+function el(){return new Proxy({innerHTML:'',textContent:'',value:'',checked:false,hidden:false,dataset:{},style:{setProperty:noop,removeProperty:noop},classList:classList(),children:[],appendChild:noop,insertAdjacentHTML:noop,addEventListener:noop,querySelector:()=>el(),querySelectorAll:()=>[],setAttribute:noop,removeAttribute:noop,remove:noop,getBoundingClientRect:()=>({left:0,top:0,width:320,height:320})},{get:(t,p)=>p in t?t[p]:noop,set:(t,p,v)=>(t[p]=v,true)})}
+
+const workerMessages=[];
+const ctx={console,performance,Date,Set,Map,WeakMap,JSON,Math:Object.create(Math),Intl,URL,TextEncoder,TextDecoder,structuredClone,setTimeout,clearTimeout,postMessage:m=>workerMessages.push(m)};
+ctx.self=ctx;ctx.globalThis=ctx;ctx.window=ctx;
+ctx.document={documentElement:{dataset:{},lang:'fr'},body:{dataset:{},classList:classList(),appendChild:noop,insertAdjacentHTML:noop},hidden:false,querySelector:()=>el(),querySelectorAll:()=>[],createElement:()=>el(),addEventListener:noop};
+ctx.localStorage={getItem:()=>null,setItem:noop,removeItem:noop,clear:noop};
+ctx.navigator={};ctx.addEventListener=noop;ctx.matchMedia=()=>({matches:false,addEventListener:noop});ctx.innerWidth=390;ctx.innerHeight=844;
+ctx.requestAnimationFrame=f=>{try{f()}catch(_){}return 0};ctx.cancelAnimationFrame=noop;ctx.setInterval=()=>0;ctx.clearInterval=noop;
+let context;
+ctx.importScripts=(...urls)=>{for(const url of urls){const rel=String(url).replace(/^\.\//,'').replace(/\?.*$/,'');vm.runInContext(fs.readFileSync(path.join(ROOT,rel),'utf8'),context,{filename:rel})}};
+context=vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(path.join(ROOT,'precompute-worker.js'),'utf8'),context,{filename:'precompute-worker.js'});
+
+// Step 25.2: load the main-thread modules needed by the cache/order contract.
+// Keep support-module dependency order consistent with the real browser runtime:
+// nonogram-pedagogy.js must exist before nonogram-pedagogy-atomic.js.
+const genericBrowser=['platform-web.js','web-storage.js','data-serialization.js','persistence-services.js','reasoning-view.js','session-core.js','game-ui-adapters.js','game-pedagogy-adapters.js','pedagogy-metadata.js','reasoning-presentation.js','i18n-catalog.js','mastery-model.js','progression-stats.js','challenge-protocol.js','daily-model.js','audio-web.js','audio-service.js','audio-event-bridge.js','victory-presentation.js','diagnostic-ui-structural.js','diagnostic-attachments.js','diagnostic-recorder.js'];
+const productBrowser=[...new Set(Manifest.GAMES.flatMap(game=>['session','ui','runtime','reasoning','pedagogy','i18n'].map(role=>game.modules[role])))];
+const atomicIndex=productBrowser.indexOf('nonogram-pedagogy-atomic.js');
+if(atomicIndex>=0&&!productBrowser.includes('nonogram-pedagogy.js'))productBrowser.splice(atomicIndex,0,'nonogram-pedagogy.js');
+for(const rel of [...genericBrowser,...productBrowser,'app-precompute.js','app.js']){
+  vm.runInContext(fs.readFileSync(path.join(ROOT,rel),'utf8'),context,{filename:rel});
+}
+
+const games=[...Manifest.IDS];
+const diffs=['easy','medium','hard','expert'];
+const expected=games.flatMap(g=>diffs.map(d=>[g,d]));
+assert.deepStrictEqual(JSON.parse(vm.runInContext('JSON.stringify(PRECOMPUTE_COMBOS)',context)),expected,'precompute must expose every current product game × difficulty combination');
+assert.strictEqual(vm.runInContext('PRECOMPUTE_COMBOS.length',context),games.length*diffs.length);
+assert.strictEqual(vm.runInContext("PRECOMPUTE_COMBOS.every(([g,d])=>precomputeComboSupported(g,d))",context),true);
+
+const defaultOrder=JSON.parse(vm.runInContext('JSON.stringify(precomputeOrder())',context));
+assert.strictEqual(defaultOrder.length,games.length*diffs.length);
+assert.strictEqual(defaultOrder.slice(0,games.length*(diffs.length-1)).every(([,d])=>d!=='expert'),true,'non Expert work should run before deferred Expert work');
+assert.deepStrictEqual(defaultOrder.slice(games.length*(diffs.length-1)),games.map(g=>[g,'expert']));
+vm.runInContext("WebPrecompute.setPreferred('tango','expert')",context);
+const preferredOrder=JSON.parse(vm.runInContext('JSON.stringify(precomputeOrder())',context));
+assert.deepStrictEqual(preferredOrder[0],['tango','expert'],'requested Expert must remain first');
+assert.strictEqual(preferredOrder.slice(-(games.length-1)).every(([,d])=>d==='expert'),true,'other Expert work remains deferred');
+
+class FakeWorker{constructor(url){this.url=url;this.onmessage=null;this.onerror=null}postMessage(){}terminate(){}}
+context.Worker=FakeWorker;
+vm.runInContext("WebPrecompute.setPreferred(null,null);resetPrecomputeDay('2026-08-17')",context);
+const fake=vm.runInContext('ensurePrecomputeWorker()',context);
+assert.ok(fake instanceof FakeWorker);
+assert.strictEqual(fake.url,`./precompute-worker.js?v=${VERSION}`);
+vm.runInContext("Math.random=mulberry32(hash32('stage16-cache-valid')); __stage16Valid=queenCandidate('easy')",context);
+const valid=context.__stage16Valid;
+const bad=structuredClone(valid);bad.difficultyProfile={...bad.difficultyProfile,fingerprint:'qfp1-00000000000000000000000000000000'};
+fake.onmessage({data:{ok:true,day:'2026-08-17',game:'queens',diff:'easy',candidate:bad}});
+assert.strictEqual(vm.runInContext("precomputeBucket('queens','easy').length",context),0,'uncertified worker payload must not enter cache');
+assert.doesNotThrow(()=>fake.onmessage({data:{ok:true,day:'2026-08-17',game:'patches',diff:'expert',candidate:{broken:true}}}),'malformed stale payload must be ignored safely');
+assert.strictEqual(vm.runInContext("precomputeBucket('patches','expert').length",context),0,'malformed worker payload must not enter cache');
+fake.onmessage({data:{ok:true,day:'2026-08-17',game:'queens',diff:'easy',candidate:valid}});
+assert.strictEqual(vm.runInContext("precomputeBucket('queens','easy').length",context),1,'certified worker payload must enter cache');
+fake.onmessage({data:{ok:true,day:'2026-08-17',game:'unknown',diff:'easy',candidate:valid}});
+assert.strictEqual(vm.runInContext("Object.keys(precomputeStatus()).length",context),games.length*diffs.length,'unknown combination must not create a cache bucket');
+workerMessages.length=0;
+context.self.onmessage({data:{cmd:'generate',id:'bad',game:'unknown',diff:'easy',day:'2026-08-17'}});
+assert.strictEqual(workerMessages.length,1);assert.strictEqual(workerMessages[0].ok,false);assert.match(workerMessages[0].error,/Unknown game/);
+console.log('precompute contract tests: OK (historical 16 baseline preserved; current product combinations derived from Manifest)');
