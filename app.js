@@ -1828,13 +1828,17 @@ function celebrateBoard(game=current?.game){let board=document.querySelector('.b
 // 27.3 — registry-driven Web UI lifecycle. Game-specific renderer factories are resolved lazily through GameRegistry.
 let webGameUiAdapterCollection=null;
 function pedagogicalHintForGame(game){return gamePedagogy(game).coach.runHint()}
+function semanticAudioForLogicalMove(move,applied){
+  let effects=Array.isArray(move?.effects)?move.effects:[],erase=effects.length>0&&effects.every(effect=>effect?.type==='SET_CELL'&&Number(effect.state)===-1);
+  return AudioEvents.action({applied:!!applied?.recorded?.changed,action:{type:erase?'ERASE':'MOVE',important:move?.evidence?.important===true}})
+}
 function webGameUiDependencies(game){
   return {
     document,window:typeof window!=='undefined'?window:{addEventListener(){},matchMedia:null},query:$,getApp:()=>app,shell,gameLabel,
     difficultyLabel:diff=>DIFF[diff],tr,gameRules,getCurrent:()=>current,getWalkthroughSession:()=>walkthroughSession,
     isPaused:()=>paused,getPrefs:prefs,savePrefs,touchSave,historySnapshotKey,historyRecord,saveCurrent,closeHintNotice,clearHintFocus,
     markBacktrack,haptic,maybeAutoFinish,a11ySetupGrid,a11yAnnounce,a11yCoord,a11ySetCell,keyCell,
-    applyLogicalMove:move=>{const applied=LogicalTransactions.apply(current,move);diagnosticRecordedHistory(applied.recorded);updateHistoryButtons();saveCurrent();return applied},
+    applyLogicalMove:move=>{const applied=LogicalTransactions.apply(current,move);diagnosticRecordedHistory(applied.recorded);semanticAudioForLogicalMove(move,applied);updateHistoryButtons();saveCurrent();return applied},
     applyIllegalClasses,applyConfiguredIllegalClasses,applyUnjustifiedHighlights,updateScoreFlags,coarsePointer,checkVictory:checkRegisteredVictory,
     hint:()=>pedagogicalHintForGame(game),finish,showToast,requestFrame:cb=>requestAnimationFrame(cb),cancelFrame:id=>cancelAnimationFrame(id),
     setTimer:(cb,ms)=>setTimeout(cb,ms),recordDiagnostic:(type,payload)=>diagnosticRecord(type,payload),getResizeObserver:()=>typeof ResizeObserver==='function'?ResizeObserver:null

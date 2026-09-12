@@ -18,6 +18,7 @@ for(let i=1;i<ordered.length;i++)assert(index.indexOf(ordered[i-1])<index.indexO
 assert(!/playTone|playApplause/.test(app));assert(!/AudioContext|webkitAudioContext/.test(app));assert(!/AudioContext|webkitAudioContext|playApplause|buildApplausePlan/.test(victory));
 assert.strictEqual((app.match(/AudioEvents\.emit\('VICTORY'\)/g)||[]).length,1,'victory must emit exactly once from finish');
 for(const event of ['NEW_GAME','UNDO','REDO','RESET','INVALID','COACH_HINT','LOGIC_STEP','TUTOR_START','TUTOR_CONCLUSION'])assert(app.includes(`'${event}'`),`${event} product integration missing`);
+assert(app.includes('semanticAudioForLogicalMove(move,applied)'),'LogicalTransaction path, including Mosaïque, must reach SND-3');
 for(const file of fs.readdirSync(path.join(root,'GitHub')).filter(x=>/-ui\.js$|-runtime\.js$|-logic\.js$/.test(x))){const src=read(`GitHub/${file}`);assert(!/AudioEvents|SemanticAudio|QuadludAudioService/.test(src),`${file} bypasses transverse bridge`)}
 for(const file of fs.readdirSync(path.join(root,'GitHub')).filter(x=>x.endsWith('.js')&&x!=='audio-web.js'))assert(!/new\s+(?:scope\.)?(?:AudioContext|webkitAudioContext)\b/.test(read(`GitHub/${file}`)),`${file} creates AudioContext outside backend`);
 
