@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QUADLUD — Sound preview</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#182034;background:#f6f7fb}*{box-sizing:border-box}body{max-width:780px;margin:0 auto;padding:20px}h1{font-size:1.4rem}.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}.toolbar button,.grid button{min-height:48px;font:inherit;border:1px solid #b8c0d0;border-radius:10px;background:white;padding:10px 12px}.toolbar label{display:flex;gap:8px;align-items:center;min-height:48px}.toolbar input[type=range]{width:150px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px}.meta{font-size:.86rem;color:#576174}.status{margin:12px 0;padding:10px;border-radius:8px;background:#e8ecf5;overflow-wrap:anywhere}@media(max-width:390px){body{padding:12px}.grid{grid-template-columns:1fr 1fr}.grid button{font-size:.82rem;padding:8px}}
+</style>
+<h1>QUADLUD — laboratoire sonore SND-3</h1>
+<p class="meta">Prototype autonome : aucun branchement à l’application ou aux jeux.</p>
+<div class="toolbar">
+  <button id="unlock" type="button">Activer audio</button>
+  <button id="toggle" type="button" aria-pressed="true">Sons : oui</button>
+  <button id="pedagogy" type="button" aria-pressed="true">Pédagogie : oui</button>
+  <label>Volume <input id="volume" type="range" min="0" max="100" value="72" aria-label="Volume des sons"></label>
+  <button id="sequence" type="button">Séquence pédagogique</button>
+</div>
+<div id="status" class="status" role="status" aria-live="polite"></div>
+<div class="grid" id="buttons"></div>
+<script src="../../GitHub/audio-service.js"></script>
+<script src="../../GitHub/audio-web.js"></script>
+<script>
+const backend=QuadludWebAudio.createWebAudioBackend(globalThis,{maxVoices:24});
+const audio=QuadludAudioService.createAudioService({backend,masterVolume:.72});
+const status=document.getElementById('status');
+function refresh(){const s=audio.snapshot(),d=audio.diagnostics();status.textContent=`enabled=${s.enabled} pedagogy=${s.pedagogicalEnabled} volume=${s.masterVolume.toFixed(2)} | context=${d.backend?.contextCreated?'created':'not-created'} voices=${d.backend?.activeVoices??0}`;document.getElementById('toggle').setAttribute('aria-pressed',String(s.enabled));document.getElementById('toggle').textContent=`Sons : ${s.enabled?'oui':'non'}`;document.getElementById('pedagogy').setAttribute('aria-pressed',String(s.pedagogicalEnabled));document.getElementById('pedagogy').textContent=`Pédagogie : ${s.pedagogicalEnabled?'oui':'non'}`}
+document.getElementById('unlock').onclick=()=>{audio.unlock();refresh()};
+document.getElementById('toggle').onclick=()=>{audio.setEnabled(!audio.snapshot().enabled);refresh()};
+document.getElementById('pedagogy').onclick=()=>{audio.setPedagogicalEnabled(!audio.snapshot().pedagogicalEnabled);refresh()};
+document.getElementById('volume').oninput=e=>{audio.setMasterVolume(Number(e.target.value)/100);refresh()};
+document.getElementById('sequence').onclick=()=>{const E=QuadludAudioService.EVENTS;audio.play(E.COACH_HINT,{bypassCooldown:true});setTimeout(()=>audio.play(E.LOGIC_STEP,{bypassCooldown:true}),240);setTimeout(()=>audio.play(E.TUTOR_CONCLUSION,{bypassCooldown:true}),480);setTimeout(refresh,800)};
+for(const [name,id] of Object.entries(QuadludAudioService.EVENTS)){const p=QuadludAudioService.PROGRAMS[id],b=document.createElement('button');b.type='button';b.dataset.event=id;b.textContent=name.replaceAll('_',' ');b.title=`${p.category} · priority ${p.priority} · ${QuadludAudioService.durationMs(p)} ms`;b.onclick=()=>{audio.unlock();audio.play(id,{bypassCooldown:true});refresh()};document.getElementById('buttons').appendChild(b)}
+refresh();
+</script>
