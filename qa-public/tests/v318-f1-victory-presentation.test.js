@@ -4,10 +4,11 @@ const path=require('path');
 const VP=require('../GitHub/victory-presentation.js');
 const Manifest=require('../GitHub/game-manifest.js');
 
-assert.strictEqual(VP.VERSION,4);
+assert.strictEqual(VP.VERSION,5);
 assert.strictEqual(VP.profileForGame('queens').id,'lighthouses');
 assert.strictEqual(VP.profileForGame('tango').id,'tango-balance');assert.strictEqual(VP.profileForGame('sudoku').id,'sudoku-scan');
-for(const game of Manifest.IDS.filter(game=>!['queens','tango','sudoku'].includes(game)))assert.strictEqual(VP.profileForGame(game).id,'generic');
+assert.strictEqual(VP.profileForGame('patches').id,'patches-assembly');assert.strictEqual(VP.profileForGame('nonogram').id,'nonogram-reveal');
+assert.strictEqual(VP.profileForGame('future-game').id,'generic');
 assert.strictEqual(VP.GENERIC_PROFILE.confettiCount,22);
 assert.strictEqual(VP.GENERIC_PROFILE.cleanupMs,1700);
 
@@ -24,7 +25,7 @@ const clear=id=>timers.delete(id);
 const gchildren=[node(),node(),node()];
 const genericBoard=node();genericBoard.children=gchildren;genericBoard.querySelectorAll=sel=>sel==='.win-pop'?gchildren.filter(x=>x.classList.contains('win-pop')):[];
 let controller=VP.createController({document,window:{matchMedia:()=>({matches:false})},random:()=>.5,setTimer:timer,clearTimer:clear});
-const generic=controller.celebrate({gameId:'patches',board:genericBoard,victoryClass:'final-win'});
+const generic=controller.celebrate({gameId:'future-game',board:genericBoard,victoryClass:'final-win'});
 assert.deepStrictEqual(generic,{started:true,profile:'generic',confettiCount:22,cleanupMs:1700});
 assert(genericBoard.classList.contains('board-complete'));assert(genericBoard.classList.contains('final-win'));assert(gchildren.every(x=>x.classList.contains('win-pop')));assert.strictEqual(body.children.at(-1).children.length,22);
 controller.cancel({removeFinal:true,board:genericBoard,victoryClass:'final-win'});assert(!genericBoard.classList.contains('final-win'));

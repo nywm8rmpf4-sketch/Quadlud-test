@@ -1,7 +1,7 @@
 name: QUADLUD v3.1.9 HF3.9 R5.5 browser regression QA
 on:
   push:
-    branches: [candidate/v3.1.9-hf3.9-r5.5]
+    branches: [candidate/v3.1.9-hf3.9-r5.5, candidate/v3.1.9-e-r5.5-fix]
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:

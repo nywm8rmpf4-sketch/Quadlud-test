@@ -505,12 +505,23 @@ body .panel .toolbar .btn{min-height:44px;border-radius:12px}
 #sboard.sudoku-victory-active>.sudoku-victory-cell{animation:sudokuVictoryScan 620ms cubic-bezier(.2,.8,.25,1) calc(var(--victory-delay,0ms) + var(--victory-ring,0ms)) both}
 @keyframes sudokuVictoryScan{0%{transform:scale(.94);box-shadow:inset 0 0 0 transparent}38%{transform:scale(1.045);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 58%,transparent)}62%{transform:scale(.985)}100%{transform:scale(1);box-shadow:inset 0 0 0 transparent}}
 @keyframes sudokuVictoryBoardWave{0%,72%,100%{filter:none}84%{filter:drop-shadow(0 0 12px color-mix(in srgb,var(--accent) 30%,transparent))}}
+/* v3.1.9-F — Rectangles final assembly and Mosaïque image reveal. */
+#pboard.patches-victory-active{animation:patchesVictoryBoard 1450ms ease-in-out both}
+#pboard.patches-victory-active>.patches-victory-cell{transform-origin:center;animation:patchesVictoryAssemble 560ms cubic-bezier(.2,.8,.25,1) var(--victory-delay,0ms) both}
+@keyframes patchesVictoryAssemble{0%{opacity:.62;transform:scale(.9);filter:saturate(.72)}55%{opacity:1;transform:scale(1.035);filter:saturate(1.18)}100%{transform:scale(1);filter:none}}
+@keyframes patchesVictoryBoard{0%,72%,100%{box-shadow:none}84%{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 42%,transparent),0 0 16px color-mix(in srgb,var(--accent) 24%,transparent)}}
+#ngboard.nonogram-victory-active{animation:nonogramVictoryBoard 1600ms ease-in-out both}
+#ngboard.nonogram-victory-active>.nonogram-victory-filled{animation:nonogramVictoryReveal 620ms cubic-bezier(.2,.8,.25,1) var(--victory-delay,0ms) both}
+#ngboard.nonogram-victory-active>.nonogram-victory-empty{animation:nonogramVictorySettle 420ms ease-out var(--victory-delay,0ms) both}
+@keyframes nonogramVictoryReveal{0%{opacity:.3;transform:scale(.72)}58%{opacity:1;transform:scale(1.08);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 52%,transparent)}100%{transform:scale(1);box-shadow:none}}
+@keyframes nonogramVictorySettle{0%{opacity:.55}100%{opacity:1}}
+@keyframes nonogramVictoryBoard{0%,74%,100%{filter:none}86%{filter:drop-shadow(0 0 11px color-mix(in srgb,var(--accent) 28%,transparent))}}
 #qboard.lighthouses-victory-reduced .lighthouse-halo.lighthouses-victory-halo{opacity:1!important}
 @media(prefers-reduced-motion:reduce){
   .lighthouses-victory-layer,.lighthouses-victory-origin,.lighthouses-victory-beam{display:none!important;animation:none!important}
   #qboard.lighthouses-victory-reduced .lighthouse-halo.lighthouses-victory-halo{opacity:1!important;animation:none!important}
-  #tboard.tango-victory-active,#sboard.sudoku-victory-active{animation:sensorialVictoryReduced 380ms ease-out both!important}
-  #tboard.tango-victory-active>.tango-victory-cell,#sboard.sudoku-victory-active>.sudoku-victory-cell{animation:none!important;transform:none!important}
+  #tboard.tango-victory-active,#sboard.sudoku-victory-active,#pboard.patches-victory-active,#ngboard.nonogram-victory-active{animation:sensorialVictoryReduced 380ms ease-out both!important}
+  #tboard.tango-victory-active>.tango-victory-cell,#sboard.sudoku-victory-active>.sudoku-victory-cell,#pboard.patches-victory-active>.patches-victory-cell,#ngboard.nonogram-victory-active>.nonogram-victory-cell{animation:none!important;transform:none!important}
 }
 @keyframes sensorialVictoryReduced{50%{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 38%,transparent)}to{box-shadow:none}}
 @media(forced-colors:active){
