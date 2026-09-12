@@ -60,7 +60,7 @@ jobs:
           set -euo pipefail
           QA_ROOT="$RUNNER_TEMP/quadlud-public-qa"
           rm -rf "$QA_ROOT"
-          mkdir -p "$QA_ROOT/GitHub" "$QA_ROOT/tests"
+          mkdir -p "$QA_ROOT/GitHub" "$QA_ROOT/qa-public/tests"
           rsync -a ./ "$QA_ROOT/GitHub/" \
             --exclude='.git/' \
             --exclude='.github/' \
@@ -68,12 +68,12 @@ jobs:
             --exclude='qa-public/' \
             --exclude='qa-release/' \
             --exclude='LICENSE'
-          cp -a qa-public/tests/. "$QA_ROOT/tests/"
+          cp -a qa-public/tests/. "$QA_ROOT/qa-public/tests/"
           # Legacy exported audits resolve runtime modules two levels above tests.
           # Mirror the exact runtime into that compatibility root for the QA process only.
           cp -a "$QA_ROOT/GitHub/." "$QA_ROOT/"
           test -f "$QA_ROOT/GitHub/index.html"
-          test -n "$(find "$QA_ROOT/tests" -maxdepth 1 -type f \( -name '*.test.py' -o -name '*.test.js' \) -print -quit)"
+          test -n "$(find "$QA_ROOT/qa-public/tests" -maxdepth 1 -type f \( -name '*.test.py' -o -name '*.test.js' \) -print -quit)"
 
       - name: Check runtime JavaScript syntax
         run: |
@@ -84,7 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/quadlud-public-qa"
-          export PYTHONPATH="$PWD/tests"
+          export PYTHONPATH="$PWD/qa-public/tests"
           while IFS= read -r test; do
             echo "PUBLIC QA JS: $test"
             case "$(basename "$test")" in
@@ -96,11 +96,11 @@ jobs:
                 ;;
               *) node "$test" ;;
             esac
-          done < <(find tests -maxdepth 1 -type f -name '*.test.js' | sort)
+          done < <(find qa-public/tests -maxdepth 1 -type f -name '*.test.js' | sort)
           while IFS= read -r test; do
             echo "PUBLIC QA PY: $test"
             python "$test"
-          done < <(find tests -maxdepth 1 -type f -name '*.test.py' | sort)
+          done < <(find qa-public/tests -maxdepth 1 -type f -name '*.test.py' | sort)
 
       - name: Build Pages payload from runtime only
         run: |
