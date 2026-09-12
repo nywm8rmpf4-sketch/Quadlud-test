@@ -1,0 +1,67 @@
+name: QUADLUD Tango R8 gzip chunk stage
+on:
+  push:
+    branches:
+      - candidate/v3.1.9-tango-r8-gzip-chunks-r1
+    paths:
+      - tango-tutor-gzip-chunk-transport-r8.js
+      - qa-public/tools/build_tango_tutor_cache_r8_gzip_chunks.js
+      - qa-public/tools/apply_tango_r8_gzip_chunks_r1.js
+      - qa-public/tests/v319-r8-gzip-chunk-roundtrip.test.js
+      - .github/workflows/tango-r8-gzip-chunk-stage.yml
+permissions:
+  contents: write
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test freshness preflight
+        run: |
+          grep -q "DATA_SCHEMA=10" tango-tutor-precomputed-cache.js
+          grep -q "sync5-cognitive-sharded-lz4" tango-tutor-precomputed-cache.js
+          grep -q "TANGO-R8-SHARDED-CACHE-R1" build-info.json
+          test -f tango-tutor-cache-r8-easy.js
+          test -f tango-tutor-cache-r8-medium.js
+          test -f tango-tutor-cache-r8-hard.js
+          test -f tango-tutor-cache-r8-expert.js
+      - name: Verify deterministic gzip generation
+        run: |
+          rm -rf /tmp/gzip-a /tmp/gzip-b
+          node qa-public/tools/build_tango_tutor_cache_r8_gzip_chunks.js /tmp/gzip-a
+          node qa-public/tools/build_tango_tutor_cache_r8_gzip_chunks.js /tmp/gzip-b
+          diff -qr /tmp/gzip-a /tmp/gzip-b
+      - name: Stage runtime transport
+        run: |
+          node qa-public/tools/build_tango_tutor_cache_r8_gzip_chunks.js .
+          node qa-public/tools/apply_tango_r8_gzip_chunks_r1.js
+          rm -f tango-tutor-cache-r8-gzip-report.json
+      - name: Syntax and exact transport parity
+        run: |
+          node --check tango-tutor-gzip-chunk-transport-r8.js
+          node --check tango-tutor-precomputed-cache.js
+          node --check game-manifest.js
+          node qa-public/tests/v319-r8-gzip-chunk-roundtrip.test.js
+      - name: Targeted cache and pedagogy regressions
+        run: |
+          node qa-public/tests/v319-r8-cache-materialized-hit.test.js
+          node qa-public/tests/v319-r8-cache-planner-contract-guard.test.js
+          node qa-public/tests/v319-r8-cognitive-live-priority.test.js
+          node qa-public/tests/v319-r8-direct-visible-fastpath.test.js
+          node qa-public/tests/v319-tango-cognitive-proof-stage-compaction.test.js
+          node qa-public/tests/v319-r3ui-tango-tutor-freeze-guard.test.js
+      - name: Commit staged runtime
+        run: |
+          git config user.name "nywm8rmpf4-sketch"
+          git config user.email "nywm8rmpf4@privaterelay.appleid.com"
+          git add tango-tutor-gzip-chunk-transport-r8.js tango-tutor-cache-r8-gzip-manifest.js tango-tutor-cache-r8-*-gz-*.txt tango-tutor-precomputed-cache.js index.html sw.js game-manifest.js build-info.json
+          git diff --cached --check
+          git status --short
+          git commit -m "build(tango): install exact R8 gzip chunk transport [skip ci]"
+          git push origin HEAD:candidate/v3.1.9-tango-r8-gzip-chunks-r1
