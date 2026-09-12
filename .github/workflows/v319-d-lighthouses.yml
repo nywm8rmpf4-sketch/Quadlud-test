@@ -1,0 +1,67 @@
+name: QUADLUD v3.1.9-D LIGHTHOUSES candidate QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app.js'
+      - 'build-info.json'
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'styles-core.css'
+      - 'sw.js'
+      - 'victory-presentation.js'
+      - 'qa-public/tests/v318-f1-victory-presentation.test.js'
+      - 'qa-public/tests/v318-f1-victory-review-browser.test.py'
+      - 'qa-public/tests/v319-d-lighthouses-*'
+      - '.github/workflows/v319-d-lighthouses.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: quadlud-v319-d-lighthouses
+  cancel-in-progress: true
+jobs:
+  lighthouses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.13'}
+      - name: Install browser QA
+        run: |
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+          CHROMIUM_PATH="$(python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p: print(p.chromium.executable_path)
+          PY
+          )"
+          sudo ln -sf "$CHROMIUM_PATH" /usr/bin/chromium
+      - name: Materialize canonical QA layout
+        run: |
+          set -euo pipefail
+          Q="$RUNNER_TEMP/q"
+          mkdir -p "$Q/GitHub" "$Q/tests"
+          rsync -a ./ "$Q/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='qa-public/' --exclude='qa-release/'
+          cp -a qa-public/tests/. "$Q/tests/"
+      - name: Syntax and contracts
+        run: |
+          set -euo pipefail
+          node --check victory-presentation.js
+          node --check app.js
+          cd "$RUNNER_TEMP/q"
+          node tests/v318-f1-victory-presentation.test.js
+          node tests/v319-d-lighthouses-victory-contract.test.js
+          node tests/v319-c-snd3-product-integration.test.js
+      - name: LIGHTHOUSES browser matrix
+        run: |
+          cd "$RUNNER_TEMP/q"
+          export PYTHONPATH="$PWD/tests"
+          python tests/v319-d-lighthouses-victory-browser.test.py
+      - name: Victory review regression
+        run: |
+          cd "$RUNNER_TEMP/q"
+          export PYTHONPATH="$PWD/tests"
+          python tests/v318-f1-victory-review-browser.test.py
