@@ -48,6 +48,8 @@
     return {
       theme:['auto','light','dark'].includes(p.theme)?p.theme:'auto',
       sound:p.sound!==false,
+      soundPedagogy:p.soundPedagogy!==false,
+      soundVolume:Number.isFinite(Number(p.soundVolume))?Math.max(0,Math.min(1,Number(p.soundVolume))):0.72,
       queenAutoCross:p.queenAutoCross===true,
       lang:supportedLangs.includes(p.lang)?p.lang:defaultLang,
       coachMode:['minimal','normal','pedagogical'].includes(p.coachMode)?p.coachMode:'normal',

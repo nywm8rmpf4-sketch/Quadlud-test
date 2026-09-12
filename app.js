@@ -5,9 +5,12 @@
  */
 'use strict';
 const $=s=>document.querySelector(s), app=$('#app'), toast=$('#toast'), timerEl=$('#timer');
-const VERSION='3.1.8';
+const VERSION='3.1.9-C';
 const UI_FEATURES=Object.freeze({inlineRules:false,exploration:false,pause:false,liveTimer:false,unjustifiedHighlights:false,verifyAction:false});
 const WebPlatform=QuadludWebPlatform.getWebPlatform();
+const AudioBackend=QuadludWebAudio.createWebAudioBackend(window,{maxVoices:24});
+const SemanticAudio=QuadludAudioService.createAudioService({backend:AudioBackend});
+const AudioEvents=QuadludAudioEventBridge.createBridge({audio:QuadludAudioService,service:SemanticAudio,getPreferences:()=>prefs()});
 const VictoryPresentation=QuadludVictoryPresentation.createController({document,window,random:()=>Math.random(),setTimer:(cb,ms)=>setTimeout(cb,ms),clearTimer:id=>clearTimeout(id)});
 let victoryOverlayTimer=null,victoryAnimationFrame=null;
 const DiagnosticRecorder=QuadludDiagnosticRecorder;
@@ -116,12 +119,11 @@ const PREF_KEY=PersistentData.keys.preferences;
 function detectedLang(){try{for(let x of WebPlatform.locale.languages()){let c=String(x).toLowerCase().split('-')[0];if(c==='zh')return 'zh';if(SUPPORTED_LANGS.includes(c))return c}}catch(_){}return 'fr'}
 function prefs(){return PersistentData.preferences.read({defaultLang:detectedLang(),supportedLangs:SUPPORTED_LANGS})}
 function languageOptionsHtml(selected){return LANGUAGE_OPTIONS.map(([code,name])=>`<option value="${code}" ${selected===code?'selected':''}>${name}</option>`).join('')}
-function savePrefs(p){PersistentData.preferences.write(p);applyPrefs()}
+function savePrefs(p){PersistentData.preferences.write(p);AudioEvents.sync();applyPrefs()}
 function resolvedTheme(){let p=prefs();return p.theme==='auto'?(window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):p.theme}
 function applyPrefs(){let p=prefs(),theme=resolvedTheme();document.documentElement.dataset.theme=theme;document.documentElement.dataset.themeMode=p.theme;let meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=theme==='dark'?'#171916':'#f4f1e9';let b=$('#themeBtn');if(b){b.textContent=theme==='dark'?'☾':'☀︎';b.setAttribute('aria-label',`${tr('themeLabel')} : ${p.theme}`)}}
 function cycleTheme(){let p=prefs(),m={auto:'light',light:'dark',dark:'auto'};p.theme=m[p.theme];savePrefs(p);showToast(`${tr('themeLabel')} : ${{auto:tr('auto'),light:tr('light'),dark:tr('dark')}[p.theme]}`)}
 function toggleSound(){let p=prefs();p.sound=!p.sound;savePrefs(p);showToast(p.sound?tr('soundsOn'):tr('soundsOff'));return p.sound}
-function playTone(kind='tap'){if(!prefs().sound)return;try{let A=window.AudioContext||window.webkitAudioContext;if(!A)return;let c=new A(),o=c.createOscillator(),g=c.createGain(),now=c.currentTime;o.type='sine';o.frequency.value=kind==='win'?659:kind==='error'?180:420;g.gain.setValueAtTime(kind==='win'?.06:.025,now);g.gain.exponentialRampToValueAtTime(.001,now+(kind==='win'?.38:.12));o.connect(g);g.connect(c.destination);o.start(now);o.stop(now+(kind==='win'?.4:.13));setTimeout(()=>c.close().catch(()=>{}),600)}catch(_){}}
 function postVictoryReviewState(c=current){let r=c?.postVictoryReview;return r&&r.schema===1&&r.outcome==='solved'&&Number.isFinite(Number(r.officialSeconds))?r:null}
 function postVictoryReviewActive(c=current){let r=postVictoryReviewState(c);return !!(r?.active&&c?.statsClosed&&!c?.completed)}
 function postVictoryReviewCanUndo(c=current){let r=postVictoryReviewState(c),h=c?.moveHistory,n=h?.nodes?.[h?.cursor];return !!(c?.completed&&c?.statsClosed&&r&&!r.active&&n?.parent&&h.nodes?.[n.parent])}
@@ -173,7 +175,7 @@ function victoryOverlay(c,seconds){
   document.body.insertAdjacentHTML('beforeend',`<div class="victory" id="victory"><div class="victory-card"><div class="victory-burst" aria-hidden="true">✦</div><small>${tr('victoryKicker')}</small><h2>${gameLabel(c.game)}</h2><div class="victory-time">${fmt(seconds)}</div>${dailyScore}<p>${DIFF[c.diff]}${c.daily?` · ${tr('dailyLabel')}`:''}</p><div class="victory-actions">${dailyAction}${challengeAction}<button class="btn" id="shareResult">${tr('share')}</button><button class="btn" id="closeVictory">${tr('continue')}</button></div></div></div>`);
   let root=$('#victory');$('#shareResult').onclick=()=>shareResult(c,seconds);$('#closeVictory').onclick=()=>a11yCloseDialog(root);
   let dn=$('#dailyVictoryNext');if(dn)dn.onclick=()=>{let d=c.dailyDay;a11yCloseDialog(root,false);next?launchDailyCircuit(d):dailyView()};let vc=$('#victoryShareChallenge');if(vc)vc.onclick=()=>shareChallenge(challengeParse(c.challengeCode));
-  root.onclick=e=>{if(e.target===root)a11yCloseDialog(root)};a11yOpenDialog(root,'#closeVictory');playTone('win');haptic(28)
+  root.onclick=e=>{if(e.target===root)a11yCloseDialog(root)};a11yOpenDialog(root,'#closeVictory');haptic(28)
 }
 
 function markBacktrack(){if(current&&!current.completed)current.backtrackUsed=true}
@@ -375,7 +377,7 @@ function renderInstalledSession(c){return renderGameUi(c)}
 function installGeneratedSession(game,diff,candidate,{context='normal',metadata=null}={}){
   current=createRegisteredGeneratedSession(game,diff,candidate,{context});
   if(metadata&&typeof metadata==='object')Object.assign(current,metadata);
-  renderInstalledSession(current);return current
+  renderInstalledSession(current);AudioEvents.emit('NEW_GAME');return current
 }
 function validateRegisteredVictory(session=current,options={}){
   if(!session?.game||!GameRegistry.hasCapability(session.game,'sessionLifecycle'))return {solved:false,reasonKey:'gridIncomplete'};
@@ -1318,13 +1320,13 @@ function historyChanges(beforeKey,after){return SessionHistory.historyChanges(cu
 function normalizeHistoryAction(action,beforeKey=null,after=null){return SessionHistory.normalizeHistoryAction(current,action,beforeKey,after)}
 function historyRecord(action='MOVE',beforeKey=null){
   if(!current)return false;
-  let rec=SessionHistory.recordHistory(current,action,beforeKey);if(!rec.changed){diagnosticRecord('action.not-applied',{action:diagnosticAction(action),reason:rec.reason||'not-applied'});updateHistoryButtons();return false}
+  let rec=SessionHistory.recordHistory(current,action,beforeKey);if(!rec.changed){diagnosticRecord('action.not-applied',{action:diagnosticAction(action),reason:rec.reason||'not-applied'});AudioEvents.action({applied:false,action});updateHistoryButtons();return false}
   let {node,parent,normalized,existing,hadAlternative}=rec;
   let err=analyzeCurrentError(normalized);node.error=err?{...err,historyNode:node.id,parentNode:parent.id}:null;
   current.lastError=node.error?{...node.error}:null;if(node.error)errorUsage('detected',node.error.technique||null);
   let audit=evaluateMoveJustification(beforeKey,normalized,node.error);applyAuditResult(node,audit);explorationOnRecordedNode(node);
   masteryRecognizePlayerMove(beforeKey,normalized,node.error,audit);if(current.training&&!node.error)trainingMoveCompleted(normalized);refreshErrorCoach();updateHistoryButtons();
-  diagnosticRecordedHistory(rec);return true
+  diagnosticRecordedHistory(rec);AudioEvents.action({applied:true,error:node.error,action:normalized});return true
 }
 function restorePuzzleSnapshot(s){
   if(!current||!s||s.game!==current.game)return false;
@@ -1337,12 +1339,12 @@ function undoMoves(count=1){
   if(!current)return 0;let fromVictory=postVictoryReviewCanUndo(current);if(!fromVictory&&!historyCanUndo())return 0;
   let step=SessionHistory.undoHistory(current,count),moved=step.moved;if(!moved){updateHistoryButtons();return 0}
   if(fromVictory){let review=postVictoryReviewState(current);current.completed=false;review.active=true;review.lastReviewAt=WebPlatform.clock.nowMs();freezePostVictoryReviewTimer(review.officialSeconds)}
-  markBacktrack();restorePuzzleSnapshot(step.snapshot);syncErrorFromHistory();syncReasoningAuditFromHistory();trainingSyncPath();updateHistoryButtons();refreshExplorationPanel();diagnosticRecord('history.undo',{requested:count,moved,cursor:step.history.cursor,postVictoryReview:fromVictory});saveCurrent();haptic(7);return moved
+  markBacktrack();restorePuzzleSnapshot(step.snapshot);syncErrorFromHistory();syncReasoningAuditFromHistory();trainingSyncPath();updateHistoryButtons();refreshExplorationPanel();diagnosticRecord('history.undo',{requested:count,moved,cursor:step.history.cursor,postVictoryReview:fromVictory});AudioEvents.emit('UNDO');saveCurrent();haptic(7);return moved
 }
 function redoMoves(count=1){
   if(!historyCanRedo())return 0;let reviewActive=postVictoryReviewActive(current);
   let step=SessionHistory.redoHistory(current,count),moved=step.moved;if(!moved){updateHistoryButtons();return 0}
-  restorePuzzleSnapshot(step.snapshot);syncErrorFromHistory();syncReasoningAuditFromHistory();trainingSyncPath();updateHistoryButtons();refreshExplorationPanel();diagnosticRecord('history.redo',{requested:count,moved,cursor:step.history.cursor,postVictoryReview:reviewActive});let refinished=reviewActive&&maybeAutoFinish();if(!refinished)saveCurrent();haptic(7);return moved
+  restorePuzzleSnapshot(step.snapshot);syncErrorFromHistory();syncReasoningAuditFromHistory();trainingSyncPath();updateHistoryButtons();refreshExplorationPanel();diagnosticRecord('history.redo',{requested:count,moved,cursor:step.history.cursor,postVictoryReview:reviewActive});AudioEvents.emit('REDO');let refinished=reviewActive&&maybeAutoFinish();if(!refinished)saveCurrent();haptic(7);return moved
 }
 function updateHistoryButtons(){let u=$('#undoBtn'),r=$('#redoBtn');if(u)u.disabled=!historyCanUndo();if(r)r.disabled=!historyCanRedo()}
 function historySummary(){return SessionHistory.summary(current)}
@@ -1575,7 +1577,7 @@ function walkthroughA11yAnnouncement(level='logical'){
 }
 function walkthroughNavigateProof(delta){
   let s=walkthroughSession,group=walkthroughCurrentGroup(),nav=s?.navigation;if(!s||!group||!nav)return false;let logical=nav.logicalMoveIndex,next=Math.max(0,Math.min(group.entries.length-1,nav.proofStepIndex+Number(delta||0)));if(next===nav.proofStepIndex)return true;
-  if(!walkthroughSetPosition(logical,next))return false;diagnosticRecord(delta<0?'tutor.previous':'tutor.next',{index:s.index,moves:s.moves.length});renderWalkthrough({animatePlacement:delta>0,focusSelector:delta<0?'#walkthroughProofPrev':'#walkthroughProofNext',focusFallback:delta<0?'#walkthroughProofNext':'#walkthroughProofPrev',announceNavigation:'proof'});return true
+  if(!walkthroughSetPosition(logical,next))return false;if(next===group.entries.length-1)AudioEvents.emit('TUTOR_CONCLUSION');diagnosticRecord(delta<0?'tutor.previous':'tutor.next',{index:s.index,moves:s.moves.length});renderWalkthrough({animatePlacement:delta>0,focusSelector:delta<0?'#walkthroughProofPrev':'#walkthroughProofNext',focusFallback:delta<0?'#walkthroughProofNext':'#walkthroughProofPrev',announceNavigation:'proof'});return true
 }
 function walkthroughTarget(index){return index>0?walkthroughSession?.moves?.[index-1]?.target:null}
 function walkthroughBoardHtml(snapshot,target=null,deduction=null,options={}){
@@ -1617,7 +1619,7 @@ async function openWalkthrough(){
   walkthroughSession={schema:3,base:work,work,initial:walkthroughSnapshot(work),moves:[],pedagogyNavigationByMove:[],index:0,atStart:true,navigation:walkthroughNavigationApi().definePedagogyNavigation({logicalMoveIndex:0,proofStepIndex:0}),done:false,stalled:false,elapsed,wasPaused};
   gamePedagogy(work.game).walkthrough.initialize(walkthroughSession);
   if(resume&&!walkthroughRestoreResume(resume)){current.walkthroughResume=null;walkthroughSetStart()}
-  diagnosticRecord('tutor.open',{index:walkthroughSession.index,moves:walkthroughSession.moves.length,navigation:walkthroughSession.navigation});renderWalkthrough();return true
+  diagnosticRecord('tutor.open',{index:walkthroughSession.index,moves:walkthroughSession.moves.length,navigation:walkthroughSession.navigation});AudioEvents.emit('TUTOR_START');renderWalkthrough();return true
 }
 function closeWalkthrough(){
   let s=walkthroughSession;if(!s||!current)return false;walkthroughPersistResume();let elapsed=s.elapsed,wasPaused=s.wasPaused;walkthroughSession=null;document.body.classList.remove('tutor-active');
@@ -1639,7 +1641,7 @@ function resetCurrent(){
   current.completed=false;delete current.postVictoryReview;
   if(wasCompleted||current.statsClosed){current.backtrackUsed=false;current.hintUsed=false;current.attemptId=null;current.statsClosed=false;statsStart(current)}
   stopTimer(false);elapsedBase=0;startedAt=0;paused=false;startTimer(true,0,false);historyInit(true);updateHistoryButtons();
-  diagnosticRecord('session.reset',{hadProgress});saveCurrent();updatePauseButton();status('',true);showToast(tr('resetDone'));haptic(8)
+  diagnosticRecord('session.reset',{hadProgress});AudioEvents.emit('RESET');saveCurrent();updatePauseButton();status('',true);showToast(tr('resetDone'));haptic(8)
 }
 
 // ===== v2.7.0 — background precomputation =====
@@ -1788,7 +1790,7 @@ function hintStage(kind,target,message,apply){
   }
   let h=current.hintFlow,previous=h.stage||0,next=isNew?Math.max(1,Math.min(2,h.plan?.entryStage||1)):Math.min(3,previous+1);
   h.stage=next;
-  diagnosticRecord('coach.stage',{stage:h.stage,technique:technique||null});for(let s=previous+1;s<=next;s++)coachUsage(s,technique);
+  diagnosticRecord('coach.stage',{stage:h.stage,technique:technique||null});AudioEvents.emit(isNew?'COACH_HINT':'LOGIC_STEP');for(let s=previous+1;s<=next;s++)coachUsage(s,technique);
   if(technique)current.masteryPendingAid={technique,stage:h.stage,target:[...target]};
   clearHintFocus();
   if(h.stage===1)focusHintContext(kind,target,message);else focusHint(target);
@@ -1871,7 +1873,7 @@ function resetGameUi(session=current){if(!session?.game)return false;return game
 
 function keyboardInput(e){if(!current?.game)return false;let handler=gameWebUi(current.game).keyboardInput;return typeof handler==='function'?handler(e):false}
 document.addEventListener('keydown',keyboardInput);
-function status(t,ok){let s=$('#status');if(!s)return;s.textContent=t;s.className='status '+(ok?'ok':'bad');if(!ok)playTone('error')}
+function status(t,ok){let s=$('#status');if(!s)return;s.textContent=t;s.className='status '+(ok?'ok':'bad');if(!ok)AudioEvents.emit('INVALID')}
 function finish(t,outcome='solved'){
   let measured=timerSeconds(),review=postVictoryReviewState(current),reviewClosed=!!review&&current?.statsClosed===true,total=reviewClosed?review.officialSeconds:measured;
   stopTimer(false);elapsedBase=total;startedAt=0;paused=true;
@@ -1885,10 +1887,10 @@ function finish(t,outcome='solved'){
     current.completed=true;gamePedagogy(current.game).lifecycle.afterFinish({current})
   }
   let snapshot=current?{...current}:null;clearSaved();renderTimer(true);status(`${t} — ${fmt(elapsedBase)}`,true);updatePauseButton();
-  if(outcome==='solved'&&snapshot){VictoryPresentation.playApplause({enabled:prefs().sound});victoryAnimationFrame=requestAnimationFrame(()=>{victoryAnimationFrame=null;celebrateBoard(snapshot.game);victoryOverlayTimer=setTimeout(()=>{victoryOverlayTimer=null;victoryOverlay(snapshot,total)},2100)})}
+  if(outcome==='solved'&&snapshot){AudioEvents.emit('VICTORY');victoryAnimationFrame=requestAnimationFrame(()=>{victoryAnimationFrame=null;celebrateBoard(snapshot.game);victoryOverlayTimer=setTimeout(()=>{victoryOverlayTimer=null;victoryOverlay(snapshot,total)},2100)})}
 }
 WebPlatform.lifecycle.onVisibilityChange(()=>{diagnosticRecord('lifecycle.visibility',{hidden:WebPlatform.lifecycle.isHidden()});if(WebPlatform.lifecycle.isHidden()&&current&&!current.completed)saveCurrent()});WebPlatform.lifecycle.onPageHide(()=>{if(current&&!current.completed)saveCurrent()});Diagnostic.attachGlobalErrors(window,()=>({reasoningView:diagnosticView(current)}));window.addEventListener('resize',()=>diagnosticRecord('viewport.resize',{viewport:{width:Math.max(0,Number(innerWidth)||0),height:Math.max(0,Number(innerHeight)||0)},dpr:Math.max(0,Number(devicePixelRatio)||1)}));window.addEventListener('orientationchange',()=>diagnosticRecord('viewport.orientation',{orientation:diagnosticOrientation()}));if(WebPlatform.serviceWorker.supported())WebPlatform.lifecycle.onLoad(()=>WebPlatform.serviceWorker.register('./sw.js').catch(()=>{}));
-discardLegacyPersistence();applyPrefs();try{window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{if(prefs().theme==='auto')applyPrefs()})}catch(_){}initialView();
+discardLegacyPersistence();AudioEvents.sync();applyPrefs();document.addEventListener('pointerdown',()=>AudioEvents.unlock(),{once:true,capture:true});document.addEventListener('keydown',()=>AudioEvents.unlock(),{once:true,capture:true});try{window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{if(prefs().theme==='auto')applyPrefs()})}catch(_){}initialView();
 
 
 // ===== v2.23 — shared helpers still used by current logic/generation =====

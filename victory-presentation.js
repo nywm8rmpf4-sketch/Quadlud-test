@@ -21,53 +21,6 @@
   function profileForGame(gameId){return PROFILE_BY_GAME[String(gameId||'')]||GENERIC_PROFILE}
   function reducedMotionRequested(scope){try{return !!scope?.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches}catch(_){return false}}
 
-  function buildApplausePlan(random=Math.random){
-    const rand=typeof random==='function'?random:Math.random;
-    const base=[0,.07,.15,.25,.34,.43,.55,.64,.73,.86,.96,1.06,1.18,1.29,1.40,1.50];
-    return base.map((at,index)=>Object.freeze({
-      at:clamp(at+(rand()-.5)*.026,0,1.56),
-      duration:clamp(.046+rand()*.025,.04,.075),
-      gain:clamp(.072+rand()*.038,.065,.115),
-      pan:clamp((rand()-.5)*.8,-.4,.4),
-      frequency:clamp(1050+rand()*850,1000,1950),
-      index
-    })).sort((a,b)=>a.at-b.at)
-  }
-
-  function playApplause({scope=typeof globalThis!=='undefined'?globalThis:null,enabled=true,random=Math.random,setTimer=(fn,ms)=>setTimeout(fn,ms)}={}){
-    if(!enabled)return {played:false,reason:'disabled'};
-    const AudioContext=scope?.AudioContext||scope?.webkitAudioContext;
-    if(typeof AudioContext!=='function')return {played:false,reason:'unavailable'};
-    let context=null;
-    try{
-      context=new AudioContext();
-      const now=finite(context.currentTime,0),sampleRate=Math.max(8000,finite(context.sampleRate,44100));
-      const master=context.createGain();
-      master.gain.setValueAtTime?.(.18,now);
-      if(master.gain&&!master.gain.setValueAtTime)master.gain.value=.18;
-      master.connect(context.destination);
-      const length=Math.max(1,Math.floor(sampleRate*.075)),buffer=context.createBuffer(1,length,sampleRate),data=buffer.getChannelData(0),rand=typeof random==='function'?random:Math.random;
-      for(let i=0;i<data.length;i++){const envelope=Math.pow(1-i/data.length,2.2);data[i]=(rand()*2-1)*envelope}
-      const plan=buildApplausePlan(rand);
-      for(const clap of plan){
-        const source=context.createBufferSource(),filter=context.createBiquadFilter(),gain=context.createGain(),start=now+clap.at;
-        source.buffer=buffer;filter.type='bandpass';filter.frequency.value=clap.frequency;filter.Q.value=.8;
-        gain.gain.setValueAtTime(.0001,start);gain.gain.linearRampToValueAtTime(clap.gain,start+.004);gain.gain.exponentialRampToValueAtTime(.0001,start+clap.duration);
-        source.connect(filter);filter.connect(gain);
-        if(typeof context.createStereoPanner==='function'){
-          const pan=context.createStereoPanner();pan.pan.value=clap.pan;gain.connect(pan);pan.connect(master)
-        }else gain.connect(master);
-        source.start(start);source.stop(start+clap.duration+.01)
-      }
-      try{if(context.state==='suspended')context.resume()?.catch?.(()=>{})}catch(_){}
-      setTimer(()=>{try{context.close()?.catch?.(()=>{})}catch(_){}},1900);
-      return {played:true,claps:plan.length,durationSeconds:Math.max(...plan.map(x=>x.at+x.duration))}
-    }catch(_){
-      try{context?.close?.()?.catch?.(()=>{})}catch(__){}
-      return {played:false,reason:'failed'}
-    }
-  }
-
   function createController({document=null,window=null,random=Math.random,setTimer=(fn,ms)=>setTimeout(fn,ms),clearTimer=id=>clearTimeout(id)}={}){
     let active=null,cleanupTimer=null;
 
@@ -163,10 +116,9 @@
       VERSION,
       profileForGame,
       celebrate,
-      cancel,
-      playApplause:options=>playApplause({scope:window,random,setTimer,...options})
+      cancel
     })
   }
 
-  return Object.freeze({VERSION,GENERIC_PROFILE,LIGHTHOUSES_PROFILE,profileForGame,buildApplausePlan,playApplause,createController})
+  return Object.freeze({VERSION,GENERIC_PROFILE,LIGHTHOUSES_PROFILE,profileForGame,createController})
 });

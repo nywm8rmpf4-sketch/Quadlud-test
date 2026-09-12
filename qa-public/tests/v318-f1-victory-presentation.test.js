@@ -19,6 +19,7 @@ let timerId=0,timers=new Map();
 const timer=(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id};
 const clear=id=>timers.delete(id);
 
+// Generic parity remains byte-for-behaviour compatible with F1.
 const gchildren=[node(),node(),node()];
 const genericBoard=node();genericBoard.children=gchildren;genericBoard.querySelectorAll=sel=>sel==='.win-pop'?gchildren.filter(x=>x.classList.contains('win-pop')):[];
 let controller=VP.createController({document,window:{matchMedia:()=>({matches:false})},random:()=>.5,setTimer:timer,clearTimer:clear});
@@ -46,6 +47,7 @@ function lighthouseBoard(){
   return {board,cells};
 }
 
+// Normal LIGHTHOUSES: four cardinal beams per rendered lighthouse, three-cell range, no generic confetti.
 timers.clear();const normal=lighthouseBoard();
 controller=VP.createController({document,window:{matchMedia:()=>({matches:false})},setTimer:timer,clearTimer:clear});
 const started=controller.celebrate({gameId:'queens',board:normal.board,victoryClass:'queens-win'});
@@ -56,34 +58,22 @@ for(const origin of layer.children){assert.strictEqual(origin.children.length,4)
 controller.cancel({removeFinal:false,board:normal.board,victoryClass:'queens-win'});assert(layer.removed);assert(normal.board.classList.contains('queens-win'));assert(!normal.board.classList.contains('lighthouses-victory-active'));
 controller.cancel({removeFinal:true,board:normal.board,victoryClass:'queens-win'});assert(!normal.board.classList.contains('queens-win'));
 
+// Reduced motion: no beam/rotation, temporary halo only, golden final state retained after cleanup.
 timers.clear();const reduced=lighthouseBoard();
 controller=VP.createController({document,window:{matchMedia:()=>({matches:true})},setTimer:timer,clearTimer:clear});
 const r=controller.celebrate({gameId:'queens',board:reduced.board,victoryClass:'queens-win'});
 assert.strictEqual(r.reducedMotion,true);assert.strictEqual(r.beamCount,0);assert.strictEqual(r.cleanupMs,900);assert.strictEqual(r.lighthouseCount,2);assert(reduced.cells.every(c=>c.halo.classList.contains('lighthouses-victory-halo')));assert(reduced.board.classList.contains('queens-win'));
 const cleanup=[...timers.values()].find(x=>x.ms===900);assert(cleanup);cleanup.fn();assert(reduced.cells.every(c=>!c.halo.classList.contains('lighthouses-victory-halo')));assert(reduced.board.classList.contains('queens-win'));assert(!reduced.board.classList.contains('board-complete'));
 
-const plan=VP.buildApplausePlan(()=>.5);assert.strictEqual(plan.length,16);assert(plan.every((x,i)=>i===0||x.at>=plan[i-1].at));assert(Math.max(...plan.map(x=>x.at+x.duration))<1.8);assert(plan.every(x=>x.gain<=.115&&x.pan>=-.4&&x.pan<=.4));
-let constructed=0;
-class Param{constructor(){this.value=0}setValueAtTime(v){this.value=v}linearRampToValueAtTime(v){this.value=v}exponentialRampToValueAtTime(v){this.value=v}}
-class FakeNode{connect(x){return x}}
-const starts=[];
-class FakeAudioContext{
-  constructor(){constructed++;this.currentTime=1;this.sampleRate=12000;this.destination={};this.state='running'}
-  createGain(){const n=new FakeNode();n.gain=new Param();return n}
-  createBuffer(_c,len){return {getChannelData(){return new Float32Array(len)}}}
-  createBufferSource(){const n=new FakeNode();n.start=t=>starts.push(t);n.stop=()=>{};return n}
-  createBiquadFilter(){const n=new FakeNode();n.frequency={value:0};n.Q={value:0};return n}
-  createStereoPanner(){const n=new FakeNode();n.pan={value:0};return n}
-  close(){return Promise.resolve()}
-  resume(){return Promise.resolve()}
-}
-assert.deepStrictEqual(VP.playApplause({scope:{AudioContext:FakeAudioContext},enabled:false}),{played:false,reason:'disabled'});assert.strictEqual(constructed,0);
-const audio=VP.playApplause({scope:{AudioContext:FakeAudioContext},enabled:true,random:()=>.5,setTimer:()=>1});assert.strictEqual(audio.played,true);assert.strictEqual(audio.claps,16);assert.strictEqual(constructed,1);assert.strictEqual(starts.length,16);assert(audio.durationSeconds<1.8);
+// Audio is owned exclusively by SND-3; victory presentation remains visual-only.
+assert.strictEqual(VP.buildApplausePlan,undefined);assert.strictEqual(VP.playApplause,undefined);
 
+// Hidden-state/network/media guard.
 const src=fs.readFileSync(path.join(__dirname,'../GitHub/victory-presentation.js'),'utf8');assert(!/solutionGrid|validationState|current\.sol|\.mp3|\.wav|XMLHttpRequest|\bfetch\s*\(/i.test(src));
 
+// Edge cases: no rendered lighthouse and unavailable matchMedia remain safe.
 timers.clear();const empty=node();empty.getBoundingClientRect=()=>({left:10,top:20,width:240,height:240});empty.querySelectorAll=()=>[];
 controller=VP.createController({document,window:{},setTimer:timer,clearTimer:clear});const noPieces=controller.celebrate({gameId:'queens',board:empty,victoryClass:'queens-win'});assert.strictEqual(noPieces.started,true);assert.strictEqual(noPieces.lighthouseCount,0);assert.strictEqual(noPieces.beamCount,0);controller.cancel({removeFinal:true,board:empty,victoryClass:'queens-win'});
 timers.clear();const throwing=lighthouseBoard();controller=VP.createController({document,window:{matchMedia(){throw new Error('unsupported')}},setTimer:timer,clearTimer:clear});assert.strictEqual(controller.celebrate({gameId:'queens',board:throwing.board,victoryClass:'queens-win'}).reducedMotion,false);controller.cancel({removeFinal:true,board:throwing.board,victoryClass:'queens-win'});
 
-console.log('v3.1.8-F2 victory presentation: generic parity + LIGHTHOUSES override + local applause PASS');
+console.log('v3.1.9-C victory presentation: generic parity + LIGHTHOUSES override + visual-only SND-3 boundary PASS');
