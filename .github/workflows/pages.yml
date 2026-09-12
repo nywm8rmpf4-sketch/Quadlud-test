@@ -84,11 +84,16 @@ jobs:
           export PYTHONPATH="$PWD/tests"
           while IFS= read -r test; do
             echo "PUBLIC QA JS: $test"
-            node "$test"
-          # Artifact-backed R8 ordinal audit is not a standalone exported suite:
-          # it requires four generated JSON caches passed by its dedicated workflow.
-          echo "NOT_EXECUTED / not applicable here: tests/tango-cache-ordinal-r8.test.js (dedicated R8 artifact audit)"
-          done < <(find tests -maxdepth 1 -type f -name '*.test.js' ! -name 'tango-cache-ordinal-r8.test.js' | sort)
+            case "$(basename "$test")" in
+              tango-cache-ordinal-r8.test.js|tango-cache-target-uniqueness-r7.test.js)
+                echo "NOT_EXECUTED / not applicable here: $test (dedicated generated-cache artifact audit)"
+                ;;
+              tango-runtime-data-r8-static-contract.test.js)
+                node "$test" "$PWD/GitHub"
+                ;;
+              *) node "$test" ;;
+            esac
+          done < <(find tests -maxdepth 1 -type f -name '*.test.js' | sort)
           while IFS= read -r test; do
             echo "PUBLIC QA PY: $test"
             python "$test"
