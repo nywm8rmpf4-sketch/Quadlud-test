@@ -1,4 +1,4 @@
-name: QUADLUD v3.1.9-A certified runtime export
+name: QUADLUD v3.1.9-A human-validated source export
 on:
   push:
     branches:
@@ -14,11 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: e633e7fbb6ef2ab90a6f8599a2bc3cdf99e24bbf
-      - name: Verify immutable runtime reference
+          ref: 93a32f2404040eab48f1fcebf5e64e64627b2aeb
+      - name: Verify human HEAD and immutable runtime identity
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "e633e7fbb6ef2ab90a6f8599a2bc3cdf99e24bbf"
+          test "$(git rev-parse HEAD)" = "93a32f2404040eab48f1fcebf5e64e64627b2aeb"
           test "$(git hash-object app.js)" = "1c87612c5e6fd0a9c040a8deb11c5855c096e129"
           test "$(git hash-object build-info.json)" = "b4bdc0724f17c832978ddda4b3bb9e9387203484"
           test "$(git hash-object game-manifest.js)" = "9f27f251f256a06d973ec2387e19ffd2aa046e7d"
@@ -29,14 +29,15 @@ jobs:
           test "$(git hash-object tango-tutor-cache-r8-medium.js)" = "d4086269189bb7cce862fce76645653ad3ab0f10"
           test "$(git hash-object tango-tutor-cache-r8-hard.js)" = "69cd0eb57d47184413c65afb1a369f34d1b6c63c"
           test "$(git hash-object tango-tutor-cache-r8-expert.js)" = "1ba64ceda32be31d19bed453389652a8746582f7"
-      - name: Package exact source checkout
+      - name: Package exact human-tested source checkout
         run: |
           set -euo pipefail
           rm -rf .git
+          printf '%s\n' '93a32f2404040eab48f1fcebf5e64e64627b2aeb' > HUMAN_VALIDATED_HEAD.txt
           printf '%s\n' 'e633e7fbb6ef2ab90a6f8599a2bc3cdf99e24bbf' > CERTIFIED_RUNTIME_COMMIT.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: quadlud-v319-a-certified-e633-source
+          name: quadlud-v319-a-humanvalidated-93a32-source
           path: .
           include-hidden-files: true
           if-no-files-found: error
