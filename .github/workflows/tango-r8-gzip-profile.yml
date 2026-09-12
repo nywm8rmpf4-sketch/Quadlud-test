@@ -1,0 +1,27 @@
+name: QUADLUD Tango R8 gzip profile
+on:
+  push:
+    branches:
+      - candidate/v3.1.9-tango-r8-gzip-profile-r1
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test freshness preflight
+        run: |
+          test -f tango-tutor-cache-r8-easy.js
+          test -f tango-tutor-cache-r8-medium.js
+          test -f tango-tutor-cache-r8-hard.js
+          test -f tango-tutor-cache-r8-expert.js
+          grep -q "DATA_SCHEMA=10" tango-tutor-precomputed-cache.js
+          grep -q "sync5-cognitive-sharded-lz4" tango-tutor-precomputed-cache.js
+      - name: Profile gzip transport without runtime changes
+        run: node qa-public/tools/profile_tango_tutor_cache_gzip_r8.js
