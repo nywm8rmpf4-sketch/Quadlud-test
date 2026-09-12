@@ -1,0 +1,64 @@
+name: QUADLUD v3.1.9-C SND-3 candidate QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'audio-*.js'
+      - 'app.js'
+      - 'data-serialization.js'
+      - 'victory-presentation.js'
+      - 'index.html'
+      - 'sw.js'
+      - 'manifest.webmanifest'
+      - 'build-info.json'
+      - 'qa-public/tests/sound-audio-*'
+      - 'qa-public/tests/v319-c-snd3-product-integration.test.js'
+      - 'qa-public/tests/v318-f1-victory-presentation.test.js'
+      - 'qa-public/tests/data-serialization.test.js'
+      - 'qa-public/tests/precompute-16-contract.test.js'
+      - 'qa-public/tests/fixtures/persistence-v223-baseline.json'
+      - '.github/workflows/v319-c-snd3.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: quadlud-v319-c-snd3
+  cancel-in-progress: true
+jobs:
+  snd3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.13'}
+      - name: Install browser QA
+        run: |
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+      - name: Materialize canonical QA layout
+        run: |
+          set -euo pipefail
+          Q="$RUNNER_TEMP/q"
+          mkdir -p "$Q/GitHub" "$Q/tests"
+          rsync -a ./ "$Q/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='qa-public/' --exclude='qa-release/'
+          cp -a qa-public/tests/. "$Q/tests/"
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          for f in app.js audio-service.js audio-web.js audio-event-bridge.js data-serialization.js victory-presentation.js sw.js; do node --check "$f"; done
+      - name: SND-3 contracts
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/q"
+          node tests/sound-audio-service.test.js
+          node tests/v319-c-snd3-product-integration.test.js
+          node tests/v318-f1-victory-presentation.test.js
+          node tests/data-serialization.test.js
+          node tests/precompute-16-contract.test.js
+      - name: SND-3 Chromium integration
+        run: |
+          cd "$RUNNER_TEMP/q"
+          export PYTHONPATH="$PWD/tests"
+          python tests/sound-audio-browser.test.py
