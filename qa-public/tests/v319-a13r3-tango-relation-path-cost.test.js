@@ -68,13 +68,14 @@ const serialized=JSON.stringify(human);for(const forbidden of ['solutionGrid','h
 
 const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8');
 const sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
+const build=JSON.parse(fs.readFileSync(path.join(ROOT,'GitHub','build-info.json'),'utf8'));
 const runtimeSource=fs.readFileSync(path.join(ROOT,'GitHub','tango-played-move-runtime.js'),'utf8');
 assert(index.includes('tango-played-move-runtime.js?v=3.1.9-a13r6-single-proof'));
 assert(sw.includes('tango-played-move-runtime.js?v=3.1.9-a13r6-single-proof'));
 const cacheMatch=sw.match(/const CACHE='([^']+)'/);
 assert(cacheMatch,'service-worker cache identity missing');
-assert(/^quadlud-v3\.1\.9-/.test(cacheMatch[1]),'service-worker cache must stay on the v3.1.9 candidate family');
-assert.notStrictEqual(cacheMatch[1],'quadlud-v3.1.8','service-worker cache must not regress to certified v3.1.8');
+const releasePrefix=`quadlud-v${String(build.version||'').toLowerCase().replace(/[^0-9a-z.]+/g,'-')}`;
+assert(cacheMatch[1].startsWith(releasePrefix),`service-worker cache must match current build family ${releasePrefix}`);
 assert(runtimeSource.includes('plan=planHumanMove(engine,s.base.diff)'));
 assert(runtimeSource.includes('plan=planHumanMove(engine,current?.diff)'));
 assert(runtimeSource.includes('tangoCoachHandleDeduction=coherent'));
