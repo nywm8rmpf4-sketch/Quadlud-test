@@ -18,9 +18,9 @@ for(const file of ['progression-profile.js','progression-profile-ui.js']){
   const src=fs.readFileSync(path.join(ROOT,file),'utf8');
   for(const forbidden of ['localStorage','sessionStorage','indexedDB','IndexedDB','PersistentData.stats.write','writeStats(','fetch(','XMLHttpRequest','WebSocket'])assert(!src.includes(forbidden),`${file}: forbidden direct persistence/network dependency ${forbidden}`);
 }
-const index=fs.readFileSync(path.join(ROOT,'index.html'),'utf8'),sw=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8'),css=fs.readFileSync(path.join(ROOT,'styles-v32-ux2.css'),'utf8'),build=JSON.parse(fs.readFileSync(path.join(ROOT,'build-info.json'),'utf8'));
+const index=fs.readFileSync(path.join(ROOT,'index.html'),'utf8'),sw=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8'),css=fs.readFileSync(path.join(ROOT,'styles-v32-ux2.css'),'utf8'),build=JSON.parse(fs.readFileSync(path.join(ROOT,'build-info.json'),'utf8')),manifest=JSON.parse(fs.readFileSync(path.join(ROOT,'manifest.webmanifest'),'utf8'));
 assert(index.includes('styles-v32-ux2.css?v=3.2-b-ux2-r1'));assert(index.includes('progression-profile.js?v=3.2-b-ux2-r1'));assert(index.includes('progression-profile-ui.js?v=3.2-b-ux2-r1'));
 assert(index.indexOf('progression-profile.js?v=3.2-b-ux2-r1')<index.indexOf('app.js?v=3.1.9-g-certification-r1'));assert(index.indexOf('progression-profile-ui.js?v=3.2-b-ux2-r1')>index.indexOf('app.js?v=3.1.9-g-certification-r1'));
 assert(sw.includes("quadlud-v3.2-b-ux2-r1-v1"));for(const asset of ['styles-v32-ux2.css?v=3.2-b-ux2-r1','progression-profile.js?v=3.2-b-ux2-r1','progression-profile-ui.js?v=3.2-b-ux2-r1'])assert(sw.includes(asset),asset);
-assert.strictEqual(build.version,'3.2-B');assert.strictEqual(build.candidate,'UX2-LOCAL-PROGRESSION-R1');assert(css.includes('prefers-reduced-motion'));assert(css.includes('forced-colors'));
+assert.strictEqual(build.version,'3.2-B');assert.strictEqual(build.candidate,'UX2-LOCAL-PROGRESSION-R1');assert.strictEqual(manifest.version,'3.2-B');assert(css.includes('prefers-reduced-motion'));assert(css.includes('forced-colors'));
 console.log('v3.2-B UX-2 derived local progression contract: PASS');
