@@ -98,10 +98,24 @@ jobs:
               *) node "$test" ;;
             esac
           done < <(find qa-public/tests -maxdepth 1 -type f -name '*.test.js' | sort)
+          python -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/quadlud-public-qa-http.log" 2>&1 &
+          qa_http_pid=$!
+          trap 'kill "$qa_http_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8765/ >/dev/null; then break; fi
+            if (( attempt == 20 )); then
+              cat "$RUNNER_TEMP/quadlud-public-qa-http.log"
+              exit 1
+            fi
+            sleep 0.25
+          done
           while IFS= read -r test; do
             echo "PUBLIC QA PY: $test"
             python "$test"
           done < <(find qa-public/tests -maxdepth 1 -type f -name '*.test.py' | sort)
+          kill "$qa_http_pid"
+          wait "$qa_http_pid" 2>/dev/null || true
+          trap - EXIT
 
       - name: Build Pages payload from runtime only
         run: |
