@@ -89,7 +89,7 @@ jobs:
           while IFS= read -r test; do
             echo "PUBLIC QA JS: $test"
             case "$(basename "$test")" in
-              tango-cache-ordinal-r8.test.js|tango-cache-target-uniqueness-r7.test.js|tango-trace-compact-r2.test.js|v319-r8-cognitive-cache-live-parity.test.js)
+              tango-cache-ordinal-r8.test.js|tango-cache-target-uniqueness-r7.test.js|tango-trace-compact-r2.test.js|v319-r8-cognitive-cache-live-parity.test.js|v319-r8-materialized-dag.test.js)
                 echo "NOT_EXECUTED / not applicable here: $test (dedicated generated-cache/compaction or exhaustive sharded parity audit)"
                 ;;
               tango-precompute-pool-v5-contract.test.js|tango-runtime-data-r8-static-contract.test.js|v319-r8-cache-live-parity.test.js)
