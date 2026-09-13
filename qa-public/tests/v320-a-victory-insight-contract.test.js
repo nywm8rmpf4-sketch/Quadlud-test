@@ -2,7 +2,7 @@
 const assert=require('assert');
 const fs=require('fs');
 const path=require('path');
-const ROOT=path.resolve(__dirname,'../..');
+const ROOT=path.resolve(__dirname,'../GitHub');
 const UX=require(path.join(ROOT,'victory-insight.js'));
 
 assert.strictEqual(UX.VERSION,1);
