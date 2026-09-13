@@ -3,10 +3,11 @@
  * Copyright © 2026 Serge Benoliel. All rights reserved.
  * Proprietary software. Copying, modification, redistribution or exploitation without prior written authorization is prohibited.
  */
-const CACHE='quadlud-v3.1.9-g-certification-r1-v28';
+const CACHE='quadlud-v3.2-a-ux1-r1-v29';
 const ASSETS=['./',
 './index.html',
 './styles-core.css?v=3.1.9-g-certification-r1',
+'./styles-v32-ux1.css?v=3.2-a-ux1-r1',
 './styles-patches.css?v=3.1.8',
 './styles-i18n.css?v=3.1.8',
 './styles-pedagogy.css?v=3.1.1',
@@ -120,6 +121,7 @@ const ASSETS=['./',
 './audio-event-bridge.js?v=3.1.9-c-snd3-r1',
 './victory-presentation.js?v=3.1.9-f-rectangles-mosaic-r1',
 './app.js?v=3.1.9-g-certification-r1',
+'./victory-insight.js?v=3.2-a-ux1-r1',
 './move-trust.js?v=3.1.8',
 './coach-presentation-bridge.js?v=3.1.8-u14r1-coach-stability',
 './ui-mobile-coach-fixes.js?v=3.1.8',
