@@ -112,8 +112,8 @@ jobs:
           while IFS= read -r test; do
             echo "PUBLIC QA PY: $test"
             case "$(basename "$test")" in
-              v319-cognitive-r8-postinstall-browser.test.py|v319-cognitive-r8-postinstall-final-browser.test.py|v319-r8-integrated-browser.test.py)
-                echo "NOT_EXECUTED / obsolete: $test (superseded monolithic sync2/sync4 browser contract; replaced by sharded schema-10 browser gate)"
+              v319-cognitive-r8-postinstall-browser.test.py|v319-cognitive-r8-postinstall-final-browser.test.py|v319-r8-integrated-browser.test.py|v319-r5-d5-cost-forensic.test.py)
+                echo "NOT_EXECUTED / obsolete: $test (superseded monolithic sync2/sync4 or pre-direct-priority forensic contract)"
                 ;;
               *) python "$test" ;;
             esac
