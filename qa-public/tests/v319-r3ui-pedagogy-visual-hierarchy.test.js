@@ -70,7 +70,7 @@ assert(css.includes('body.tutor-active:not(:has(.walkthrough-proof-chain-active)
 assert(css.includes('body.tutor-active:not(:has(.walkthrough-proof-chain-active)) .walkthrough-explanation{margin-top:5px;padding:8px 10px}'),'R5.3 must compact ordinary explanation spacing without shrinking text');
 
 const unitToken='3.1.9-r3ui-causal-focus-r4',cssToken='3.1.9-hf3.9-r5.3-message-fit-r3',navigationToken='3.1.9-hf3.9-r5.2-action-atomicity-r1',bridgeToken='3.1.9-r3ui-progressive-proof-r7-derived-provenance',playedToken='3.1.9-a13r6-single-proof',singlePlannerToken='3.1.9-cognitive-r4-cache-contract-guard';
-const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8'),sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8');
+const index=fs.readFileSync(path.join(ROOT,'GitHub','index.html'),'utf8'),sw=fs.readFileSync(path.join(ROOT,'GitHub','sw.js'),'utf8'),build=JSON.parse(fs.readFileSync(path.join(ROOT,'GitHub','build-info.json'),'utf8'));
 assert(index.includes(`tutor-action-first-navigation.css?v=${cssToken}`));assert(sw.includes(`./tutor-action-first-navigation.css?v=${cssToken}`));
 assert(index.includes(`tutor-action-first-navigation.js?v=${navigationToken}`));assert(sw.includes(`./tutor-action-first-navigation.js?v=${navigationToken}`));
 assert(index.includes(`tango-pedagogy-unit-focus.js?v=${unitToken}`));assert(sw.includes(`./tango-pedagogy-unit-focus.js?v=${unitToken}`));
@@ -87,5 +87,7 @@ assert(!humanRegression.includes("</b><br>${detail.steps"),'relation-balance pro
 const relationCssToken='3.1.9-r3ui-relation-balance-mobile-layout-v2',humanRegressionToken='3.1.9-hf3.9-r5.4-mobile-layout-v3';
 assert(index.includes(`tango-human-pedagogy-r4.css?v=${relationCssToken}`));assert(sw.includes(`./tango-human-pedagogy-r4.css?v=${relationCssToken}`));
 assert(index.includes(`tango-tutor-human-regression-r54.js?v=${humanRegressionToken}`));
-const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch);assert.strictEqual(cacheMatch[1],'quadlud-v3.1.9-g-certification-r1-v28');
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch,'service-worker cache identity missing');
+const releasePrefix=`quadlud-v${String(build.version||'').toLowerCase().replace(/[^0-9a-z.]+/g,'-')}`;
+assert(cacheMatch[1].startsWith(releasePrefix),`service-worker cache must match current release family ${releasePrefix}`);
 console.log('v319-r3ui-pedagogy-visual-hierarchy.test.js: PASS');
