@@ -1,0 +1,12 @@
+'use strict';
+const assert=require('assert');
+const fs=require('fs');
+const path=require('path');
+const ROOT=path.resolve(__dirname,'../GitHub');
+const D=require(path.join(ROOT,'data-serialization.js'));
+assert.strictEqual(D.EXPORT_FORMAT,'quadlud-user-data');assert.strictEqual(D.EXPORT_SCHEMA,2);assert.strictEqual(D.LEGACY_EXPORT_SCHEMA,1);assert.deepStrictEqual(D.IMPORT_POLICY,{mode:'replace',merge:false});assert.strictEqual(D.EXPORT_SECTION_SCHEMAS.progression,1);
+const source=fs.readFileSync(path.join(ROOT,'data-serialization.js'),'utf8');
+for(const forbidden of ['localStorage','sessionStorage','indexedDB','XMLHttpRequest','WebSocket','fetch('])assert(!source.includes(forbidden),`serializer must remain platform/network neutral: ${forbidden}`);
+const index=fs.readFileSync(path.join(ROOT,'index.html'),'utf8'),sw=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8'),build=JSON.parse(fs.readFileSync(path.join(ROOT,'build-info.json'),'utf8')),manifest=JSON.parse(fs.readFileSync(path.join(ROOT,'manifest.webmanifest'),'utf8'));
+assert(index.includes('3.2-C · UX3-PORTABILITY-ROBUSTNESS-R1 · candidate'));assert(index.includes('data-serialization.js?v=3.2-c-ux3-r1'));assert(sw.includes("const CACHE='quadlud-v3.2-c-ux3-r1-v1'"));assert(sw.includes("'./data-serialization.js?v=3.2-c-ux3-r1'"));assert.strictEqual(build.version,'3.2-C');assert.strictEqual(build.candidate,'UX3-PORTABILITY-ROBUSTNESS-R1');assert.strictEqual(manifest.version,'3.2-C');
+console.log('v3.2-C UX-3 portability delivery contract: PASS');
