@@ -7,13 +7,17 @@ ROOT=Path(__file__).resolve().parents[1]/'GitHub'
 TOKEN='3.1.8-u14r1-coach-stability'
 index_html=(ROOT/'index.html').read_text()
 service_worker=(ROOT/'sw.js').read_text()
+build_info=json.loads((ROOT/'build-info.json').read_text())
 GAMES=json.loads(subprocess.check_output(['node','-e',f"console.log(JSON.stringify(require({json.dumps(str(ROOT/'game-manifest.js'))}).IDS))"],text=True))
 CANONICAL=['newBtn','resetBtn','undoBtn','redoBtn','hintBtn','walkthroughBtn','rulesBtn']
 
 assert f'ui-consistency-v318.css?v={TOKEN}' in index_html,'U14R1 coherence stylesheet missing from page'
 assert f'ui-consistency-v318.js?v={TOKEN}' in index_html,'U14R1 coherence runtime missing from page'
 cache_match=re.search(r"const CACHE='([^']+)'",service_worker)
-assert cache_match and cache_match.group(1).startswith('quadlud-v3.1.'),'v3.1 cache identity missing'
+version_core=str(build_info.get('version','')).split('-')[0]
+version_parts=version_core.split('.')
+cache_prefix='quadlud-v'+'.'.join(version_parts[:2])
+assert len(version_parts)>=2 and cache_match and cache_match.group(1).startswith(cache_prefix),('current cache identity missing',build_info.get('version'),cache_match.group(1) if cache_match else None)
 for asset in ['ui-consistency-v318.css','ui-consistency-v318.js']:
     assert f"'./{asset}?v={TOKEN}'" in service_worker,(asset,'U14R1 precache mismatch')
 manifest_match=re.search(r'game-manifest\.js\?v=([^"\']+)',index_html)
