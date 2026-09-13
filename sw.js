@@ -3,7 +3,7 @@
  * Copyright © 2026 Serge Benoliel. All rights reserved.
  * Proprietary software. Copying, modification, redistribution or exploitation without prior written authorization is prohibited.
  */
-const CACHE='quadlud-v3.2-b-ux2-r1-v1';
+const CACHE='quadlud-v3.2-c-ux3-r1-v1';
 const ASSETS=['./',
 './index.html',
 './styles-core.css?v=3.1.9-g-certification-r1',
@@ -39,7 +39,7 @@ const ASSETS=['./',
 './sudoku-difficulty.js?v=3.1.8',
 './platform-web.js?v=3.1.8',
 './web-storage.js?v=3.1.8',
-'./data-serialization.js?v=3.1.8',
+'./data-serialization.js?v=3.2-c-ux3-r1',
 './persistence-services.js?v=3.1.8',
 './generation-common.js?v=3.1.8',
 './queens-qpool4.js?v=3.1.8',
