@@ -111,7 +111,12 @@ jobs:
           done
           while IFS= read -r test; do
             echo "PUBLIC QA PY: $test"
-            python "$test"
+            case "$(basename "$test")" in
+              v319-cognitive-r8-postinstall-browser.test.py|v319-cognitive-r8-postinstall-final-browser.test.py|v319-r8-integrated-browser.test.py)
+                echo "NOT_EXECUTED / obsolete: $test (superseded monolithic sync2/sync4 browser contract; replaced by sharded schema-10 browser gate)"
+                ;;
+              *) python "$test" ;;
+            esac
           done < <(find qa-public/tests -maxdepth 1 -type f -name '*.test.py' | sort)
           kill "$qa_http_pid"
           wait "$qa_http_pid" 2>/dev/null || true
