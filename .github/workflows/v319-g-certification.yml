@@ -1,0 +1,68 @@
+name: QUADLUD v3.1.9-G accessibility performance certification QA
+on:
+  push:
+    branches: [candidate/v3.1.9-g-certification-r1]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: quadlud-v319-g-certification
+  cancel-in-progress: true
+jobs:
+  certification-g:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.13'}
+      - name: Install browser QA
+        run: |
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+          CHROMIUM_PATH="$(python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p: print(p.chromium.executable_path)
+          PY
+          )"
+          sudo ln -sf "$CHROMIUM_PATH" /usr/bin/chromium
+      - name: Materialize canonical QA layout
+        run: |
+          set -euo pipefail
+          Q="$RUNNER_TEMP/q";mkdir -p "$Q/GitHub" "$Q/tests"
+          rsync -a ./ "$Q/GitHub/" --exclude='.git/' --exclude='.github/' --exclude='qa-public/' --exclude='qa-release/'
+          cp -a qa-public/tests/. "$Q/tests/"
+      - name: Fresh contracts
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/q"
+          node tests/v319-g-certification-contract.test.js
+          node tests/sound-audio-service.test.js
+          node tests/v319-c-snd3-product-integration.test.js
+          node tests/v318-f1-victory-presentation.test.js
+          node tests/v319-e-grid-victory-contract.test.js
+          node tests/v319-f-rectangles-mosaic-victory-contract.test.js
+      - name: Accessibility performance and unique-victory browser matrix
+        run: cd "$RUNNER_TEMP/q" && PYTHONPATH="$PWD/tests" python tests/v319-g-accessibility-performance-browser.test.py
+      - name: Sensory mobile regressions
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/q"
+          PYTHONPATH="$PWD/tests" python tests/v319-d-lighthouses-victory-browser.test.py
+          PYTHONPATH="$PWD/tests" python tests/v319-e-grid-victory-browser.test.py
+          PYTHONPATH="$PWD/tests" python tests/v319-f-rectangles-mosaic-victory-browser.test.py
+          PYTHONPATH="$PWD/tests" python tests/v318-f1-victory-review-browser.test.py
+      - name: Five games Coach Tutor persistence and layout
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/q"
+          python -m http.server 8765 --directory GitHub >/tmp/quadlud-g-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep .25; done
+          PYTHONPATH="$PWD/tests" QUADLUD_R8_BASE_URL=http://127.0.0.1:8765/ python tests/v319-shared-games-smoke-browser.test.py
+          cd "$GITHUB_WORKSPACE"
+          PYTHONPATH="$PWD/qa-public/tests" python qa-public/tests/v319-tango-history-persistence-browser.test.py
+          cd "$RUNNER_TEMP/q"
+          PYTHONPATH="$PWD/tests" python tests/v318-u14-ui-coherence-browser.test.py

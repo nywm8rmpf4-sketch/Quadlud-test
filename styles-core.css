@@ -529,3 +529,9 @@ body .panel .toolbar .btn{min-height:44px;border-radius:12px}
   .btn.primary{background:Highlight;color:HighlightText;border-color:Highlight;box-shadow:none}
   .btn:disabled{color:GrayText;border-color:GrayText;box-shadow:none}
 }
+
+/* v3.1.9-G — accessible persisted audio controls */
+.audio-volume-control{display:flex;align-items:center;gap:10px;min-width:min(240px,55vw)}
+.audio-volume-control input[type="range"]{min-width:140px;min-height:44px;accent-color:var(--accent)}
+.audio-volume-control output{min-width:3.5em;text-align:end;font-variant-numeric:tabular-nums}
+@media(max-width:420px){.audio-volume-control{min-width:46vw}.audio-volume-control input[type="range"]{min-width:0;width:100%}}
