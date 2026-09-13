@@ -3,7 +3,7 @@
  * Copyright © 2026 Serge Benoliel. All rights reserved.
  * Proprietary software. Copying, modification, redistribution or exploitation without prior written authorization is prohibited.
  */
-const CACHE='quadlud-v3.2-c-ux3-r1-v1';
+const CACHE='quadlud-v3.2.0-release-r1-v1';
 const ASSETS=['./',
 './index.html',
 './styles-core.css?v=3.1.9-g-certification-r1',
