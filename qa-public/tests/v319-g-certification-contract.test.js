@@ -31,7 +31,7 @@ assert(app.includes("if(!current||current.completed||paused||current.training)re
 assert.strictEqual((app.match(/AudioEvents\.emit\('VICTORY'\)/g)||[]).length,1,'victory semantic event must have one owner');
 assert.strictEqual(manifest.version,'3.1.9-G');
 assert.deepStrictEqual({version:build.version,candidate:build.candidate,channel:build.channel},{version:'3.1.9-G',candidate:'ACCESSIBILITY-PERFORMANCE-CERTIFICATION-R1',channel:'Quadlud-test'});
-assert(index.includes('3.1.9-G · ACCESSIBILITY-PERFORMANCE-CERTIFICATION-R1 · candidate'));
+assert(index.includes('3.1.9-G · ACCESSIBILITY-PERFORMANCE-CERTIFICATION-R1 · publié'));
 const assets=vm.runInNewContext(sw.match(/const ASSETS=(\[[\s\S]*?\]);/)[1]);
 assert.strictEqual(new Set(assets).size,assets.length,'PWA precache contains duplicates');
 for(const asset of ['./index.html','./manifest.webmanifest','./build-info.json','./app.js?v=3.1.9-g-certification-r1','./styles-core.css?v=3.1.9-g-certification-r1'])assert(assets.includes(asset),asset);
