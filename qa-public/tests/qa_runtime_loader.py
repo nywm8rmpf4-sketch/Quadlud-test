@@ -15,6 +15,13 @@ from urllib.parse import urlsplit
 # whose only valid execution context requires that prerequisite. The full
 # product runtime remains strict and unchanged.
 _EXCLUDE_DEPENDENTS: dict[str, tuple[str, ...]] = {
+    "difficulty-rating.js": (
+        "tango-precomputed-pool-runtime.js",
+        "tango-tutor-precomputed-cache.js",
+    ),
+    "tango-played-move-planner.js": (
+        "tango-tutor-precomputed-cache.js",
+    ),
     "tango-played-move-runtime.js": (
         "tango-human-pedagogy-r4.js",
         "tango-progressive-proof-bridge.js",
