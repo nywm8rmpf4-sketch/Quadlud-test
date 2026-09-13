@@ -29,11 +29,19 @@ assert.strictEqual(played,1);
 for(const token of ["id=\"soundPedagogyToggle\"","id=\"soundVolume\"","aria-valuetext","togglePedagogicalSound","setSoundVolume"])assert(app.includes(token),token);
 assert(app.includes("if(!current||current.completed||paused||current.training)return false"),'single victory guard missing');
 assert.strictEqual((app.match(/AudioEvents\.emit\('VICTORY'\)/g)||[]).length,1,'victory semantic event must have one owner');
-assert.strictEqual(manifest.version,'3.1.9-G');
-assert.deepStrictEqual({version:build.version,candidate:build.candidate,channel:build.channel},{version:'3.1.9-G',candidate:'ACCESSIBILITY-PERFORMANCE-CERTIFICATION-R1',channel:'Quadlud-test'});
-assert(index.includes('3.1.9-G · ACCESSIBILITY-PERFORMANCE-CERTIFICATION-R1 · publié'));
+
+// This suite preserves the v3.1.9-G runtime invariants after later releases. It must
+// not freeze the global product identity at 3.1.9-G once an unchanged G runtime is
+// promoted into a newer release.
+assert.strictEqual(manifest.version,build.version,'manifest/build version drift');
+assert.strictEqual(build.channel,'Quadlud-test');
+assert(String(build.version||'').length>0,'release version missing');
+assert(index.includes('./app.js?v=3.1.9-g-certification-r1')||index.includes('app.js?v=3.1.9-g-certification-r1'),'G-certified app runtime asset must remain wired');
+assert(index.includes('styles-core.css?v=3.1.9-g-certification-r1'),'G-certified core styles must remain wired');
 const assets=vm.runInNewContext(sw.match(/const ASSETS=(\[[\s\S]*?\]);/)[1]);
 assert.strictEqual(new Set(assets).size,assets.length,'PWA precache contains duplicates');
 for(const asset of ['./index.html','./manifest.webmanifest','./build-info.json','./app.js?v=3.1.9-g-certification-r1','./styles-core.css?v=3.1.9-g-certification-r1'])assert(assets.includes(asset),asset);
-assert(sw.includes("const CACHE='quadlud-v3.1.9-g-certification-r1-v28'"));
-console.log('v3.1.9-G certification contract: audio preferences, single victory, identity and PWA PASS');
+const cacheMatch=sw.match(/const CACHE='([^']+)'/);assert(cacheMatch,'PWA cache identity missing');
+const releasePrefix=`quadlud-v${String(build.version).toLowerCase().replace(/[^0-9a-z.]+/g,'-')}`;
+assert(cacheMatch[1].startsWith(releasePrefix),`PWA cache must match current release family ${releasePrefix}`);
+console.log('v3.1.9-G preserved certification contract: audio preferences, single victory, G runtime assets and current PWA release identity PASS');
