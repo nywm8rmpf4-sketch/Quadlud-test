@@ -14,6 +14,6 @@ assert(pos('tango-runtime-pool-data.js')<pos('tango-precomputed-pool-runtime.js'
 const support=manifest.requireGame('tango').supportModules;
 for(const f of ['tango-runtime-pool-data.js','tango-precomputed-pool-runtime.js','tango-tutor-precomputed-cache.js',...DIFFS.map(d=>`tango-tutor-cache-r8-${d}.js`)])assert(support.includes(f),f);
 for(const d of DIFFS)assert(sw.includes(`./tango-tutor-cache-r8-${d}.js?v=3.1.9-r8-sync5-cognitive-sharded-lz4`),d);
-assert(sw.includes("const CACHE='quadlud-v3.1.9-f-rectangles-mosaic-r1-v27'"));assert(!sw.includes('./tango-tutor-cache-data-r8.js?v='));
+assert(sw.includes("const CACHE='quadlud-v3.1.9-g-certification-r1-v28'"));assert(!sw.includes('./tango-tutor-cache-data-r8.js?v='));
 assert(single.includes("'precomputed-guarded'")&&single.includes('P.nextPlayedMove(session,diff,options)'));
 console.log('PASS v319-r8-integrated-runtime',{schema:cache.DATA_SCHEMA,version:cache.DATA_VERSION,decoded:cache.info().decodedDifficulties,steps:cache.info().steps});
