@@ -62,5 +62,7 @@ jobs:
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           for i in $(seq 1 40); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep .25; done
           PYTHONPATH="$PWD/tests" QUADLUD_R8_BASE_URL=http://127.0.0.1:8765/ python tests/v319-shared-games-smoke-browser.test.py
-          PYTHONPATH="$PWD/tests" python tests/v319-tango-history-persistence-browser.test.py
+          cd "$GITHUB_WORKSPACE"
+          PYTHONPATH="$PWD/qa-public/tests" python qa-public/tests/v319-tango-history-persistence-browser.test.py
+          cd "$RUNNER_TEMP/q"
           PYTHONPATH="$PWD/tests" python tests/v318-u14-ui-coherence-browser.test.py
