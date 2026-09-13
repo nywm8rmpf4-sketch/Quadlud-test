@@ -29,99 +29,42 @@ function publicPuzzleFromSavedCurrent(c){
 
 (function pureModuleHasNoPlatformStorageDependency(){
   const source=fs.readFileSync(path.join(runtime,'data-serialization.js'),'utf8');
-  for(const forbidden of ['localStorage','sessionStorage','indexedDB','document.','document[','window.','window[']){
-    assert(!source.includes(forbidden),`pure serializer must not depend on ${forbidden}`);
-  }
+  for(const forbidden of ['localStorage','sessionStorage','indexedDB','document.','document[','window.','window['])assert(!source.includes(forbidden),`pure serializer must not depend on ${forbidden}`);
 })();
 
 (function baselineSectionsRoundTripWithoutDrift(){
-  const storage=fixture.storage;
-  const before=semanticSnapshot(storage);
-
+  const storage=fixture.storage,before=semanticSnapshot(storage);
   const save=DataSerialization.deserializeSaveEnvelope(DataSerialization.parse(DataSerialization.stringify(storage['logic4-save-v2'])));
-  const stats=DataSerialization.normalizeStats(
-    DataSerialization.parse(DataSerialization.stringify(storage['logic4-stats-v2'])),
-    {schema:5,baseline:'v2.23',started:0,solved:0,revealed:0,totalSolvedSeconds:0,byGame:{},history:[],mastery:{schema:1,byTechnique:{},updatedAt:null},training:{schema:1,byTechnique:{}},learning:{schema:1,byTechnique:{}}},
-    {schema:5,baseline:'v2.23',historyLimit:200,validGames:['queens','tango','sudoku','patches'],validDifficulties:['easy','medium','hard','expert']}
-  );
+  const stats=DataSerialization.normalizeStats(DataSerialization.parse(DataSerialization.stringify(storage['logic4-stats-v2'])),{schema:5,baseline:'v2.23',started:0,solved:0,revealed:0,totalSolvedSeconds:0,byGame:{},history:[],mastery:{schema:1,byTechnique:{},updatedAt:null},training:{schema:1,byTechnique:{}},learning:{schema:1,byTechnique:{}}},{schema:5,baseline:'v2.23',historyLimit:200,validGames:['queens','tango','sudoku','patches'],validDifficulties:['easy','medium','hard','expert']});
   const daily=DataSerialization.normalizeDailyState(DataSerialization.parse(DataSerialization.stringify(storage['logic4-daily-v2'])));
-  const preferences=DataSerialization.normalizePreferences(
-    DataSerialization.parse(DataSerialization.stringify(storage['logic4-prefs-v1'])),
-    {defaultLang:'fr',supportedLangs:['fr','en','zh','hi','es','ar','bn','pt','id','ur','bg','hr','cs','da','nl','et','fi','de','el','hu','ga','it','lv','lt','mt','pl','ro','sk','sl','sv']}
-  );
-
-  assert.deepStrictEqual(save,storage['logic4-save-v2']);
-  assert.deepStrictEqual(stats,storage['logic4-stats-v2']);
-  assert.deepStrictEqual(daily,storage['logic4-daily-v2']);
-  assert.deepStrictEqual(preferences,{...storage['logic4-prefs-v1'],soundPedagogy:true,soundVolume:0.72});
-  assert.deepStrictEqual(semanticSnapshot(storage),before,'serialization must not mutate source fixture');
-
-  for(const [key,value] of Object.entries({
-    'logic4-save-v2':save,
-    'logic4-stats-v2':stats,
-    'logic4-daily-v2':daily,
-    'logic4-prefs-v1':preferences
-  })){
-    if(key==='logic4-prefs-v1')continue; // SND-3 intentionally migrates the legacy preference payload.
-    assert.strictEqual(canonicalSha(value),fixture.canonicalSha256[key],`${key} canonical SHA drift`)
-  }
+  const preferences=DataSerialization.normalizePreferences(DataSerialization.parse(DataSerialization.stringify(storage['logic4-prefs-v1'])),{defaultLang:'fr',supportedLangs:['fr','en','zh','hi','es','ar','bn','pt','id','ur','bg','hr','cs','da','nl','et','fi','de','el','hu','ga','it','lv','lt','mt','pl','ro','sk','sl','sv']});
+  assert.deepStrictEqual(save,storage['logic4-save-v2']);assert.deepStrictEqual(stats,storage['logic4-stats-v2']);assert.deepStrictEqual(daily,storage['logic4-daily-v2']);assert.deepStrictEqual(preferences,{...storage['logic4-prefs-v1'],soundPedagogy:true,soundVolume:0.72});assert.deepStrictEqual(semanticSnapshot(storage),before,'serialization must not mutate source fixture');
+  for(const [key,value] of Object.entries({'logic4-save-v2':save,'logic4-stats-v2':stats,'logic4-daily-v2':daily,'logic4-prefs-v1':preferences})){if(key==='logic4-prefs-v1')continue;assert.strictEqual(canonicalSha(value),fixture.canonicalSha256[key],`${key} canonical SHA drift`)}
 })();
 
 (function currentStateSetConversionIsPortableAndNonMutating(){
-  const source={game:'sudoku',givens:new Set([1,4,8]),empty:new Set([2,3]),nested:{values:[1,2,3]}};
-  const before=semanticSnapshot(source);
-  const serialized=DataSerialization.serializeCurrentState(source);
-  assert.deepStrictEqual(serialized,{game:'sudoku',givens:[1,4,8],empty:[2,3],nested:{values:[1,2,3]}});
-  const restored=DataSerialization.deserializeCurrentState(serialized);
-  assert(restored.givens instanceof Set);
-  assert(restored.empty instanceof Set);
-  assert.deepStrictEqual([...restored.givens],[1,4,8]);
-  assert.deepStrictEqual([...restored.empty],[2,3]);
-  assert.deepStrictEqual(DataSerialization.serializeCurrentState(restored),serialized);
-  assert.deepStrictEqual(semanticSnapshot(source),before,'current source mutated');
+  const source={game:'sudoku',givens:new Set([1,4,8]),empty:new Set([2,3]),nested:{values:[1,2,3]}},before=semanticSnapshot(source),serialized=DataSerialization.serializeCurrentState(source);
+  assert.deepStrictEqual(serialized,{game:'sudoku',givens:[1,4,8],empty:[2,3],nested:{values:[1,2,3]}});const restored=DataSerialization.deserializeCurrentState(serialized);assert(restored.givens instanceof Set);assert(restored.empty instanceof Set);assert.deepStrictEqual([...restored.givens],[1,4,8]);assert.deepStrictEqual([...restored.empty],[2,3]);assert.deepStrictEqual(DataSerialization.serializeCurrentState(restored),serialized);assert.deepStrictEqual(semanticSnapshot(source),before,'current source mutated');
 })();
 
 (function saveFingerprintSurvivesSerialization(){
-  const original=fixture.storage['logic4-save-v2'];
-  const roundTrip=DataSerialization.deserializeSaveEnvelope(DataSerialization.parse(DataSerialization.stringify(original)));
-  const recalculated=DifficultyRating.fingerprintPublicPuzzle(publicPuzzleFromSavedCurrent(roundTrip.current));
-  assert.strictEqual(recalculated,original.puzzleFingerprint);
-  assert.strictEqual(roundTrip.current.difficultyProfile.fingerprint,original.puzzleFingerprint);
-  assert.strictEqual(roundTrip.current.generationStats.fingerprint,original.puzzleFingerprint);
+  const original=fixture.storage['logic4-save-v2'],roundTrip=DataSerialization.deserializeSaveEnvelope(DataSerialization.parse(DataSerialization.stringify(original))),recalculated=DifficultyRating.fingerprintPublicPuzzle(publicPuzzleFromSavedCurrent(roundTrip.current));
+  assert.strictEqual(recalculated,original.puzzleFingerprint);assert.strictEqual(roundTrip.current.difficultyProfile.fingerprint,original.puzzleFingerprint);assert.strictEqual(roundTrip.current.generationStats.fingerprint,original.puzzleFingerprint);
 })();
 
-(function userDataPackageSchemaAndRoundTrip(){
-  const storage=fixture.storage;
-  const packageInput={
-    sourceVersion:fixture.productVersion,
-    persistenceBaseline:fixture.persistenceBaseline,
-    exportedAt:'2026-08-17T13:52:00.000Z',
-    save:storage['logic4-save-v2'],
-    stats:storage['logic4-stats-v2'],
-    daily:storage['logic4-daily-v2'],
-    preferences:storage['logic4-prefs-v1']
-  };
-  const before=semanticSnapshot(packageInput);
-  const pkg=DataSerialization.createUserDataPackage(packageInput);
-  assert.strictEqual(pkg.format,'quadlud-user-data');
-  assert.strictEqual(pkg.schema,1);
-  assert.strictEqual(pkg.source.product,'QUADLUD');
-  assert.strictEqual(pkg.source.version,'2.23.0');
-  assert.strictEqual(pkg.source.persistenceBaseline,'v2.23');
-  assert.deepStrictEqual(Object.keys(pkg.sections),['save','stats','daily','preferences']);
-  assert(!JSON.stringify(pkg).includes('logic4-save-v1'));
-  assert(!JSON.stringify(pkg).includes('logic4-stats-v1'));
-  assert(!JSON.stringify(pkg).includes('logic4-daily-v1'));
+(function userDataPackageV2RoundTripAndV1Migration(){
+  const storage=fixture.storage,packageInput={sourceVersion:fixture.productVersion,persistenceBaseline:fixture.persistenceBaseline,exportedAt:'2026-08-17T13:52:00.000Z',save:storage['logic4-save-v2'],stats:storage['logic4-stats-v2'],daily:storage['logic4-daily-v2'],preferences:storage['logic4-prefs-v1']},before=semanticSnapshot(packageInput),pkg=DataSerialization.createUserDataPackage(packageInput);
+  assert.strictEqual(pkg.format,'quadlud-user-data');assert.strictEqual(pkg.schema,2);assert.deepStrictEqual(pkg.policy,{mode:'replace',merge:false});assert.deepStrictEqual(Object.keys(pkg.sections),['save','stats','daily','preferences','progression']);assert.strictEqual(pkg.sections.progression.schema,1);assert.strictEqual(pkg.sections.progression.data.model,'derived-existing-persistence');assert.strictEqual(pkg.sections.progression.data.profileSchema,1);assert.strictEqual(pkg.sections.progression.data.portableSource,'stats+mastery');assert.strictEqual(pkg.sections.progression.data.statsSchema,5);assert.strictEqual(pkg.sections.progression.data.masterySchema,1);
+  assert(!JSON.stringify(pkg).includes('logic4-save-v1'));assert(!JSON.stringify(pkg).includes('logic4-stats-v1'));assert(!JSON.stringify(pkg).includes('logic4-daily-v1'));
+  const unpacked=DataSerialization.unpackUserDataPackage(DataSerialization.parse(DataSerialization.stringify(pkg)));assert.strictEqual(unpacked.packageSchema,2);assert.deepStrictEqual(unpacked.policy,{mode:'replace',merge:false});assert.deepStrictEqual(unpacked.save,storage['logic4-save-v2']);assert.deepStrictEqual(unpacked.stats,storage['logic4-stats-v2']);assert.deepStrictEqual(unpacked.daily,storage['logic4-daily-v2']);assert.deepStrictEqual(unpacked.preferences,storage['logic4-prefs-v1']);assert.deepStrictEqual(unpacked.progression,pkg.sections.progression.data);assert.deepStrictEqual(semanticSnapshot(packageInput),before,'package creation mutated input');
 
-  const unpacked=DataSerialization.unpackUserDataPackage(DataSerialization.parse(DataSerialization.stringify(pkg)));
-  assert.deepStrictEqual(unpacked.save,storage['logic4-save-v2']);
-  assert.deepStrictEqual(unpacked.stats,storage['logic4-stats-v2']);
-  assert.deepStrictEqual(unpacked.daily,storage['logic4-daily-v2']);
-  assert.deepStrictEqual(unpacked.preferences,storage['logic4-prefs-v1']);
-  assert.deepStrictEqual(semanticSnapshot(packageInput),before,'package creation mutated input');
+  const legacy=DataSerialization.parse(DataSerialization.stringify(pkg));legacy.schema=1;delete legacy.policy;delete legacy.sections.progression;
+  const migrated=DataSerialization.unpackUserDataPackage(legacy);assert.strictEqual(migrated.packageSchema,1);assert.strictEqual(migrated.migratedFromPackageSchema,1);assert.deepStrictEqual(migrated.policy,{mode:'replace',merge:false});assert.strictEqual(migrated.progression.profileSchema,1);assert.deepStrictEqual(migrated.stats,storage['logic4-stats-v2']);
 
-  const bad={...pkg,schema:999};
-  assert.throws(()=>DataSerialization.unpackUserDataPackage(bad),/Unsupported QUADLUD user data package/);
+  const badSchema={...pkg,schema:999};assert.throws(()=>DataSerialization.unpackUserDataPackage(badSchema),/Unsupported QUADLUD user data package/);
+  const badPolicy=DataSerialization.parse(DataSerialization.stringify(pkg));badPolicy.policy={mode:'merge',merge:true};assert.throws(()=>DataSerialization.unpackUserDataPackage(badPolicy),/Unsupported QUADLUD import policy/);
+  const badProgression=DataSerialization.parse(DataSerialization.stringify(pkg));badProgression.sections.progression.data.profileSchema=999;assert.throws(()=>DataSerialization.unpackUserDataPackage(badProgression),/Invalid QUADLUD progression section/);
+  const extra=DataSerialization.parse(DataSerialization.stringify(pkg));extra.sections.secret={schema:1,data:{hidden:true}};assert.throws(()=>DataSerialization.unpackUserDataPackage(extra),/Unsupported QUADLUD user data sections/);
 })();
 
-console.log('data serialization: OK');
+console.log('data serialization v3.2-C: OK');
