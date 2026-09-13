@@ -64,5 +64,4 @@ jobs:
       - name: Public runtime guard
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/q"
-          PYTHONPATH="$PWD/tests" python tests/public_runtime_guard.py
+          PYTHONPATH="$GITHUB_WORKSPACE/qa-public/tests" python qa-public/tests/public_runtime_guard.py
