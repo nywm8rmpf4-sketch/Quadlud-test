@@ -39,6 +39,7 @@ jobs:
           cd "$RUNNER_TEMP/q"
           node tests/v319-g-certification-contract.test.js
           node tests/v319-r3ui-tango-contradiction-visual-integration.test.js
+          node tests/v319-r8-integrated-runtime.test.js
           node tests/sound-audio-service.test.js
           node tests/v319-c-snd3-product-integration.test.js
           node tests/v318-f1-victory-presentation.test.js
