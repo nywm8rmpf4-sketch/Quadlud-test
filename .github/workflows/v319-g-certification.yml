@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
-  group: quadlud-v319-g-certification
+  group: quadlud-v319-g-certification-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   certification-g:
