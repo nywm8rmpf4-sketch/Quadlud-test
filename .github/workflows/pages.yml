@@ -194,7 +194,7 @@ jobs:
               identity = page.locator('#testBuildId').inner_text()
               assert expected['version'] in identity, identity
               assert expected['candidate'] in identity, identity
-              assert 'publié' in identity, identity
+              assert 'candidate' in identity, identity
               assert page.locator('#homeBtn').count() == 1
               assert not errors, errors
               print('DEPLOYED_SMOKE_PASS', base, identity, 'last-modified=', last_modified)
