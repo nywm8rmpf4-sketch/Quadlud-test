@@ -2,7 +2,8 @@
 const assert=require('assert');
 const fs=require('fs');
 const path=require('path');
-const UX=require('../../victory-insight.js');
+const ROOT=path.resolve(__dirname,'../..');
+const UX=require(path.join(ROOT,'victory-insight.js'));
 
 assert.strictEqual(UX.VERSION,1);
 assert.strictEqual(UX.MAX_REPLAY_MOMENTS,6);
@@ -28,7 +29,13 @@ const sampled=UX.buildModel(many);assert.strictEqual(sampled.replay.length,6);as
 
 const html=UX.renderHtml(model,{tr:k=>k,formatNode:n=>`node-${n.id}`,techniqueLabel:t=>`tech-${t}`,formatSeconds:s=>`${s}s`});assert(html.includes('victory-insight'));assert(html.includes('tech-pair'));assert(html.includes('node-h2'));assert(!html.includes('unjustified'));
 
-const source=fs.readFileSync(path.join(__dirname,'../../victory-insight.js'),'utf8');
+const source=fs.readFileSync(path.join(ROOT,'victory-insight.js'),'utf8');
 for(const forbidden of ['localStorage','PersistentData','saveCurrent(','writeStats(','statsFinish(','solutionGrid','hiddenSolution','current.sol','AudioEvents.emit','SemanticAudio','fetch(','XMLHttpRequest'])assert(!source.includes(forbidden),`forbidden UX-1 dependency: ${forbidden}`);
 assert(source.includes("justification?.status==='justified'"));assert(source.includes('ephemeral:true'));
-console.log('v3.2-A UX-1 ephemeral victory insight contract: PASS');
+
+const index=fs.readFileSync(path.join(ROOT,'index.html'),'utf8'),sw=fs.readFileSync(path.join(ROOT,'sw.js'),'utf8'),css=fs.readFileSync(path.join(ROOT,'styles-v32-ux1.css'),'utf8'),build=JSON.parse(fs.readFileSync(path.join(ROOT,'build-info.json'),'utf8')),manifest=JSON.parse(fs.readFileSync(path.join(ROOT,'manifest.webmanifest'),'utf8'));
+assert(index.includes('styles-v32-ux1.css?v=3.2-a-ux1-r1'));assert(index.includes('victory-insight.js?v=3.2-a-ux1-r1'));assert(index.indexOf('victory-insight.js?v=3.2-a-ux1-r1')>index.indexOf('app.js?v=3.1.9-g-certification-r1'));
+assert(sw.includes("quadlud-v3.2-a-ux1-r1-v29"));assert(sw.includes("'./styles-v32-ux1.css?v=3.2-a-ux1-r1'"));assert(sw.includes("'./victory-insight.js?v=3.2-a-ux1-r1'"));
+assert.strictEqual(build.version,'3.2-A');assert.strictEqual(build.candidate,'UX1-VICTORY-INSIGHT-R1');assert.strictEqual(manifest.version,'3.2-A');
+assert(css.includes('prefers-reduced-motion'));assert(css.includes('forced-colors'));assert(!css.includes('overflow-y:auto'));
+console.log('v3.2-A UX-1 ephemeral victory insight + integration contract: PASS');
