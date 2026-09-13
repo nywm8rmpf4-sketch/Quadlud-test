@@ -1,7 +1,7 @@
 name: QUADLUD v3.1.9-G accessibility performance certification QA
 on:
   push:
-    branches: [candidate/v3.1.9-g-certification-r1]
+    branches: ['candidate/v3.1.9-g-*']
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
