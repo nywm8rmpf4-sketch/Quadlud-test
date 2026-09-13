@@ -11,7 +11,7 @@ BROWSER=os.environ.get('QUADLUD_BROWSER','chromium').strip().lower()
 VIEWPORT={'width':390,'height':844}
 DIFFS=['easy','medium','hard','expert']
 EXPECTED_STEPS={'easy':3469,'medium':3721,'hard':3811,'expert':3860}
-EXPECTED_CACHE='quadlud-v3.1.9-tango-r8-sync5-cognitive-sharded-lz4-v23'
+EXPECTED_CACHE='quadlud-v3.1.9-f-rectangles-mosaic-r1-v27'
 EXPECTED_CONTRACT='61749a9d20f1dda8c2747e4129a480bc74323fb27dc9c84e8fd8ab49227b6c3c'
 
 def cache_info(page):
