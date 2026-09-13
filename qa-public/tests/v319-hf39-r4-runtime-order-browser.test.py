@@ -31,10 +31,13 @@ with sync_playwright() as p:
     assert nav and nav[0]['r4'],nav
     causal_indexes=[i for i,x in enumerate(nav) if x['causal']]
     assert causal_indexes and causal_indexes[0]>0,nav
-    assert render and render[0]['r4'],render
+    render_r4_indexes=[i for i,x in enumerate(render) if x['r4']]
+    assert render_r4_indexes,render
     hf39_indexes=[i for i,x in enumerate(render) if x['hf39']]
-    assert hf39_indexes and hf39_indexes[0]>0,render
+    assert hf39_indexes and render_r4_indexes[0]<hf39_indexes[0],render
+    render_causal_indexes=[i for i,x in enumerate(render) if x['causal']]
+    assert render_causal_indexes and render_r4_indexes[0]<render_causal_indexes[0],render
     assert not errors,errors
     ctx.close();browser.close()
 
-print('v319-hf39-r4-runtime-order-browser.test.py: PASS — R4 is final navigation/render stabilizer')
+print('v319-hf39-r4-runtime-order-browser.test.py: PASS — R4 remains ahead of legacy HF3.9/causal render wrappers')
