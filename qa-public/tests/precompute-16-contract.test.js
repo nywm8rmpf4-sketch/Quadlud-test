@@ -5,7 +5,6 @@ const vm=require('vm');
 const Manifest=require('../GitHub/game-manifest.js');
 
 const ROOT=path.resolve(__dirname,'..','GitHub');
-const VERSION=JSON.parse(fs.readFileSync(path.join(ROOT,'manifest.webmanifest'),'utf8')).version;
 function noop(){}
 function classList(){return {add:noop,remove:noop,toggle:noop,contains:()=>false}}
 function el(){return new Proxy({innerHTML:'',textContent:'',value:'',checked:false,hidden:false,dataset:{},style:{setProperty:noop,removeProperty:noop},classList:classList(),children:[],appendChild:noop,insertAdjacentHTML:noop,addEventListener:noop,querySelector:()=>el(),querySelectorAll:()=>[],setAttribute:noop,removeAttribute:noop,remove:noop,getBoundingClientRect:()=>({left:0,top:0,width:320,height:320})},{get:(t,p)=>p in t?t[p]:noop,set:(t,p,v)=>(t[p]=v,true)})}
@@ -54,7 +53,8 @@ context.Worker=FakeWorker;
 vm.runInContext("WebPrecompute.setPreferred(null,null);resetPrecomputeDay('2026-08-17')",context);
 const fake=vm.runInContext('ensurePrecomputeWorker()',context);
 assert.ok(fake instanceof FakeWorker);
-assert.strictEqual(fake.url,`./precompute-worker.js?v=${VERSION}`);
+const appRuntimeVersion=vm.runInContext('VERSION',context);
+assert.strictEqual(fake.url,`./precompute-worker.js?v=${appRuntimeVersion}`,'worker cache-buster must follow the app runtime identity that owns the worker contract');
 vm.runInContext("Math.random=mulberry32(hash32('stage16-cache-valid')); __stage16Valid=queenCandidate('easy')",context);
 const valid=context.__stage16Valid;
 const bad=structuredClone(valid);bad.difficultyProfile={...bad.difficultyProfile,fingerprint:'qfp1-00000000000000000000000000000000'};
